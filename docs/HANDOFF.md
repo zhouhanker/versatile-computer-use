@@ -7,6 +7,16 @@
 
 ---
 
+## 0. 最新用户反馈（2026-09-18，Ghostty 重启前补充）
+
+1. **飞书**：给「张北北」发送 `Test` **未成功**（对方未收到）。上一会话 `osascript` 虽返回 `ok`，但投递失败——需重做飞书发送链路（焦点/会话选择/发送键/辅助功能）。
+2. **Edge 远程调试已开启**（用户确认）。下一会话应优先：
+   - `vcu browser discover --json` 找到 CDP port
+   - `vcu config set-cdp http://127.0.0.1:<port>`
+   - 重跑 `scripts/poc_etherscan_labels.sh`，目标 `MODE=TAKEOVER_CDP` + 登录态 label 树
+
+---
+
 ## 1. 项目是什么
 
 **VCU（Versatile Computer Use）**：与 Agent 宿主 / 模型厂商解耦的本地 Computer Use 运行时。
@@ -151,7 +161,7 @@ bash scripts/poc_self_lifecycle.sh # update/uninstall，且确认 Codex CU 仍�
 
 | 场景 | 脚本 | 结果 | 备注 |
 |------|------|------|------|
-| 飞书给张北北发 `Test` | `scripts/poc_feishu_message.sh` | `osa_out=ok`，`feishu_id=proc:Feishu:…` | **需用户在飞书内人工确认是否收到**；要辅助功能权限 |
+| 飞书给张北北发 `Test` | `scripts/poc_feishu_message.sh` | `osa_out=ok` 但 **用户确认张北北未收到** | **失败待修**：不能相信 osascript 的 ok；需校验会话/输入框/发送 |
 | Etherscan labelcloud | `scripts/poc_etherscan_labels.sh` | 产出在 `~/vcu-etherscan-labels/` | 见下节 |
 | WeChat | — | `allowed=false`，无自动化脚本 | 硬禁止 |
 | Codex CU | — | uninstall 测试后目录仍在 | 硬禁止删除 |
@@ -173,9 +183,9 @@ bash scripts/poc_self_lifecycle.sh # update/uninstall，且确认 Codex CU 仍�
 - **NEW**：临时 Edge profile + CDP → **没有**用户登录 Cookie  
 - **TAKEOVER**：需对**已运行且已开 remote debugging** 的 Chrome/Edge 做 CDP attach → 才能带登录态  
 
-接管步骤（重启后优先做）：
+接管步骤（**用户已确认 Edge 远程调试已开启**）：
 
-1. 日常 Edge 打开 `edge://inspect/#remote-debugging` → 启用  
+1. ~~启用 remote debugging~~ **已完成**  
 2. `vcu browser discover --json`  
 3. `vcu config set-cdp http://127.0.0.1:<port>`  
 4. `bash scripts/poc_etherscan_labels.sh`  
@@ -191,8 +201,8 @@ bash scripts/poc_self_lifecycle.sh # update/uninstall，且确认 Codex CU 仍�
 
 1. ~~卸载/更新命令~~ **已完成**（`vcu self *`）  
 2. ~~本地安装~~ **已完成**  
-3. 飞书消息 — POC 已跑通 osascript；**待用户确认投递**；可按需加强 AX 稳定性  
-4. Etherscan **登录态 L1/L2/L3** — **阻塞于浏览器 remote debugging 接管**；启用后继续写树形解析  
+3. 飞书消息 — **失败（张北北未收到）**；需重做发送校验与 UI 流程  
+4. Etherscan **登录态 L1/L2/L3** — Edge 远程调试**已开**；优先 discover + TAKEOVER 抓树  
 5. ~~逆向 Codex CU / OriginOne~~ **文档已写**（只读）  
 6. 测试方法论 — 已有 `docs/testing/METHODOLOGY.md`；可继续网上对标补强  
 7. 更全浏览器/App 用例矩阵 — 部分完成，需扩 Safari、多 tab 折叠、虚拟光标 overlay（Codex 风格 UX）  
@@ -202,9 +212,9 @@ bash scripts/poc_self_lifecycle.sh # update/uninstall，且确认 Codex CU 仍�
 ### 建议的下一会话顺序
 
 1. 确认 PATH 与 `vcu doctor`  
-2. 用户启用 Edge/Chrome remote debugging → 重跑 Etherscan **TAKEOVER**  
+2. Edge remote debugging **已开** → `browser discover` + Etherscan **TAKEOVER**  
 3. 实现 labelcloud 层级 DOM 解析 → 稳定写入 `labels_tree.json`  
-4. 飞书：确认消息；失败则查辅助功能并改 AX 流程  
+4. 飞书：**修复发送**（张北北未收到），加成功/失败可观测校验  
 5. Codex 风格 UX：Agent 窗/标签管理、可选虚拟光标 overlay（不碰 Codex 安装）  
 6. 打正式 GitHub Release 资产（若 CI release 未成功发布）  
 7. Windows 包验证与 UIA 深化（macOS 优先项完成后）
@@ -242,7 +252,7 @@ bash scripts/poc_self_lifecycle.sh # update/uninstall，且确认 Codex CU 仍�
 先读 docs/HANDOFF.md 与 docs/macos/BROWSER_TAKEOVER.md。
 硬约束：禁止动 Codex Computer Use；禁止微信自动化；作者必须是 zhouhanker。
 本地已安装 vcu 0.1.0 到 ~/.local/bin。
-优先：1) Edge remote debugging 接管后重跑 etherscan L1/L2/L3；2) 确认飞书消息；3) 持续 macOS 打磨与迭代。
+优先：1) Edge 已开 remote debugging → discover + etherscan TAKEOVER + L1/L2/L3；2) 修复飞书（张北北未收到 Test）；3) 持续 macOS 打磨。禁止动 Codex CU / 微信。
 ```
 
 ---
