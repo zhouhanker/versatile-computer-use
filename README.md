@@ -89,6 +89,8 @@ make check   # test + mock poc + cdp poc + release build
 
 ## 文档
 
+- **会话交接（必读）：** [`docs/HANDOFF.md`](docs/HANDOFF.md)
+
 - 安装：`docs/INSTALL.md`
 - 验收矩阵：`evals/ACCEPTANCE.md`
 

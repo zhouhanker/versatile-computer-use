@@ -31,3 +31,7 @@ Authoritative sources:
 - Do not implement runtime/browser/extension product code before design acceptance is recorded in the ledger.
 - Prefer editing authoritative Markdown/YAML sources; reindex with `awr source reindex`.
 - Preserve unrelated edits; keep commits focused.
+
+## Session continuity
+
+On a new session (e.g. after terminal restart), read **`docs/HANDOFF.md` first** for full project context, install state, test results, and next tasks.
