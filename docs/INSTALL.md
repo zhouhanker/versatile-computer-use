@@ -1,54 +1,53 @@
 # Install (no npm / no source tree required)
 
+Repository: https://github.com/zhouhanker/versatile-computer-use
+
 ## macOS / Linux — curl
 
 ```bash
-# After you host dist/ + install.sh on a release URL:
-curl -fsSL https://<host>/install.sh | sh
-
-# Local mirror (pack first: bash scripts/pack-release.sh)
-curl -fsSL file:///path/to/repo/scripts/install/install.sh | VCU_BASE_URL=file:///path/to/repo/dist sh
-# or simply:
-VCU_BASE_URL=file:///path/to/repo/dist VCU_PREFIX=~/.local bash scripts/install/install.sh
+curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh | sh
 ```
 
-Installs prebuilt binaries to `~/.local/bin` and extension under `~/.local/share/vcu/extension`.
+Installs to `~/.local/bin` (`vcu`, `vcu-daemon`, `vcu-mcp`) and bundles the browser extension under `~/.local/share/vcu/extension`.
+
+### Local mirror (dev)
+
+```bash
+bash scripts/pack-release.sh
+VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
+```
 
 ## Windows — irm
 
 ```powershell
-irm https://<host>/install.ps1 | iex
-# local:
-$env:VCU_BASE_URL = 'file:///C:/path/to/dist'
-# then run scripts/install/install.ps1
+irm https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.ps1 | iex
 ```
 
-## Maintainers: pack binaries
+## Release artifacts (CI)
+
+| Asset | Platform |
+| --- | --- |
+| `vcu-*-macos-arm64.tar.gz` | Apple Silicon |
+| `vcu-*-macos-x64.tar.gz` | Intel Mac |
+| `vcu-*-windows-x64.tar.gz` | Windows x64 |
+| `install.sh` / `install.ps1` | installers |
+
+Built by `.github/workflows/ci.yml` (artifacts) and `.github/workflows/release.yml` (GitHub Release on tag `v*`).
+
+## After install
 
 ```bash
-bash scripts/pack-release.sh
-# dist/vcu-latest-macos-arm64.tar.gz + .sha256
-# publish install.sh / install.ps1 beside archives
+export PATH="$HOME/.local/bin:$PATH"
+vcu init
+vcu daemon start --foreground
+# macOS login service:
+vcu service install
+vcu mcp print-config --json
 ```
 
-## Verify installer
+## Verify
 
 ```bash
 bash scripts/poc_install_curl.sh
-```
-
-## macOS daemon at login
-
-```bash
-bash scripts/macos/install-launch-agent.sh
-```
-
-## MCP (agent integration)
-
-See `docs/design/05-agent-integration.md`.
-
-```bash
-vcu init
-vcu daemon start --foreground
-vcu mcp print-config --json
+cargo test --workspace
 ```

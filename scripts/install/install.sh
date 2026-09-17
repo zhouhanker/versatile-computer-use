@@ -12,7 +12,7 @@ VCU_BIN_DIR="${VCU_BIN_DIR:-$VCU_PREFIX/bin}"
 VCU_SHARE_DIR="${VCU_SHARE_DIR:-$VCU_PREFIX/share/vcu}"
 # Base URL hosting archives. Override for private mirrors or local file server.
 # Example local test: VCU_BASE_URL=file:///path/to/dist
-VCU_BASE_URL="${VCU_BASE_URL:-https://github.com/zhouhanker/versatile-computer-use/releases/download}"
+VCU_BASE_URL="${VCU_BASE_URL:-https://github.com/zhouhanker/versatile-computer-use/releases/latest/download}"
 VCU_REPO_LATEST_API="${VCU_REPO_LATEST_API:-}"
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -51,10 +51,13 @@ resolve_archive_url() {
     return
   fi
   if [[ "$VCU_VERSION" == "latest" ]]; then
-    # Prefer explicit latest asset naming on a static host / release tag "latest"
-    echo "${VCU_BASE_URL%/}/latest/vcu-latest-${PLAT}.tar.gz"
+    # default BASE is .../releases/latest/download
+    echo "${VCU_BASE_URL%/}/vcu-latest-${PLAT}.tar.gz"
   else
-    echo "${VCU_BASE_URL%/}/v${VCU_VERSION}/vcu-${VCU_VERSION}-${PLAT}.tar.gz"
+    # versioned: .../releases/download/vX.Y.Z/
+    base="${VCU_BASE_URL%/}"
+    base="${base%/latest/download}"
+    echo "${base}/download/v${VCU_VERSION}/vcu-${VCU_VERSION}-${PLAT}.tar.gz"
   fi
 }
 

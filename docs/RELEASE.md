@@ -1,31 +1,29 @@
 # Release & CI packaging
 
-Repository: https://github.com/zhouhanker/versatile-computer-use
+Repo: https://github.com/zhouhanker/versatile-computer-use
 
-## Automated packages (GitHub Actions)
+## Packages (minimum)
 
-| Workflow | Trigger | Artifacts |
+- **macos-arm64**
+- **macos-x64** (cross-built on macos-14)
+- **windows-x64**
+
+## Workflows
+
+| File | When | Output |
 | --- | --- | --- |
-| `ci.yml` | push/PR | test + **package** job uploads `vcu-macos-arm64`, `vcu-macos-x64`, `vcu-windows-x64` |
-| `release.yml` | tag `v*` or manual | GitHub Release assets + `install.sh` / `install.ps1` |
+| `ci.yml` | push/PR | tests + upload-artifact packages |
+| `release.yml` | tag `v0.1.0` etc. | GitHub Release + install.sh/ps1 |
 
-### Platforms (minimum)
-
-- **macos-arm64** (macos-14 runner)
-- **macos-x64** (macos-13 runner)
-- **windows-x64** (windows-latest)
-
-### User install after release
+## Publish a release
 
 ```bash
-curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh | sh
+git tag v0.1.0
+git push origin v0.1.0
+# release.yml attaches macOS arm64/x64 + Windows x64 tarballs
 ```
 
-```powershell
-irm https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.ps1 | iex
-```
-
-### Local pack
+## Local
 
 ```bash
 bash scripts/pack-release.sh
