@@ -1,0 +1,49 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/vcu-core",
+    "crates/vcu-server",
+    "crates/vcu-cli",
+    "crates/vcu-daemon",
+    "crates/vcu-mcp",
+]
+default-members = [
+    "crates/vcu-cli",
+    "crates/vcu-daemon",
+    "crates/vcu-mcp",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["VCU Contributors"]
+
+[workspace.dependencies]
+vcu-core = { path = "crates/vcu-core" }
+vcu-server = { path = "crates/vcu-server" }
+anyhow = "1"
+async-trait = "0.1"
+axum = { version = "0.8", features = ["macros"] }
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+dirs = "6"
+futures = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+ulid = { version = "0.5", features = ["serde"] }
+tempfile = "3"
+pretty_assertions = "1"
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+url = "2"
+hex = "0.4"
+rand = "0.8"

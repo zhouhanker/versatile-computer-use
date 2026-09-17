@@ -1,0 +1,112 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            triple: aarch64-apple-darwin
+          - os: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            triple: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: test
+        run: cargo test --workspace
+      - name: mock poc (unix)
+        if: runner.os != 'Windows'
+        run: |
+          cargo build -p vcu-cli -p vcu-daemon -p vcu-mcp
+          bash scripts/poc_mock_flow.sh
+          bash scripts/poc_actions_extra.sh
+      - name: mock smoke (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build -p vcu-cli -p vcu-daemon -p vcu-mcp
+          $bin = "target/debug"
+          $env:Path = "$pwd\$bin;$env:Path"
+          $ud = Join-Path $env:TEMP ("vcu-ci-" + [guid]::NewGuid())
+          New-Item -ItemType Directory -Force -Path $ud | Out-Null
+          & "$bin/vcu.exe" --user-dir $ud init --json
+          $cfgPath = Join-Path $ud "config.json"
+          $cfg = Get-Content $cfgPath | ConvertFrom-Json
+          $cfg.daemon_port = 19000 + (Get-Random -Maximum 1000)
+          $cfg | ConvertTo-Json | Set-Content $cfgPath
+          $d = Start-Process -FilePath "$bin/vcu-daemon.exe" -ArgumentList @("--user-dir", $ud) -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 1
+          $s = & "$bin/vcu.exe" --user-dir $ud session start --backend mock --json | ConvertFrom-Json
+          if (-not $s.ok) { throw "session start failed" }
+          $sid = $s.data.session_id
+          $n = & "$bin/vcu.exe" --user-dir $ud navigate --session $sid --url "https://example.com" --json | ConvertFrom-Json
+          if (-not $n.ok) { throw "navigate failed" }
+          $snap = & "$bin/vcu.exe" --user-dir $ud snapshot --session $sid --mode a11y --json | ConvertFrom-Json
+          if (-not $snap.ok) { throw "snapshot failed" }
+          Stop-Process -Id $d.Id -Force -ErrorAction SilentlyContinue
+          Write-Host "WINDOWS MOCK SMOKE PASSED"
+
+  package:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            plat: macos-arm64
+          - os: macos-13
+            plat: macos-x64
+          - os: windows-latest
+            plat: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: pack (unix)
+        if: runner.os != 'Windows'
+        run: |
+          bash scripts/pack-release.sh
+          ls -la dist/
+      - name: pack (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build --release -p vcu-cli -p vcu-daemon -p vcu-mcp
+          $ver = "0.1.0"
+          $plat = "windows-x64"
+          $stage = "dist/stage/vcu-$ver-$plat"
+          New-Item -ItemType Directory -Force -Path "$stage/bin","$stage/extension","$stage/skills","$stage/docs" | Out-Null
+          Copy-Item target/release/vcu.exe "$stage/bin/"
+          Copy-Item target/release/vcu-daemon.exe "$stage/bin/"
+          Copy-Item target/release/vcu-mcp.exe "$stage/bin/"
+          if (Test-Path extension) { Copy-Item extension/* "$stage/extension/" -Recurse -Force }
+          if (Test-Path skills) { Copy-Item skills/* "$stage/skills/" -Recurse -Force }
+          if (Test-Path docs/INSTALL.md) { Copy-Item docs/INSTALL.md "$stage/docs/" }
+          Copy-Item README.md,LICENSE "$stage/" -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          tar -C dist/stage -czf "dist/vcu-$ver-$plat.tar.gz" "vcu-$ver-$plat"
+          Copy-Item "dist/vcu-$ver-$plat.tar.gz" "dist/vcu-latest-$plat.tar.gz"
+          Get-FileHash "dist/vcu-$ver-$plat.tar.gz" -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  vcu-$ver-$plat.tar.gz" } |
+            Set-Content "dist/vcu-$ver-$plat.tar.gz.sha256"
+          Copy-Item "dist/vcu-$ver-$plat.tar.gz.sha256" "dist/vcu-latest-$plat.tar.gz.sha256"
+          Get-ChildItem dist
+      - name: upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcu-${{ matrix.plat }}
+          path: |
+            dist/vcu-*.tar.gz
+            dist/vcu-*.sha256
+            scripts/install/install.sh
+            scripts/install/install.ps1
+          if-no-files-found: error

@@ -1,0 +1,17 @@
+[package]
+name = "vcu-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "vcu-daemon"
+path = "src/main.rs"
+
+[dependencies]
+vcu-core = { workspace = true }
+vcu-server = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

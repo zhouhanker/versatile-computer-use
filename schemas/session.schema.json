@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VcuSession",
+  "type": "object",
+  "required": ["session_id", "adapter", "backend", "policy", "vision_policy"],
+  "properties": {
+    "session_id": { "type": "string" },
+    "adapter": { "const": "browser" },
+    "backend": { "enum": ["mock", "cdp", "extension"] },
+    "policy": {
+      "type": "object",
+      "required": ["focus", "os_cursor", "borrow_required_for_user_tabs"],
+      "properties": {
+        "focus": { "const": "agent_window_only" },
+        "os_cursor": { "const": "deny" },
+        "borrow_required_for_user_tabs": { "const": true }
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+# AWR runtime
+.awr/state.db
+# keep intake sources tracked if force-added
+
+.awr/state.db-*
+.awr/*.lock
+
+# Rust
+/target/
+**/*.rs.bk
+
+# Node
+node_modules/
+extension/dist/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets & local
+.env
+.env.*
+!.env.example
+.local/
+*.pem
+
+# Captures / build output (CI uploads artifacts; don't commit large packs)
+captures/
+dist/stage/
+dist/*.tar.gz
+dist/*.zip
+dist/*.sha256
+!dist/.gitkeep
+
+# Packaged latest pointers can stay out
+dist/latest-*.txt

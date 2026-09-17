@@ -1,0 +1,101 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without v prefix (e.g. 0.1.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            plat: macos-arm64
+          - os: macos-13
+            plat: macos-x64
+          - os: windows-latest
+            plat: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: version
+        id: ver
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+          fi
+      - name: pack unix
+        if: runner.os != 'Windows'
+        env:
+          VCU_VERSION: ${{ steps.ver.outputs.version }}
+        run: bash scripts/pack-release.sh
+      - name: pack windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VCU_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          $ver = $env:VCU_VERSION
+          cargo build --release -p vcu-cli -p vcu-daemon -p vcu-mcp
+          $plat = "windows-x64"
+          $stage = "dist/stage/vcu-$ver-$plat"
+          New-Item -ItemType Directory -Force -Path "$stage/bin","$stage/extension","$stage/skills","$stage/docs" | Out-Null
+          Copy-Item target/release/vcu.exe,target/release/vcu-daemon.exe,target/release/vcu-mcp.exe "$stage/bin/"
+          if (Test-Path extension) { Copy-Item extension/* "$stage/extension/" -Recurse -Force }
+          if (Test-Path skills) { Copy-Item skills/* "$stage/skills/" -Recurse -Force }
+          Copy-Item docs/INSTALL.md "$stage/docs/" -ErrorAction SilentlyContinue
+          Copy-Item README.md,LICENSE "$stage/" -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          tar -C dist/stage -czf "dist/vcu-$ver-$plat.tar.gz" "vcu-$ver-$plat"
+          Copy-Item "dist/vcu-$ver-$plat.tar.gz" "dist/vcu-latest-$plat.tar.gz"
+          Get-FileHash "dist/vcu-$ver-$plat.tar.gz" -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  vcu-$ver-$plat.tar.gz" } |
+            Set-Content "dist/vcu-$ver-$plat.tar.gz.sha256"
+          Copy-Item "dist/vcu-$ver-$plat.tar.gz.sha256" "dist/vcu-latest-$plat.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.plat }}
+          path: |
+            dist/vcu-*.tar.gz
+            dist/vcu-*.sha256
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: collect
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.sha256' \) -exec cp {} dist/ \;
+          cp scripts/install/install.sh dist/install.sh
+          cp scripts/install/install.ps1 dist/install.ps1
+          ls -la dist/
+      - name: upload release assets (tag only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

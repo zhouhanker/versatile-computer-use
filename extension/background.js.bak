@@ -1,0 +1,92 @@
+// VCU extension service worker — pairs with local daemon and owns Agent Window.
+const DEFAULT_ENDPOINT = 'http://127.0.0.1:17890';
+
+let agentWindowId = null;
+let pairingToken = null;
+let endpoint = DEFAULT_ENDPOINT;
+let pollTimer = null;
+
+chrome.runtime.onInstalled.addListener(async () => {
+  const stored = await chrome.storage.local.get(['endpoint', 'token']);
+  endpoint = stored.endpoint || DEFAULT_ENDPOINT;
+  pairingToken = stored.token || null;
+});
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  (async () => {
+    if (msg.type === 'set_config') {
+      endpoint = msg.endpoint || endpoint;
+      pairingToken = msg.token || pairingToken;
+      await chrome.storage.local.set({ endpoint, token: pairingToken });
+      sendResponse({ ok: true, endpoint, hasToken: !!pairingToken });
+      return;
+    }
+    if (msg.type === 'status') {
+      sendResponse({
+        ok: true,
+        endpoint,
+        hasToken: !!pairingToken,
+        agentWindowId,
+      });
+      return;
+    }
+    if (msg.type === 'ensure_agent_window') {
+      const id = await ensureAgentWindow();
+      sendResponse({ ok: true, windowId: id });
+      return;
+    }
+    if (msg.type === 'list_tabs') {
+      const tabs = await listTabs();
+      sendResponse({ ok: true, tabs });
+      return;
+    }
+    sendResponse({ ok: false, error: 'unknown message' });
+  })();
+  return true;
+});
+
+async function ensureAgentWindow() {
+  if (agentWindowId !== null) {
+    try {
+      await chrome.windows.get(agentWindowId);
+      return agentWindowId;
+    } catch {
+      agentWindowId = null;
+    }
+  }
+  const win = await chrome.windows.create({
+    url: 'about:blank',
+    type: 'normal',
+    focused: false, // do not steal user focus
+    width: 1100,
+    height: 800,
+  });
+  agentWindowId = win.id;
+  return agentWindowId;
+}
+
+async function listTabs() {
+  const tabs = await chrome.tabs.query({});
+  return tabs.map((t) => ({
+    tab_id: String(t.id),
+    window_id: String(t.windowId),
+    title: t.title || '',
+    url: t.url || '',
+    agent_owned: t.windowId === agentWindowId,
+    active: !!t.active,
+  }));
+}
+
+// Optional heartbeat — extension announces presence for doctor (local only).
+async function heartbeat() {
+  if (!pairingToken) return;
+  try {
+    await fetch(`${endpoint}/v1/health`, {
+      headers: { 'X-Vcu-Token': pairingToken },
+    });
+  } catch {
+    // daemon may be down; ignore
+  }
+}
+
+pollTimer = setInterval(heartbeat, 15000);

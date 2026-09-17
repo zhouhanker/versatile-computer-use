@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VCU</title>
+    <style>
+      body { font: 13px/1.4 system-ui, sans-serif; margin: 12px; min-width: 280px; }
+      label { display: block; margin-top: 8px; }
+      input { width: 100%; box-sizing: border-box; }
+      button { margin-top: 10px; width: 100%; }
+      code { font-size: 11px; }
+      .ok { color: #0a0; }
+      .bad { color: #a00; }
+    </style>
+  </head>
+  <body>
+    <h3>VCU Bridge</h3>
+    <p>Pairs with local <code>vcu-daemon</code>. Agent work uses a separate window and never moves the OS cursor.</p>
+    <label>Daemon endpoint
+      <input id="endpoint" value="http://127.0.0.1:17890" />
+    </label>
+    <label>Pairing token (from ~/.vcu/config.json)
+      <input id="token" placeholder="paste pairing_token" />
+    </label>
+    <button id="save">Save &amp; ensure Agent Window</button>
+    <pre id="out"></pre>
+    <script src="popup.js"></script>
+  </body>
+</html>
