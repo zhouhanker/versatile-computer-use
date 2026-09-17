@@ -14,7 +14,7 @@ vcu-server = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
 dirs = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls", "blocking"] }  # blocking via workspace
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

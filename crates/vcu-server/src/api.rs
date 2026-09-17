@@ -979,6 +979,17 @@ async fn app_windows(
     if let Err(e) = require_auth(&headers, &state).await {
         return err_response(e);
     }
+    // Hot-reload allowlist only for platform backends (do not clobber test mocks).
+    {
+        let cfg = state.config.read().await;
+        let allow = cfg.app_allowlist.clone();
+        let mut backend = state.app_backend.write().await;
+        if backend.platform() == "macos" || backend.platform() == "windows" {
+            *backend = crate::app::detect_app_backend_with_allowlist(
+                if allow.is_empty() { None } else { Some(allow) },
+            );
+        }
+    }
     let backend = state.app_backend.read().await;
     match backend.list_windows().await {
         Ok(v) => Json(Envelope::ok(json!({

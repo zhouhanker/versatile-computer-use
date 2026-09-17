@@ -123,14 +123,16 @@ impl AppBackend for MacosAppBackend {
             let mut parts = line.split('\t');
             let name = parts.next().unwrap_or("").trim();
             let pid: Option<i32> = parts.next().and_then(|s| s.trim().parse().ok());
-            if name.is_empty() || !self.allowed(name) {
+            if name.is_empty() {
                 continue;
             }
+            let is_allowed = self.allowed(name);
             targets.push(AppTarget {
                 id: format!("proc:{}:{}", name.replace(' ', "_"), pid.unwrap_or(idx as i32)),
                 title: name.to_string(),
                 bundle_or_exe: name.to_string(),
                 pid,
+                allowed: is_allowed,
             });
         }
         Ok(targets)
@@ -205,6 +207,7 @@ impl AppBackend for MacosAppBackend {
                         title: name.clone(),
                         bundle_or_exe: name.clone(),
                         pid: None,
+                        allowed: true,
                     },
                     summary: format!(
                         "process=\"{name}\" snapshot_limited reason={}",
@@ -222,6 +225,7 @@ impl AppBackend for MacosAppBackend {
                     title: name.clone(),
                     bundle_or_exe: name.clone(),
                     pid: None,
+                        allowed: true,
                 },
                 summary: format!("process=\"{name}\" ax_error={}", raw.trim_start_matches("ERROR:")),
                 elements: vec![],
@@ -261,6 +265,7 @@ impl AppBackend for MacosAppBackend {
                 title: name.clone(),
                 bundle_or_exe: name,
                 pid: None,
+                allowed: true,
             },
             summary,
             elements,

@@ -145,6 +145,17 @@ enum Commands {
         #[command(subcommand)]
         sub: ServiceCmd,
     },
+    /// Install / update / uninstall this tool on the machine
+    #[command(name = "self")]
+    SelfCmdRoot {
+        #[command(subcommand)]
+        sub: SelfCmd,
+    },
+    /// Discover attachable browsers (CDP ports)
+    Browser {
+        #[command(subcommand)]
+        sub: BrowserCmd,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -274,6 +285,47 @@ enum ServiceCmd {
     /// Remove macOS LaunchAgent
     Uninstall,
     Status,
+}
+
+#[derive(Subcommand, Debug)]
+enum SelfCmd {
+    /// Show where binaries/config/share are installed
+    Info,
+    /// Re-download and replace binaries (keeps ~/.vcu config by default)
+    Update {
+        #[arg(long, default_value = "latest")]
+        version: String,
+        #[arg(long, env = "VCU_BASE_URL")]
+        base_url: Option<String>,
+        #[arg(long, env = "VCU_PREFIX", default_value_t = default_prefix())]
+        prefix: String,
+    },
+    /// Remove installed binaries, share bundle, and optional LaunchAgent
+    Uninstall {
+        /// Also delete ~/.vcu user config/state
+        #[arg(long, default_value_t = false)]
+        purge_config: bool,
+        #[arg(long, env = "VCU_PREFIX", default_value_t = default_prefix())]
+        prefix: String,
+        /// Required safety gate
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+fn default_prefix() -> String {
+    dirs::home_dir()
+        .map(|h| h.join(".local").display().to_string())
+        .unwrap_or_else(|| ".".into())
+}
+
+#[derive(Subcommand, Debug)]
+enum BrowserCmd {
+    /// Scan localhost CDP endpoints / report attach strategy
+    Discover {
+        #[arg(long, default_value = "9222-9335")]
+        ports: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -642,20 +694,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
             ServiceCmd::Install => {
                 #[cfg(target_os = "macos")]
                 {
-                    let status = std::process::Command::new("bash")
-                        .arg("scripts/macos/install-launch-agent.sh")
-                        .env("VCU_DIR", &paths.root)
-                        .status()
-                        .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "launch agent", e.to_string()))?;
-                    // also try installed share path script
-                    if !status.success() {
-                        let home = dirs::home_dir().unwrap_or_default();
-                        let script = home.join(".local/share/vcu/scripts/macos/install-launch-agent.sh");
-                        if script.exists() {
-                            let _ = std::process::Command::new("bash").arg(script).env("VCU_DIR", &paths.root).status();
-                        }
-                    }
-                    // inline fallback install
+                    // Prefer in-process installer (finds vcu-daemon next to this binary).
                     install_macos_launch_agent(&paths)?;
                     print_ok(&json!({"installed": true, "label": "com.vcu.daemon"}), true);
                     Ok(0)
@@ -695,6 +734,58 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                     print_ok(&json!({"loaded": false, "detail": "not macos"}), true);
                     Ok(0)
                 }
+            }
+        },
+        Commands::SelfCmdRoot { sub } => match sub {
+            SelfCmd::Info => {
+                let prefix = default_prefix();
+                let bin = PathBuf::from(&prefix).join("bin");
+                let share = PathBuf::from(&prefix).join("share/vcu");
+                let exe = std::env::current_exe().ok();
+                print_ok(
+                    &json!({
+                        "version": env!("CARGO_PKG_VERSION"),
+                        "current_exe": exe,
+                        "prefix": prefix,
+                        "bin_dir": bin,
+                        "share_dir": share,
+                        "user_dir": paths.root,
+                        "bins_present": {
+                            "vcu": bin.join("vcu").exists() || bin.join("vcu.exe").exists(),
+                            "vcu-daemon": bin.join("vcu-daemon").exists() || bin.join("vcu-daemon.exe").exists(),
+                            "vcu-mcp": bin.join("vcu-mcp").exists() || bin.join("vcu-mcp.exe").exists(),
+                        },
+                        "extension_dir": share.join("extension"),
+                        "note": "Codex Computer Use and other third-party tools are never touched by vcu self uninstall"
+                    }),
+                    true,
+                );
+                Ok(0)
+            }
+            SelfCmd::Update {
+                version,
+                base_url,
+                prefix,
+            } => self_update(&version, base_url.as_deref(), &prefix),
+            SelfCmd::Uninstall {
+                purge_config,
+                prefix,
+                yes,
+            } => {
+                if !yes {
+                    return Err(VcuError::coded(
+                        ErrorCode::InvalidInput,
+                        "refusing uninstall without --yes (does not touch Codex Computer Use)",
+                    ));
+                }
+                self_uninstall(&paths, &prefix, purge_config)
+            }
+        },
+        Commands::Browser { sub } => match sub {
+            BrowserCmd::Discover { ports } => {
+                let report = browser_discover(&ports);
+                print_ok(&report, true);
+                Ok(0)
             }
         },
         Commands::Mcp { sub } => match sub {
@@ -1040,6 +1131,196 @@ async fn api_post(paths: &VcuPaths, path: &str, body: Value) -> Result<Value, Vc
     Ok(v)
 }
 
+
+
+
+fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i32, VcuError> {
+    use std::process::Command;
+    let base = base_url
+        .unwrap_or("https://github.com/zhouhanker/versatile-computer-use/releases/latest/download");
+    // Prefer shipping install.sh next to this binary's share, else curl remote install.sh
+    let script_candidates = [
+        PathBuf::from(prefix).join("share/vcu/scripts/install/install.sh"),
+        PathBuf::from("scripts/install/install.sh"),
+    ];
+    let local_script = script_candidates.into_iter().find(|p| p.exists());
+    let status = if let Some(script) = local_script {
+        Command::new("bash")
+            .arg(script)
+            .env("VCU_VERSION", version)
+            .env("VCU_BASE_URL", base)
+            .env("VCU_PREFIX", prefix)
+            .status()
+    } else {
+        // download install.sh then run
+        let tmp = std::env::temp_dir().join("vcu-install.sh");
+        let url = format!("{}/install.sh", base.trim_end_matches('/'));
+        let body = std::process::Command::new("curl")
+            .args(["-fsSL", &url])
+            .output()
+            .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "curl install.sh", e.to_string()))?;
+        if !body.status.success() {
+            return Err(VcuError::coded(
+                ErrorCode::Internal,
+                format!("failed to download install.sh from {url}"),
+            ));
+        }
+        std::fs::write(&tmp, &body.stdout)?;
+        Command::new("bash")
+            .arg(&tmp)
+            .env("VCU_VERSION", version)
+            .env("VCU_BASE_URL", base)
+            .env("VCU_PREFIX", prefix)
+            .status()
+    }
+    .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "update failed", e.to_string()))?;
+    if status.success() {
+        print_ok(
+            &json!({
+                "updated": true,
+                "version_requested": version,
+                "prefix": prefix,
+                "base_url": base
+            }),
+            true,
+        );
+        Ok(0)
+    } else {
+        Err(VcuError::coded(ErrorCode::Internal, "update installer exited non-zero"))
+    }
+}
+
+fn self_uninstall(paths: &VcuPaths, prefix: &str, purge_config: bool) -> Result<i32, VcuError> {
+    use std::fs;
+    // NEVER touch Codex Computer Use or third-party computer-use helpers.
+    #[cfg(target_os = "macos")]
+    {
+        let _ = uninstall_macos_launch_agent();
+    }
+    let bin = PathBuf::from(prefix).join("bin");
+    let share = PathBuf::from(prefix).join("share/vcu");
+    let mut removed = Vec::new();
+    for name in ["vcu", "vcu-daemon", "vcu-mcp", "vcu.exe", "vcu-daemon.exe", "vcu-mcp.exe"] {
+        let p = bin.join(name);
+        if p.exists() {
+            let _ = fs::remove_file(&p);
+            removed.push(p.display().to_string());
+        }
+    }
+    if share.exists() {
+        let _ = fs::remove_dir_all(&share);
+        removed.push(share.display().to_string());
+    }
+    let mut purged_config = false;
+    if purge_config && paths.root.exists() {
+        // only delete if it looks like a vcu dir (has config.json)
+        if paths.config_path().exists() {
+            let _ = fs::remove_dir_all(&paths.root);
+            purged_config = true;
+        }
+    }
+    print_ok(
+        &json!({
+            "uninstalled": true,
+            "removed": removed,
+            "purged_config": purged_config,
+            "prefix": prefix,
+            "untouched": [
+                "Codex Computer Use (~/.codex/computer-use)",
+                "OriginOne gpt-bridge computer-helper",
+                "Browser profiles / cookies",
+            ]
+        }),
+        true,
+    );
+    Ok(0)
+}
+
+fn browser_discover(ports_spec: &str) -> serde_json::Value {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let mut ports = Vec::new();
+    for part in ports_spec.split(',') {
+        let part = part.trim();
+        if let Some((a, b)) = part.split_once('-') {
+            if let (Ok(a), Ok(b)) = (a.parse::<u16>(), b.parse::<u16>()) {
+                let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+                for p in lo..=hi {
+                    ports.push(p);
+                }
+            }
+        } else if let Ok(p) = part.parse::<u16>() {
+            ports.push(p);
+        }
+    }
+    let mut found = Vec::new();
+    for p in ports {
+        let addr = format!("127.0.0.1:{p}");
+        let Ok(mut stream) = TcpStream::connect_timeout(
+            &addr.parse().unwrap_or_else(|_| "127.0.0.1:1".parse().unwrap()),
+            Duration::from_millis(200),
+        ) else {
+            continue;
+        };
+        let _ = stream.set_read_timeout(Some(Duration::from_millis(400)));
+        let _ = stream.set_write_timeout(Some(Duration::from_millis(400)));
+        let req = format!(
+            "GET /json/version HTTP/1.1
+Host: 127.0.0.1:{p}
+Connection: close
+
+"
+        );
+        if stream.write_all(req.as_bytes()).is_err() {
+            continue;
+        }
+        let mut buf = String::new();
+        let _ = stream.read_to_string(&mut buf);
+        if !buf.contains("200") || !buf.contains('{') {
+            continue;
+        }
+        let json_start = match buf.find('{') {
+            Some(i) => i,
+            None => continue,
+        };
+        let body = &buf[json_start..];
+        let parsed: serde_json::Value = serde_json::from_str(body).unwrap_or(json!({}));
+        found.push(json!({
+            "port": p,
+            "endpoint": format!("http://127.0.0.1:{p}"),
+            "browser": parsed.get("Browser").cloned().unwrap_or(json!(null)),
+            "ws": parsed.get("webSocketDebuggerUrl").cloned().unwrap_or(json!(null)),
+            "attach": "cdp_existing_debug_session"
+        }));
+    }
+    json!({
+        "found": found,
+        "count": found.len(),
+        "strategy": {
+            "preferred_takeover": "Attach CDP to already-running browser with remote debugging enabled (keeps cookies/login).",
+            "codex_like_ux": [
+                "Operate in a dedicated agent surface when possible (Agent Window / separate tab)",
+                "Do not steal OS cursor; use page Input/DOM actions",
+                "Tab borrow/return for user tabs",
+                "Avoid full-screen OS cursor hijack; prefer DOM/AX actions"
+            ],
+            "how_to_enable_takeover_macos": [
+                "Edge: open edge://inspect/#remote-debugging and enable remote debugging",
+                "Chrome: open chrome://inspect/#remote-debugging and enable remote debugging",
+                "Or relaunch browser with --remote-debugging-port=9222 using your normal profile (see docs/macos/BROWSER_TAKEOVER.md)",
+                "Then: vcu browser discover && vcu config set-cdp http://127.0.0.1:<port> && vcu session start --backend cdp"
+            ],
+            "new_browser_vs_takeover": {
+                "headless_or_temp_profile": "NEW browser — no user login cookies",
+                "cdp_attach_running": "TAKEOVER — same profile/session if debugging enabled on that instance",
+                "extension_agent_window": "PARALLEL agent window in same browser process; user tabs need explicit borrow"
+            },
+            "never_touch": ["Codex Computer Use", "WeChat automation"]
+        }
+    })
+}
 
 #[cfg(target_os = "macos")]
 fn libc_uid() -> u32 {

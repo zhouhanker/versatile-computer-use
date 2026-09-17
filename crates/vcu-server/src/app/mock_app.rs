@@ -16,6 +16,7 @@ impl Default for MockAppBackend {
                 title: "TextEdit".into(),
                 bundle_or_exe: "TextEdit".into(),
                 pid: Some(1),
+                allowed: true,
             }],
         }
     }

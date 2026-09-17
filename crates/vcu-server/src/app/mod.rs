@@ -14,7 +14,10 @@ pub struct AppTarget {
     pub bundle_or_exe: String,
     #[serde(default)]
     pub pid: Option<i32>,
+    #[serde(default = "default_true")]
+    pub allowed: bool,
 }
+fn default_true() -> bool { true }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppElement {

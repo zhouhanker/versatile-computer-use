@@ -81,6 +81,7 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
                     title: if title.is_empty() { name.to_string() } else { title.to_string() },
                     bundle_or_exe: name.to_string(),
                     pid,
+                    allowed: true,
                 });
             }
             Ok(out)
@@ -119,7 +120,7 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
             }];
             if budget > 0 && budget < 10 { elements.clear(); }
             Ok(AppSnapshot {
-                target: AppTarget { id: id.to_string(), title: elements.first().map(|e| e.name.clone()).unwrap_or_else(|| name.clone()), bundle_or_exe: name.clone(), pid: None },
+                target: AppTarget { id: id.to_string(), title: elements.first().map(|e| e.name.clone()).unwrap_or_else(|| name.clone()), bundle_or_exe: name.clone(), pid: None, allowed: true },
                 summary: format!("process=\"{name}\" elements={} note=uia_tree_mvp_title_only", elements.len()),
                 elements,
                 truncated: true,

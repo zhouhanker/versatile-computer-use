@@ -51,3 +51,23 @@ vcu mcp print-config --json
 bash scripts/poc_install_curl.sh
 cargo test --workspace
 ```
+
+## Update
+
+```bash
+vcu self update
+# or versioned:
+vcu self update --version 0.1.0
+```
+
+## Uninstall
+
+```bash
+# remove binaries + share (keeps ~/.vcu config)
+vcu self uninstall --yes
+
+# also delete config
+vcu self uninstall --yes --purge-config
+```
+
+**Never** removes Codex Computer Use or other third-party computer-use apps.

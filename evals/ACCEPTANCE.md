@@ -44,3 +44,15 @@ cargo build --release -p vcu-cli -p vcu-daemon -p vcu-mcp
 | MCP Content-Length + tools/call HTTP | `cargo test -p vcu-mcp --test mcp_stdio` | PASS |
 | Agent protocol doc | `docs/design/05-agent-integration.md` | PASS |
 | macOS LaunchAgent scripts | `scripts/macos/install-launch-agent.sh` | PASS (script present) |
+
+## Lifecycle / local product tests (2026-09-18)
+
+| Test | Result |
+| --- | --- |
+| Local install to ~/.local | PASS |
+| `vcu self info/update/uninstall` | PASS (`poc_self_lifecycle.sh`) |
+| Codex CU untouched | PASS (path still exists after uninstall test on temp prefix) |
+| Feishu send "Test" to 张北北 | POC ran (`osa_out=ok`); **manual confirm in Feishu** |
+| Etherscan labelcloud | PASS mode=NEW_HEADLESS_NO_LOGIN, login_wall=true, labels_flat saved under ~/vcu-etherscan-labels |
+| WeChat not automated | PASS (allowed=false; no scripts) |
+| browser discover | PASS (0 CDP on live profile without remote-debug enable) |
