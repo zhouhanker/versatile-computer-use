@@ -1139,17 +1139,26 @@ fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i3
     let base = base_url
         .unwrap_or("https://github.com/zhouhanker/versatile-computer-use/releases/latest/download");
     // Prefer shipping install.sh next to this binary's share, else curl remote install.sh
-    let script_candidates = [
+    let mut script_candidates = vec![
         PathBuf::from(prefix).join("share/vcu/scripts/install/install.sh"),
         PathBuf::from("scripts/install/install.sh"),
     ];
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(root) = exe.parent().and_then(|b| b.parent()) {
+            // prefix/bin/vcu -> prefix/share/vcu/scripts/...
+            script_candidates.insert(0, root.join("share/vcu/scripts/install/install.sh"));
+        }
+    }
     let local_script = script_candidates.into_iter().find(|p| p.exists());
+    use std::process::Stdio;
     let status = if let Some(script) = local_script {
         Command::new("bash")
             .arg(script)
             .env("VCU_VERSION", version)
             .env("VCU_BASE_URL", base)
             .env("VCU_PREFIX", prefix)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
     } else {
         // download install.sh then run
@@ -1171,6 +1180,8 @@ fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i3
             .env("VCU_VERSION", version)
             .env("VCU_BASE_URL", base)
             .env("VCU_PREFIX", prefix)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
     }
     .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "update failed", e.to_string()))?;
