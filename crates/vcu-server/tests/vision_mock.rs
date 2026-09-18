@@ -6,7 +6,7 @@ async fn snapshot_can_use_mock_vision_provider() {
     let dir = tempfile::tempdir().unwrap();
     let paths = VcuPaths::from_root(dir.path());
     let mut cfg = UserConfig::default();
-    cfg.daemon_port = 19000 + (std::process::id() % 500) as u16;
+    cfg.daemon_port = 0;
     cfg.vision_policy = VisionPolicy::VisionAlways;
     cfg.models.insert(
         "vision".into(),

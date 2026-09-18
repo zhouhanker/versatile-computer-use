@@ -7,6 +7,15 @@ use crate::config::VisionPolicy;
 #[serde(rename_all = "snake_case")]
 pub enum AdapterKind {
     Browser,
+    Desktop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SurfaceKind {
+    Desktop,
+    #[default]
+    BrowserAgent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,6 +36,8 @@ pub enum BackendKind {
     Cdp,
     /// Extension-connected real browser (Agent Window path).
     Extension,
+    /// Desktop Stage + Steward (AX Scene / Actuator).
+    Desktop,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,6 +75,8 @@ pub struct Session {
     pub adapter: AdapterKind,
     pub browser: BrowserKind,
     pub backend: BackendKind,
+    #[serde(default)]
+    pub surface: SurfaceKind,
     pub policy: SessionPolicy,
     pub vision_policy: VisionPolicy,
     pub created_at: DateTime<Utc>,
@@ -71,6 +84,8 @@ pub struct Session {
     pub revision: u64,
     pub active_tab_id: Option<String>,
     pub agent_window_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_app_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +97,12 @@ pub struct TabInfo {
     /// true = Agent Window tab (writable without borrow)
     pub agent_owned: bool,
     pub borrowed_by: Option<String>,
+    /// True when this tab is a user-profile browser (cookies), not the empty Agent Edge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub login_state: Option<bool>,
+    /// user | agent | app — desktop Scene classification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser_profile: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,6 +135,8 @@ pub struct DomRef {
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selector: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame: Option<[f64; 4]>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +165,21 @@ pub struct Observation {
     pub vision: VisionInfo,
     pub truncated: bool,
     pub budget_tokens_est: u64,
+    #[serde(default)]
+    pub webview: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub webview_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webview_screenshot_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub screenshot_scale: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webview_screenshot_scale: Option<f64>,
+    /// Desktop user-profile browser (cookies present on the real window).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub login_state: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser_profile: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -234,5 +272,29 @@ mod tests {
     fn snapshot_mode_parse() {
         assert_eq!(SnapshotMode::parse("a11y"), Some(SnapshotMode::A11y));
         assert_eq!(SnapshotMode::parse("nope"), None);
+    }
+
+    #[test]
+    fn surface_defaults_to_browser_agent_for_old_sessions() {
+        let raw = serde_json::json!({
+            "session_id": "s1",
+            "adapter": "browser",
+            "browser": "mock",
+            "backend": "mock",
+            "policy": {
+                "focus": "agent_window_only",
+                "os_cursor": "deny",
+                "borrow_required_for_user_tabs": true
+            },
+            "vision_policy": "dom_first",
+            "created_at": "2026-09-18T00:00:00Z",
+            "closed_at": null,
+            "revision": 1,
+            "active_tab_id": null,
+            "agent_window_id": null
+        });
+        let s: Session = serde_json::from_value(raw).unwrap();
+        assert!(matches!(s.surface, SurfaceKind::BrowserAgent));
+        assert!(s.active_app_id.is_none());
     }
 }

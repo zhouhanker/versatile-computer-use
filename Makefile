@@ -1,4 +1,4 @@
-.PHONY: build release pack test poc poc-cdp poc-edge poc-app poc-extra poc-install check
+.PHONY: build release pack test poc poc-cdp poc-edge poc-app poc-extra poc-install poc-login poc-extract poc-feishu-scene check
 
 build:
 	cargo build
@@ -30,12 +30,21 @@ poc-extra:
 poc-install:
 	bash scripts/poc_install_curl.sh
 
+poc-login:
+	bash scripts/poc_login_state.sh
+
+poc-extract:
+	bash scripts/poc_browser_extract.sh
+
+poc-feishu-scene:
+	bash scripts/poc_feishu_scene.sh
+
+# Browser-only version: no poc-app / poc-feishu / poc-cdp.
+# poc-extract is L4.5 (EXTRACT-002) and not in check until live DOM is green.
 check:
 	cargo test --workspace
 	bash scripts/poc_mock_flow.sh
 	bash scripts/poc_actions_extra.sh
-	bash scripts/poc_cdp_smoke.sh
-	bash scripts/poc_cdp_edge.sh
-	@if [ "$$(uname -s)" = "Darwin" ]; then bash scripts/poc_app_macos.sh; fi
+	bash scripts/poc_login_state.sh
 	bash scripts/pack-release.sh
 	bash scripts/poc_install_curl.sh

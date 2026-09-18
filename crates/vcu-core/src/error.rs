@@ -5,6 +5,7 @@ use thiserror::Error;
 #[serde(rename_all = "PascalCase")]
 pub enum ErrorCode {
     DaemonNotRunning,
+    DaemonAlreadyRunning,
     DaemonAuthFailed,
     ExtensionDisconnected,
     SessionNotFound,
@@ -25,12 +26,15 @@ pub enum ErrorCode {
     IdempotencyConflict,
     Internal,
     NotImplemented,
+    AccessibilityDenied,
+    AppDenied,
 }
 
 impl ErrorCode {
     pub fn default_hint(self) -> &'static str {
         match self {
             Self::DaemonNotRunning => "Run `vcu daemon start` then retry.",
+            Self::DaemonAlreadyRunning => "A vcu-daemon is already running. Use `vcu daemon status` or `vcu daemon stop`.",
             Self::DaemonAuthFailed => "Pairing token mismatch. Re-run `vcu init` or restart daemon.",
             Self::ExtensionDisconnected => "Load the VCU extension in Chrome/Edge and complete pairing, or use --backend mock/cdp.",
             Self::SessionNotFound => "Pass a valid --session id from `vcu session start --json`.",
@@ -39,7 +43,7 @@ impl ErrorCode {
             Self::TabNotFound => "Refresh tabs with `vcu tabs list --session <id>`.",
             Self::TabAlreadyBorrowed => "Return the tab first or wait until the other session releases it.",
             Self::FocusPolicyViolation => "Browser adapter forbids stealing user focus; operate in Agent Window.",
-            Self::OsCursorDenied => "OS-level cursor injection is denied in browser mode; use page actions (click/type via CDP/extension).",
+            Self::OsCursorDenied => "OS cursor warp is denied. On desktop, use Scene refs + AX press/set; Guide is overlay-only.",
             Self::VisionProviderRequired => "Configure vision: `vcu init model` or `vcu model set vision ...`.",
             Self::VisionCallFailed => "Check vision provider base-url/model/api-key-env and run `vcu model test vision`.",
             Self::ModelNotFound => "Run `vcu model list` and `vcu model set`.",
@@ -51,6 +55,8 @@ impl ErrorCode {
             Self::IdempotencyConflict => "Reuse the same idempotency_key only with identical action payloads.",
             Self::Internal => "See daemon logs; restart daemon if state is corrupt.",
             Self::NotImplemented => "This capability is not in the current MVP build.",
+            Self::AccessibilityDenied => "Grant Accessibility once: 系统设置 → 隐私与安全 → 辅助功能, then retry. Do not click Edge Allow debugging for the desktop surface.",
+            Self::AppDenied => "This app is blocked by VCU policy (WeChat/微信) or is outside the desktop allowlist.",
         }
     }
 }

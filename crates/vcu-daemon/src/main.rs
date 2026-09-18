@@ -12,6 +12,11 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
+    #[cfg(unix)]
+    unsafe {
+        // Survive parent-shell hangup when started without launchd/nohup.
+        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+    }
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_target(false)

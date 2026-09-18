@@ -62,18 +62,30 @@ enum Commands {
         budget: u64,
         #[arg(long, default_value_t = false)]
         force_vision: bool,
+        #[arg(long)]
+        tab: Option<String>,
     },
     Navigate {
         #[arg(long)]
         session: String,
         #[arg(long)]
         url: String,
+        #[arg(long)]
+        tab: Option<String>,
     },
     Click {
         #[arg(long)]
         session: String,
         #[arg(long = "ref")]
-        target_ref: String,
+        target_ref: Option<String>,
+        #[arg(long)]
+        pixel_x: Option<f64>,
+        #[arg(long)]
+        pixel_y: Option<f64>,
+        #[arg(long, default_value = "window")]
+        space: String,
+        #[arg(long)]
+        tab: Option<String>,
     },
     Type {
         #[arg(long)]
@@ -88,10 +100,14 @@ enum Commands {
         session: String,
         #[arg(long)]
         selector: String,
+        #[arg(long)]
+        tab: Option<String>,
     },
     Screenshot {
         #[arg(long)]
         session: String,
+        #[arg(long)]
+        tab: Option<String>,
         #[arg(long, default_value_t = false)]
         full_page: bool,
         #[arg(long)]
@@ -219,10 +235,15 @@ enum SessionCmd {
     Start {
         #[arg(long, default_value = "auto")]
         browser: String,
-        #[arg(long, default_value = "mock")]
-        backend: String,
+        #[arg(long)]
+        backend: Option<String>,
+        #[arg(long)]
+        surface: Option<String>,
         #[arg(long)]
         vision_policy: Option<String>,
+        /// Desktop window id, e.g. proc:Microsoft_Edge:123
+        #[arg(long)]
+        app_id: Option<String>,
     },
     List,
     Show {
@@ -326,6 +347,98 @@ enum BrowserCmd {
         #[arg(long, default_value = "9222-9335")]
         ports: String,
     },
+    /// Report user vs Agent browser profiles (login-state path)
+    #[command(name = "login-state")]
+    LoginState,
+    /// Print only the next login-state action
+    Next,
+    /// Copy VCU extension into ~/.vcu/lens-extension and print load-unpacked steps (no UI clicks)
+    #[command(name = "install-lens")]
+    InstallLens,
+    /// Observe the USER browser window without Stage HUD (login-state Scene)
+    Observe {
+        #[arg(long, default_value_t = true)]
+        pixels: bool,
+        #[arg(long)]
+        selector: Option<String>,
+        #[arg(long, default_value_t = 80)]
+        budget: u64,
+    },
+    /// Map or AXPress screenshot pixels on the USER browser without Stage HUD
+    Click {
+        #[arg(long)]
+        pixel_x: Option<f64>,
+        #[arg(long)]
+        pixel_y: Option<f64>,
+        #[arg(long)]
+        selector: Option<String>,
+        #[arg(long)]
+        tab: Option<String>,
+        #[arg(long, default_value = "window")]
+        space: String,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+        #[arg(long, default_value_t = false)]
+        guide: bool,
+    },
+    /// Type into USER browser. Default: AX address bar. `--selector` uses USER extension DOM.
+    Type {
+        #[arg(long)]
+        text: Option<String>,
+        #[arg(long = "ref")]
+        target_ref: Option<String>,
+        #[arg(long)]
+        selector: Option<String>,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
+    /// AX scroll on the USER browser window. No HUD.
+    Scroll {
+        #[arg(long, default_value_t = 600)]
+        dy: i32,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
+    /// Policy-gated key (never HID). Return requires confirm_send + Send ref.
+    Key {
+        #[arg(long)]
+        key: String,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+        #[arg(long, default_value_t = false)]
+        confirm_send: bool,
+        #[arg(long = "ref")]
+        target_ref: Option<String>,
+    },
+    /// Open http(s) URL in a new USER Edge tab via extension. No HUD, no OS cursor.
+    Open {
+        #[arg(long)]
+        url: String,
+    },
+    /// Ping USER Edge extension (no page script)
+    Ping {
+        /// chrome.runtime.reload unpacked SW (picks up lens files). Never clicks Allow.
+        #[arg(long, default_value_t = false)]
+        reload: bool,
+    },
+    /// DOM extract via USER Edge extension (no session HUD, no Agent Edge)
+    Extract {
+        #[arg(long, default_value = "a")]
+        selector: String,
+        #[arg(long)]
+        tab: Option<String>,
+    },
+    /// Wait ms, or until a Scene name/role/ref appears on the USER browser (no HUD)
+    Wait {
+        #[arg(long, default_value_t = 200)]
+        ms: u64,
+        #[arg(long = "ref")]
+        target_ref: Option<String>,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        role: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -335,6 +448,10 @@ enum AppCmd {
         id: String,
         #[arg(long, default_value_t = 4000)]
         budget: u64,
+        #[arg(long, default_value_t = false)]
+        pixels: bool,
+        #[arg(long)]
+        selector: Option<String>,
     },
     Invoke {
         id: String,
@@ -409,7 +526,11 @@ async fn main() {
 fn map_exit(e: &VcuError) -> i32 {
     match e.code() {
         ErrorCode::DaemonAuthFailed => 3,
-        ErrorCode::BorrowRequired | ErrorCode::OsCursorDenied | ErrorCode::VisionProviderRequired => 4,
+        ErrorCode::BorrowRequired
+        | ErrorCode::OsCursorDenied
+        | ErrorCode::VisionProviderRequired
+        | ErrorCode::AccessibilityDenied
+        | ErrorCode::AppDenied => 4,
         ErrorCode::SessionNotFound | ErrorCode::TabNotFound | ErrorCode::ModelNotFound => 5,
         _ => 1,
     }
@@ -509,29 +630,67 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
             mode,
             budget,
             force_vision,
+            tab,
         } => {
-            let body = json!({"mode": mode, "budget": budget, "force_vision": force_vision});
+            let mut body = json!({"mode": mode, "budget": budget, "force_vision": force_vision});
+            if let Some(t) = tab {
+                body["tab_id"] = json!(t);
+            }
             let v = api_post(&paths, &format!("/v1/session/{session}/snapshot"), body).await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
             Ok(ok_exit(&v))
         }
-        Commands::Navigate { session, url } => {
+        Commands::Navigate { session, url, tab } => {
+            let mut body = json!({"url": url});
+            if let Some(t) = tab {
+                body["tab_id"] = json!(t);
+            }
             let v = api_post(
                 &paths,
                 &format!("/v1/session/{session}/navigate"),
-                json!({"url": url}),
+                body,
             )
             .await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
             Ok(ok_exit(&v))
         }
-        Commands::Click { session, target_ref } => {
-            let v = api_post(
-                &paths,
-                &format!("/v1/session/{session}/click"),
-                json!({"ref": target_ref}),
-            )
-            .await?;
+        Commands::Click {
+            session,
+            target_ref,
+            pixel_x,
+            pixel_y,
+            space,
+            tab,
+        } => {
+            let v = if let (Some(px), Some(py)) = (pixel_x, pixel_y) {
+                let mut target = json!({});
+                let mut args = json!({"pixel_x": px, "pixel_y": py, "space": space});
+                if let Some(r) = &target_ref {
+                    target["ref"] = json!(r);
+                }
+                if let Some(t) = &tab {
+                    target["tab_id"] = json!(t);
+                    args["tab_id"] = json!(t);
+                }
+                api_post(
+                    &paths,
+                    &format!("/v1/session/{session}/act"),
+                    json!({"type":"click","target": target, "args": args}),
+                )
+                .await?
+            } else {
+                let r = target_ref.ok_or_else(|| {
+                    VcuError::coded(
+                        ErrorCode::InvalidInput,
+                        "click requires --ref or --pixel-x/--pixel-y",
+                    )
+                })?;
+                let mut body = json!({"ref": r});
+                if let Some(t) = tab {
+                    body["tab_id"] = json!(t);
+                }
+                api_post(&paths, &format!("/v1/session/{session}/click"), body).await?
+            };
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
             Ok(ok_exit(&v))
         }
@@ -548,11 +707,15 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
             Ok(ok_exit(&v))
         }
-        Commands::Extract { session, selector } => {
+        Commands::Extract { session, selector, tab } => {
+            let mut body = json!({"selector": selector});
+            if let Some(t) = tab {
+                body["tab_id"] = json!(t);
+            }
             let v = api_post(
                 &paths,
                 &format!("/v1/session/{session}/extract"),
-                json!({"selector": selector}),
+                body,
             )
             .await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
@@ -560,10 +723,14 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
         }
         Commands::Screenshot {
             session,
+            tab,
             full_page,
             out,
         } => {
-            let body = json!({"full_page": full_page, "out": out});
+            let mut body = json!({"full_page": full_page, "out": out});
+            if let Some(t) = tab {
+                body["tab_id"] = json!(t);
+            }
             let v = api_post(&paths, &format!("/v1/session/{session}/screenshot"), body).await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
             Ok(ok_exit(&v))
@@ -624,11 +791,15 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            AppCmd::Snapshot { id, budget } => {
+            AppCmd::Snapshot { id, budget, pixels, selector } => {
+                let mut body = json!({"id": id, "budget": budget, "pixels": pixels});
+                if let Some(sel) = selector {
+                    body["selector"] = json!(sel);
+                }
                 let v = api_post(
                     &paths,
                     "/v1/app/snapshot",
-                    json!({"id": id, "budget": budget}),
+                    body,
                 )
                 .await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
@@ -754,6 +925,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                             "vcu": bin.join("vcu").exists() || bin.join("vcu.exe").exists(),
                             "vcu-daemon": bin.join("vcu-daemon").exists() || bin.join("vcu-daemon.exe").exists(),
                             "vcu-mcp": bin.join("vcu-mcp").exists() || bin.join("vcu-mcp.exe").exists(),
+                            "vcu-stage": bin.join("vcu-stage").exists(),
                         },
                         "extension_dir": share.join("extension"),
                         "note": "Codex Computer Use and other third-party tools are never touched by vcu self uninstall"
@@ -786,6 +958,212 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 let report = browser_discover(&ports);
                 print_ok(&report, true);
                 Ok(0)
+            }
+            BrowserCmd::InstallLens => {
+                let report = install_user_lens(&paths)?;
+                print_ok(&report, true);
+                Ok(0)
+            }
+            BrowserCmd::LoginState => {
+                match api_get(&paths, "/v1/browser/login-state").await {
+                    Ok(v) => {
+                        println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                        Ok(ok_exit(&v))
+                    }
+                    Err(e) => {
+                        // Daemon down: still classify local processes.
+                        let _ = e;
+                        let report = local_login_state_fallback();
+                        print_ok(&report, true);
+                        Ok(0)
+                    }
+                }
+            }
+            BrowserCmd::Next => {
+                let v = api_get(&paths, "/v1/browser/login-state").await?;
+                let action = v
+                    .pointer("/data/next_action")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("vcu browser observe");
+                print_ok(
+                    &json!({
+                        "next_action": action,
+                        "lens_dir": v.pointer("/data/lens_dir").and_then(|x| x.as_str()).unwrap_or(""),
+                        "lens_copied": v.pointer("/data/lens_copied").and_then(|x| x.as_bool()).unwrap_or(false),
+                        "extension_profile": v.pointer("/data/extension_profile").and_then(|x| x.as_str()).unwrap_or(""),
+                        "observe": "vcu browser observe --json",
+                        "install_lens": "vcu browser install-lens",
+                    }),
+                    true,
+                );
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Observe {
+                pixels,
+                selector,
+                budget,
+            } => {
+                let ls = api_get(&paths, "/v1/browser/login-state").await?;
+                let user = ls
+                    .pointer("/data/user_browsers/0")
+                    .cloned()
+                    .or_else(|| ls.pointer("/user_browsers/0").cloned());
+                let Some(user) = user else {
+                    return Err(VcuError::coded(
+                        ErrorCode::ActionFailed,
+                        "no user Chrome/Edge process; login-state observe needs the user browser window",
+                    ));
+                };
+                let pid = user.get("pid").and_then(|v| v.as_i64()).unwrap_or(0);
+                let name = user
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Microsoft Edge");
+                let id = format!("proc:{}:{}", name.replace(' ', "_"), pid);
+                let mut body = json!({"id": id, "budget": budget, "pixels": pixels});
+                if let Some(sel) = selector {
+                    body["selector"] = json!(sel);
+                } else {
+                    body["selector"] = json!("*");
+                }
+                let snap = api_post(&paths, "/v1/app/snapshot", body).await?;
+                let ext_profile = ls
+                    .pointer("/data/extension_profile")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("none");
+                let snap_data = snap.get("data").cloned().unwrap_or_else(|| snap.clone());
+                print_ok(
+                    &json!({
+                        "app_id": id,
+                        "login_state": true,
+                        "browser_profile": "user",
+                        "hud": false,
+                        "extension_profile": ext_profile,
+                        "page_title": snap_data.get("page_title").cloned().unwrap_or(json!(null)),
+                        "page_url": snap_data.get("page_url").cloned().unwrap_or(json!(null)),
+                        "tabs": snap_data.get("tabs").cloned().unwrap_or(json!([])),
+                        "webview": snap_data.get("webview").cloned().unwrap_or(json!(false)),
+                        "ax_enhanced": snap_data.get("ax_enhanced").cloned().unwrap_or(json!(false)),
+                        "coordinate_help": "ax = frame_origin + pixel / screenshot_scale; click with --pixel-x/--pixel-y",
+                        "login": user,
+                        "snapshot": snap_data,
+                    }),
+                    true,
+                );
+                Ok(ok_exit(&snap))
+            }
+            BrowserCmd::Click {
+                pixel_x,
+                pixel_y,
+                selector,
+                tab,
+                space,
+                dry_run,
+                guide,
+            } => {
+                let v = api_post(
+                    &paths,
+                    "/v1/browser/click",
+                    json!({
+                        "pixel_x": pixel_x,
+                        "pixel_y": pixel_y,
+                        "selector": selector,
+                        "tab_id": tab,
+                        "space": space,
+                        "dry_run": dry_run,
+                        "guide": guide,
+                    }),
+                )
+                .await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Type {
+                text,
+                target_ref,
+                selector,
+                dry_run,
+            } => {
+                let mut body = json!({ "dry_run": dry_run });
+                if let Some(t) = text {
+                    body["text"] = json!(t);
+                }
+                if let Some(r) = target_ref {
+                    body["ref"] = json!(r);
+                }
+                if let Some(sel) = selector {
+                    body["selector"] = json!(sel);
+                }
+                let v = api_post(&paths, "/v1/browser/type", body).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Scroll { dy, dry_run } => {
+                let v = api_post(
+                    &paths,
+                    "/v1/browser/scroll",
+                    json!({ "dy": dy, "dry_run": dry_run }),
+                )
+                .await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Key {
+                key,
+                dry_run,
+                confirm_send,
+                target_ref,
+            } => {
+                let mut body = json!({
+                    "key": key,
+                    "dry_run": dry_run,
+                    "confirm_send": confirm_send,
+                });
+                if let Some(r) = target_ref {
+                    body["ref"] = json!(r);
+                }
+                let v = api_post(&paths, "/v1/browser/key", body).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Open { url } => {
+                let v = api_post(&paths, "/v1/browser/open", json!({"url": url})).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Ping { reload } => {
+                let v = api_post(&paths, "/v1/browser/ping", json!({"reload": reload})).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Extract { selector, tab } => {
+                let mut body = json!({ "selector": selector });
+                if let Some(t) = tab {
+                    body["tab_id"] = json!(t);
+                }
+                let v = api_post(&paths, "/v1/browser/extract", body).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Wait {
+                ms,
+                target_ref,
+                name,
+                role,
+            } => {
+                let mut body = json!({ "ms": ms });
+                if let Some(r) = target_ref {
+                    body["ref"] = json!(r);
+                }
+                if let Some(n) = name {
+                    body["name"] = json!(n);
+                }
+                if let Some(r) = role {
+                    body["role"] = json!(r);
+                }
+                let v = api_post(&paths, "/v1/browser/wait", body).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
             }
         },
         Commands::Mcp { sub } => match sub {
@@ -882,11 +1260,27 @@ async fn session_cmd(paths: &VcuPaths, sub: SessionCmd, _json: bool) -> Result<i
         SessionCmd::Start {
             browser,
             backend,
+            surface,
             vision_policy,
+            app_id,
         } => {
-            let mut body = json!({"browser": browser, "backend": backend});
+            let (surface, backend) = match (surface, backend) {
+                (Some(s), Some(b)) => (s, Some(b)),
+                (Some(s), None) if s == "desktop" => (s, Some("desktop".into())),
+                (Some(s), None) => (s, Some("mock".into())),
+                (None, Some(b)) if b == "desktop" => ("desktop".into(), Some(b)),
+                (None, Some(b)) => ("browser_agent".into(), Some(b)),
+                (None, None) => ("desktop".into(), Some("desktop".into())),
+            };
+            let mut body = json!({"browser": browser, "surface": surface});
+            if let Some(b) = backend {
+                body["backend"] = json!(b);
+            }
             if let Some(vp) = vision_policy {
                 body["vision_policy"] = json!(vp);
+            }
+            if let Some(id) = app_id {
+                body["app_id"] = json!(id);
             }
             let v = api_post(paths, "/v1/session/start", body).await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
@@ -903,6 +1297,24 @@ async fn session_cmd(paths: &VcuPaths, sub: SessionCmd, _json: bool) -> Result<i
             Ok(ok_exit(&v))
         }
         SessionCmd::Stop { id } => {
+            if id == "all" {
+                let listed = api_get(paths, "/v1/session/list").await?;
+                let mut ids = Vec::new();
+                if let Some(arr) = listed.get("data").and_then(|v| v.as_array()) {
+                    for s in arr {
+                        if let Some(sid) = s.get("session_id").and_then(|v| v.as_str()) {
+                            ids.push(sid.to_string());
+                        }
+                    }
+                }
+                let mut stopped = Vec::new();
+                for sid in &ids {
+                    let v = api_post(paths, &format!("/v1/session/{sid}/stop"), json!({})).await?;
+                    stopped.push(json!({"session_id": sid, "ok": v.get("ok")}));
+                }
+                print_ok(&json!({"stopped": stopped, "count": stopped.len()}), true);
+                return Ok(0);
+            }
             let v = api_post(paths, &format!("/v1/session/{id}/stop"), json!({})).await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
             Ok(ok_exit(&v))
@@ -955,8 +1367,53 @@ async fn tabs_cmd(paths: &VcuPaths, sub: TabsCmd, _json: bool) -> Result<i32, Vc
     }
 }
 
+fn pid_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn read_daemon_pid(paths: &VcuPaths) -> Option<u32> {
+    fs::read_to_string(paths.pid_path())
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+}
+
 async fn daemon_start(paths: &VcuPaths, foreground: bool) -> Result<i32, VcuError> {
     let cfg = paths.init_if_needed()?;
+    if api_get(paths, "/v1/health").await.is_ok() {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "ok": true,
+                "already_running": true,
+                "pid": read_daemon_pid(paths),
+                "endpoint": VcuPaths::endpoint_url(&cfg)
+            }))
+            .unwrap()
+        );
+        return Ok(0);
+    }
+    if let Some(pid) = read_daemon_pid(paths) {
+        if pid_alive(pid) {
+            return Err(VcuError::with_detail(
+                ErrorCode::DaemonAlreadyRunning,
+                "vcu-daemon pid is alive but health check failed",
+                format!("pid={pid}"),
+            ));
+        }
+        let _ = fs::remove_file(paths.pid_path());
+        let _ = fs::remove_file(paths.lock_path());
+        let _ = fs::remove_file(paths.endpoint_path());
+    }
     if foreground {
         // run server in this process
         let handle = vcu_server::start_daemon(paths.clone(), cfg).await?;
@@ -990,6 +1447,13 @@ async fn daemon_start(paths: &VcuPaths, foreground: bool) -> Result<i32, VcuErro
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
     cmd.stderr(Stdio::null());
+    // Detach from caller TTY/process group so SIGHUP on shell exit
+    // does not kill the long-running daemon.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
     let child = cmd.spawn().map_err(|e| {
         VcuError::with_detail(
             ErrorCode::DaemonNotRunning,
@@ -1036,6 +1500,7 @@ fn daemon_stop(paths: &VcuPaths) -> Result<i32, VcuError> {
         if let Ok(pid) = pid_s.trim().parse::<i32>() {
             let _ = Command::new("kill").arg(pid.to_string()).status();
             let _ = fs::remove_file(paths.pid_path());
+            let _ = fs::remove_file(paths.lock_path());
             let _ = fs::remove_file(paths.endpoint_path());
             println!("{}", serde_json::to_string_pretty(&json!({"ok": true, "stopped": pid})).unwrap());
             return Ok(0);
@@ -1090,7 +1555,7 @@ async fn client(paths: &VcuPaths) -> Result<(reqwest::Client, String, String), V
         VcuPaths::endpoint_url(&cfg)
     };
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60))
         .build()
         .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "http client", e.to_string()))?;
     Ok((client, endpoint, cfg.pairing_token))
@@ -1211,7 +1676,7 @@ fn self_uninstall(paths: &VcuPaths, prefix: &str, purge_config: bool) -> Result<
     let bin = PathBuf::from(prefix).join("bin");
     let share = PathBuf::from(prefix).join("share/vcu");
     let mut removed = Vec::new();
-    for name in ["vcu", "vcu-daemon", "vcu-mcp", "vcu.exe", "vcu-daemon.exe", "vcu-mcp.exe"] {
+    for name in ["vcu", "vcu-daemon", "vcu-mcp", "vcu-stage", "vcu.exe", "vcu-daemon.exe", "vcu-mcp.exe"] {
         let p = bin.join(name);
         if p.exists() {
             let _ = fs::remove_file(&p);
@@ -1247,6 +1712,97 @@ fn self_uninstall(paths: &VcuPaths, prefix: &str, purge_config: bool) -> Result<
     Ok(0)
 }
 
+fn copy_dir_filtered(src: &std::path::Path, dst: &std::path::Path) -> Result<u32, VcuError> {
+    fs::create_dir_all(dst).map_err(|e| {
+        VcuError::with_detail(ErrorCode::Internal, "mkdir lens-extension", e.to_string())
+    })?;
+    let mut n = 0u32;
+    for ent in fs::read_dir(src).map_err(|e| {
+        VcuError::with_detail(ErrorCode::Internal, "read extension dir", e.to_string())
+    })? {
+        let ent = ent.map_err(|e| {
+            VcuError::with_detail(ErrorCode::Internal, "read_dir", e.to_string())
+        })?;
+        let name = ent.file_name();
+        let name_s = name.to_string_lossy();
+        if name_s.starts_with('.') || name_s.ends_with(".bak") {
+            continue;
+        }
+        let from = ent.path();
+        let to = dst.join(&name);
+        if from.is_dir() {
+            n += copy_dir_filtered(&from, &to)?;
+        } else {
+            fs::copy(&from, &to).map_err(|e| {
+                VcuError::with_detail(ErrorCode::Internal, "copy extension file", e.to_string())
+            })?;
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+fn resolve_packaged_extension() -> Option<PathBuf> {
+    if let Ok(p) = std::env::var("VCU_EXTENSION_DIR") {
+        let pb = PathBuf::from(p);
+        if pb.join("manifest.json").exists() {
+            return Some(pb);
+        }
+    }
+    let home = dirs::home_dir()?;
+    let share = home.join(".local/share/vcu/extension");
+    if share.join("manifest.json").exists() {
+        return Some(share);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let cand = parent.join("../share/vcu/extension");
+            if cand.join("manifest.json").exists() {
+                return Some(cand);
+            }
+        }
+    }
+    let cwd = PathBuf::from("extension");
+    if cwd.join("manifest.json").exists() {
+        return Some(cwd);
+    }
+    None
+}
+
+fn install_user_lens(paths: &VcuPaths) -> Result<Value, VcuError> {
+    let src = resolve_packaged_extension().ok_or_else(|| {
+        VcuError::coded(
+            ErrorCode::InvalidInput,
+            "cannot find packaged extension (expected ~/.local/share/vcu/extension)",
+        )
+    })?;
+    let dest = paths.root.join("lens-extension");
+    let files = copy_dir_filtered(&src, &dest)?;
+    Ok(json!({
+        "copied_files": files,
+        "src": src,
+        "load_unpacked": dest,
+        "hud": false,
+        "clicked_ui": false,
+        "steps": [
+            "Open edge://extensions in the USER Edge (the logged-in window, not Agent Edge)",
+            "Enable Developer mode",
+            format!("Load unpacked → {}", dest.display()),
+            "Then `vcu browser login-state` should show extension_profile=user"
+        ],
+        "never": ["click Allow debugging", "load into empty Agent profile"]
+    }))
+}
+
+fn local_login_state_fallback() -> serde_json::Value {
+    json!({
+        "preferred_path": "desktop_user_window",
+        "note": "daemon unreachable; run `vcu daemon start` then `vcu browser login-state` for live pids",
+        "cdp": browser_discover("9222-9222"),
+        "never": ["click Edge Allow debugging", "empty agent profile as login-state", "WeChat", "OS cursor warp"]
+    })
+}
+
 fn browser_discover(ports_spec: &str) -> serde_json::Value {
     use std::io::{Read, Write};
     use std::net::TcpStream;
@@ -1269,69 +1825,102 @@ fn browser_discover(ports_spec: &str) -> serde_json::Value {
     let mut found = Vec::new();
     for p in ports {
         let addr = format!("127.0.0.1:{p}");
-        let Ok(mut stream) = TcpStream::connect_timeout(
-            &addr.parse().unwrap_or_else(|_| "127.0.0.1:1".parse().unwrap()),
-            Duration::from_millis(200),
-        ) else {
+        let Ok(parsed) = addr.parse() else { continue };
+        let Ok(mut stream) = TcpStream::connect_timeout(&parsed, Duration::from_millis(150)) else {
             continue;
         };
-        let _ = stream.set_read_timeout(Some(Duration::from_millis(400)));
-        let _ = stream.set_write_timeout(Some(Duration::from_millis(400)));
+        let _ = stream.set_read_timeout(Some(Duration::from_millis(250)));
+        let _ = stream.set_write_timeout(Some(Duration::from_millis(250)));
         let req = format!(
-            "GET /json/version HTTP/1.1
-Host: 127.0.0.1:{p}
-Connection: close
-
-"
+            "GET /json/version HTTP/1.1\r\nHost: 127.0.0.1:{p}\r\nConnection: close\r\n\r\n"
         );
         if stream.write_all(req.as_bytes()).is_err() {
             continue;
         }
         let mut buf = String::new();
         let _ = stream.read_to_string(&mut buf);
-        if !buf.contains("200") || !buf.contains('{') {
+
+        if buf.contains("200") && buf.contains('{') {
+            let json_start = match buf.find('{') {
+                Some(i) => i,
+                None => continue,
+            };
+            let body = &buf[json_start..];
+            let parsed: serde_json::Value = serde_json::from_str(body).unwrap_or(json!({}));
+            found.push(json!({
+                "port": p,
+                "endpoint": format!("http://127.0.0.1:{p}"),
+                "mode": "http_json",
+                "browser": parsed.get("Browser").cloned().unwrap_or(json!(null)),
+                "ws": parsed.get("webSocketDebuggerUrl").cloned().unwrap_or(json!(null)),
+                "attach": "cdp_existing_debug_session",
+                "allow_dialog": "usually_once_or_none_for_flag_launched"
+            }));
             continue;
         }
-        let json_start = match buf.find('{') {
-            Some(i) => i,
-            None => continue,
-        };
-        let body = &buf[json_start..];
-        let parsed: serde_json::Value = serde_json::from_str(body).unwrap_or(json!({}));
-        found.push(json!({
-            "port": p,
-            "endpoint": format!("http://127.0.0.1:{p}"),
-            "browser": parsed.get("Browser").cloned().unwrap_or(json!(null)),
-            "ws": parsed.get("webSocketDebuggerUrl").cloned().unwrap_or(json!(null)),
-            "attach": "cdp_existing_debug_session"
-        }));
+
+        // Port is open. Try a short WS upgrade probe (must not hang discover).
+        let mut ws_ok = false;
+        if let Ok(mut stream) = TcpStream::connect_timeout(&parsed, Duration::from_millis(150)) {
+            let _ = stream.set_read_timeout(Some(Duration::from_millis(300)));
+            let _ = stream.set_write_timeout(Some(Duration::from_millis(300)));
+            let upgrade = format!(
+                "GET /devtools/browser HTTP/1.1\r\nHost: 127.0.0.1:{p}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+            );
+            if stream.write_all(upgrade.as_bytes()).is_ok() {
+                let mut b = [0u8; 256];
+                if let Ok(n) = stream.read(&mut b) {
+                    let head = String::from_utf8_lossy(&b[..n]);
+                    ws_ok = head.contains("101");
+                }
+            }
+        }
+
+        // UI remote-debugging often 404s /json/*; still a valid takeover candidate.
+        let looks_like_ui_rd = buf.contains("404") || buf.is_empty() || buf.contains("403");
+        if ws_ok || looks_like_ui_rd {
+            found.push(json!({
+                "port": p,
+                "endpoint": format!("http://127.0.0.1:{p}"),
+                "mode": if ws_ok { "browser_ws" } else { "browser_ws_pending" },
+                "browser": null,
+                "ws": format!("ws://127.0.0.1:{p}/devtools/browser"),
+                "attach": "cdp_browser_ws_flat_attach",
+                "ws_handshake": if ws_ok { "101" } else { "pending_or_blocked" },
+                "note": "CDP abandoned for login-state. Do not click Allow. Use USER Edge extension extract/observe.",
+                "allow_dialog": "abandoned_do_not_click",
+                "codex_like_alternative": "vcu browser observe / extension extract on USER Edge"
+            }));
+        }
     }
     json!({
         "found": found,
         "count": found.len(),
         "strategy": {
-            "preferred_takeover": "Attach CDP to already-running browser with remote debugging enabled (keeps cookies/login).",
+            "preferred_takeover": "USER Edge unpacked extension (VCU Browser Bridge). CDP is abandoned.",
+            "no_repeated_allow": "Never click Allow. Login-state cookies/DOM come from the USER profile extension, not CDP.",
             "codex_like_ux": [
-                "Operate in a dedicated agent surface when possible (Agent Window / separate tab)",
-                "Do not steal OS cursor; use page Input/DOM actions",
-                "Tab borrow/return for user tabs",
-                "Avoid full-screen OS cursor hijack; prefer DOM/AX actions"
+                "Load unpacked ~/.vcu/lens-extension in USER Edge",
+                "vcu browser observe / extension extract — no HUD, no Allow",
+                "Operate on the logged-in window; do not use empty Agent Edge",
+                "os_cursor=deny; never click Allow; never WeChat"
             ],
             "how_to_enable_takeover_macos": [
-                "Edge: open edge://inspect/#remote-debugging and enable remote debugging",
-                "Chrome: open chrome://inspect/#remote-debugging and enable remote debugging",
-                "Or relaunch browser with --remote-debugging-port=9222 using your normal profile (see docs/macos/BROWSER_TAKEOVER.md)",
-                "Then: vcu browser discover && vcu config set-cdp http://127.0.0.1:<port> && vcu session start --backend cdp"
+                "REQUIRED: Load unpacked ~/.vcu/lens-extension (or ~/.local/share/vcu/extension) in USER Edge",
+                "Then vcu browser login-state should show extension_profile=user",
+                "DOM: vcu session start --backend extension on the USER browser, or extract via the bridge",
+                "Do not enable remote debugging. Do not click Allow. Do not set-cdp."
             ],
             "new_browser_vs_takeover": {
                 "headless_or_temp_profile": "NEW browser — no user login cookies",
-                "cdp_attach_running": "TAKEOVER — same profile/session if debugging enabled on that instance",
-                "extension_agent_window": "PARALLEL agent window in same browser process; user tabs need explicit borrow"
+                "cdp_attach_running": "ABANDONED — do not use CDP / Allow for login-state",
+                "extension_user_window": "LOGIN-STATE — unpacked extension in USER Edge"
             },
             "never_touch": ["Codex Computer Use", "WeChat automation"]
         }
     })
 }
+
 
 #[cfg(target_os = "macos")]
 fn libc_uid() -> u32 {
@@ -1370,7 +1959,7 @@ fn install_macos_launch_agent(paths: &VcuPaths) -> Result<(), VcuError> {
     <string>{vcu_dir}</string>
   </array>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  <key>KeepAlive</key><false/>
   <key>StandardOutPath</key><string>{out}</string>
   <key>StandardErrorPath</key><string>{err}</string>
 </dict></plist>

@@ -1,39 +1,26 @@
 # VCU 架构方案
 
-版本：0.1-design
+版本：0.2-design  
+主路径权威：`docs/design/06-stage-steward.md`
 
 ## 1. 逻辑架构
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│  Agent Hosts: Codex · Claude Code · Cursor · Pi · …     │
-│  集成面: Shell(CLI) · MCP · Skill.md                     │
-└───────────────────────────┬─────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────┐
-│  vcu CLI          vcu-mcp                                │
-│  同一 JSON 契约 · 稳定 exit code · --json                │
-└───────────────────────────┬─────────────────────────────┘
-                            │ IPC (socket + pairing token)
-┌───────────────────────────▼─────────────────────────────┐
-│  vcu-daemon                                              │
-│  · Session manager · Permission · Audit                  │
-│  · Perception (DOM/a11y + optional Vision provider)      │
-│  · Blackboard / checkpoint                               │
-│  · Adapter router                                        │
-└───────────────┬───────────────────────────┬─────────────┘
-                │                           │
-        ┌───────▼────────┐          ┌───────▼────────┐
-        │ Browser Adapter│          │ App Adapter    │
-        │ Chrome / Edge  │          │ macOS/Windows  │
-        │ (一期)         │          │ (二期+)        │
-        └───────┬────────┘          └────────────────┘
-                │
-        ┌───────▼────────┐
-        │ TS Extension   │
-        │ Agent Window   │
-        │ borrow/return  │
-        └────────────────┘
+ Agent Hosts: Codex · Claude Code · Cursor · Pi · …
+ 集成面: Shell(CLI) · MCP · Skill.md
+                    │
+            vcu CLI / vcu-mcp
+                    │ HTTP + pairing token
+                    ▼
+ ┌──────────────────────────────────────────────┐
+ │ Steward  (vcu-daemon 演进，LaunchAgent 长驻) │
+ │ Session · Audit · Blackboard · Vision        │
+ │ Scene (AX + 截帧) · Actuator · Stage/Guide   │
+ └───────────────┬──────────────────┬───────────┘
+                 │                  │
+         Surface=desktop      Surface=browser_agent
+         真窗口 + 一次 AX     空 Agent profile（旁路）
+         Edge / 飞书 / allowlist    扩展 / CDP / mock
 ```
 
 ## 2. 核心协议（设计级）
@@ -45,12 +32,12 @@
 ```json
 {
   "session_id": "01...",
-  "adapter": "browser",
-  "browser": "chrome|edge|auto",
+  "adapter": "desktop|browser",
+  "surface": "desktop|browser_agent",
   "policy": {
-    "focus": "agent_window_only",
-    "os_cursor": "deny",
-    "borrow_required_for_user_tabs": true
+    "focus": "no_os_cursor_warp",
+    "stage_required": true,
+    "os_cursor": "deny"
   },
   "vision_policy": "dom_first",
   "created_at": 0
@@ -108,13 +95,17 @@
 见 `docs/research/04-vision-and-multi-agent.md`。  
 daemon 内 `VisionProvider` trait/接口：配置来自 `vcu model set`。
 
-## 5. 桌面 App 期（预留）
+## 5. 桌面主路径（Stage + Steward）
 
-App adapter 实现同一 Action 子集（click/type 等），但：
+设计接受后，**desktop surface 为一等公民**，不再是「浏览器做完再谈 App」：
 
-- 默认在**虚拟桌面/隔离工作区**或明确允许的应用列表
-- 仍尽量避免干扰用户当前键鼠；做不到则 **显式警告 + 确认**
-- 不阻塞浏览器 MVP 设计
+- Steward 长驻；辅助功能一次授权
+- Scene = AX + 截帧；Actuator = press/set/key，不 warp 用户鼠标
+- Stage Banner + Guide 为会话可见不变量
+- 微信 denylist；不碰 Codex CU
+- 浏览器扩展/CDP 降为 lens / `browser_agent` 旁路
+
+细节只维护在 `docs/design/06-stage-steward.md`。
 
 ## 6. 技术栈锁定
 
@@ -130,5 +121,6 @@ App adapter 实现同一 Action 子集（click/type 等），但：
 
 - 默认不导出 Cookie/密码
 - 默认不静默调用云端视觉
-- 默认 OS 光标注入 = deny（browser adapter）
-- pairing token 保护 daemon
+- 默认不移动用户物理光标（Guide 是 overlay）
+- pairing token 保护 Steward
+- 微信不可 Scene/Actuator

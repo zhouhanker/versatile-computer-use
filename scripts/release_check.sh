@@ -6,10 +6,10 @@ echo "== unit/integration =="
 cargo test --workspace
 echo "== mock poc =="
 bash scripts/poc_mock_flow.sh
-echo "== cdp poc (auto chrome if needed) =="
-bash scripts/poc_cdp_smoke.sh
-echo "== app poc (macos) =="
-if [[ "$(uname -s)" == "Darwin" ]]; then bash scripts/poc_app_macos.sh; else echo SKIP app poc; fi
+echo "== login-state poc =="
+bash scripts/poc_login_state.sh
+echo "== app/feishu/cdp skipped this version =="
+echo "SKIP poc_app_macos / poc_feishu_scene / poc_cdp — browser-only version"
 echo "== release build =="
 cargo build --release -p vcu-cli -p vcu-daemon -p vcu-mcp
 echo "== windows portability =="

@@ -23,7 +23,7 @@ vcu model set-policy --mode dom_first|vision_first|dom_only|vision_always
 
 vcu daemon start|stop|status
 
-vcu session start [--browser chrome|edge|auto] [--json]
+vcu session start [--surface desktop|browser_agent] [--browser chrome|edge|auto] [--json]
 vcu session list
 vcu session show <id>
 vcu session stop <id>
@@ -53,15 +53,13 @@ vcu mcp print-config                      # 打印 MCP 片段供复制
 
 ```sh
 vcu doctor --json
-SID=$(vcu session start --browser auto --json | jq -r .session_id)
-vcu navigate --session "$SID" --url https://example.com
-vcu snapshot --session "$SID" --mode a11y --json
-vcu click --session "$SID" --ref e12
-vcu extract --session "$SID" --selector "table.results" --json
+SID=$(vcu session start --surface desktop --json | jq -r .data.session_id)
+vcu snapshot --session "$SID" --json          # Scene: AX + 可选截帧
+vcu click --session "$SID" --ref a12          # Actuator press，Guide 跟随
 vcu session stop "$SID"
 ```
 
-不打断：默认操作落在 Agent Window；用户 tab 需 `tabs borrow`。
+`desktop`：真窗口，一次辅助功能。`browser_agent`：旧空 profile。会话期间必须有 Stage Banner。
 
 ## 3. MCP
 
@@ -105,7 +103,9 @@ vcu session stop "$SID"
 | code | 含义 | repair_hint 示例 |
 | --- | --- | --- |
 | DaemonNotRunning | 守护进程未起 | `vcu daemon start` |
-| ExtensionDisconnected | 扩展未连 | 打开浏览器加载扩展并完成配对 |
+| ExtensionDisconnected | 扩展未连（仅 browser_agent） | 加载扩展或改用 `--surface desktop` |
+| AccessibilityDenied | 未授辅助功能 | 系统设置 → 隐私与安全 → 辅助功能 |
+| AppDenied | 微信等 denylist | 换目标 App |
 | BorrowRequired | 写用户 tab 未借 | `vcu tabs borrow ...` |
 | VisionProviderRequired | 需要视觉未配置 | `vcu init model` |
 | FocusPolicyViolation | 试图 OS 光标或抢焦点 | 改用页内 action |

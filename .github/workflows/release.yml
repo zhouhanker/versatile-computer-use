@@ -46,6 +46,10 @@ jobs:
             rm -rf "$STAGE"
             mkdir -p "$STAGE/bin" "$STAGE/extension" "$STAGE/skills" "$STAGE/docs" "$STAGE/scripts/macos" "$STAGE/scripts/install"
             cp "target/${triple}/release/vcu" "target/${triple}/release/vcu-daemon" "target/${triple}/release/vcu-mcp" "$STAGE/bin/"
+            case "$triple" in
+              aarch64-apple-darwin) bash scripts/build-stage.sh "$STAGE/bin/vcu-stage" arm64-apple-macosx13.0 ;;
+              x86_64-apple-darwin) bash scripts/build-stage.sh "$STAGE/bin/vcu-stage" x86_64-apple-macosx13.0 ;;
+            esac
             chmod +x "$STAGE/bin/"*
             cp -R extension/* "$STAGE/extension/" 2>/dev/null || true
             cp -R skills/* "$STAGE/skills/" 2>/dev/null || true

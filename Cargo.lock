@@ -1888,6 +1888,7 @@ name = "vcu-daemon"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "libc",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1899,6 +1900,7 @@ dependencies = [
 name = "vcu-mcp"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "clap",
  "reqwest",
  "serde",

@@ -52,7 +52,7 @@ async fn mcp_initialize_and_session_tools() {
     let dir = tempfile::tempdir().unwrap();
     let paths = VcuPaths::from_root(dir.path());
     let mut cfg = UserConfig::default();
-    cfg.daemon_port = 19500 + (std::process::id() % 300) as u16;
+    cfg.daemon_port = 0;
     paths.save_config(&cfg).unwrap();
     let handle = vcu_server::start_daemon(paths.clone(), cfg).await.unwrap();
 
@@ -87,7 +87,27 @@ async fn mcp_initialize_and_session_tools() {
     let tools = read_msg(&mut stdout);
     let arr = tools["result"]["tools"].as_array().unwrap();
     assert!(arr.iter().any(|t| t["name"] == "vcu_session_start"));
+    assert!(arr.iter().any(|t| t["name"] == "vcu_browser_observe"));
+    assert!(arr.iter().any(|t| t["name"] == "vcu_browser_next"));
+    assert!(arr.iter().any(|t| t["name"] == "vcu_browser_login_state"));
+    assert!(arr.iter().any(|t| t["name"] == "vcu_browser_ping"));
+    assert!(arr.iter().any(|t| t["name"] == "vcu_browser_extract"));
+    let ext_tool = arr.iter().find(|t| t["name"] == "vcu_browser_extract").unwrap();
+    assert!(ext_tool["inputSchema"]["properties"].get("selector").is_some());
     assert!(arr.iter().any(|t| t["name"] == "vcu_snapshot"));
+    assert!(arr.iter().any(|t| t["name"] == "vcu_screenshot"));
+    assert!(arr.iter().any(|t| t["name"] == "vcu_session_list"));
+    let snap_tool = arr.iter().find(|t| t["name"] == "vcu_snapshot").unwrap();
+    assert!(snap_tool["inputSchema"]["properties"].get("tab_id").is_some());
+    let shot_tool = arr.iter().find(|t| t["name"] == "vcu_screenshot").unwrap();
+    assert!(shot_tool["inputSchema"]["properties"].get("tab_id").is_some());
+    for name in ["vcu_type", "vcu_scroll", "vcu_wait", "vcu_extract"] {
+        let tool = arr.iter().find(|t| t["name"] == name).unwrap();
+        assert!(
+            tool["inputSchema"]["properties"].get("tab_id").is_some(),
+            "{name} missing tab_id"
+        );
+    }
 
     write_msg(
         &mut stdin,
@@ -142,6 +162,46 @@ async fn mcp_initialize_and_session_tools() {
     let denied = read_msg(&mut stdout);
     let text = denied["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("OsCursorDenied") || text.contains("os_cursor"));
+
+    write_msg(
+        &mut stdin,
+        &json!({
+            "jsonrpc":"2.0","id":7,"method":"tools/call",
+            "params":{"name":"vcu_screenshot","arguments":{"session":sid}}
+        })
+        .to_string(),
+    );
+    let shot = read_msg(&mut stdout);
+    let text = shot["result"]["content"][0]["text"].as_str().unwrap();
+    let body: Value = serde_json::from_str(text).unwrap();
+    assert_eq!(body["ok"], true);
+    assert!(body["data"]["sha256"].as_str().unwrap().len() >= 16);
+
+    write_msg(
+        &mut stdin,
+        &json!({
+            "jsonrpc":"2.0","id":8,"method":"tools/call",
+            "params":{"name":"vcu_session_list","arguments":{}}
+        })
+        .to_string(),
+    );
+    let listed = read_msg(&mut stdout);
+    let text = listed["result"]["content"][0]["text"].as_str().unwrap();
+    let body: Value = serde_json::from_str(text).unwrap();
+    assert_eq!(body["ok"], true);
+
+    write_msg(
+        &mut stdin,
+        &json!({
+            "jsonrpc":"2.0","id":9,"method":"tools/call",
+            "params":{"name":"vcu_session_stop","arguments":{"session":"all"}}
+        })
+        .to_string(),
+    );
+    let stopped = read_msg(&mut stdout);
+    let text = stopped["result"]["content"][0]["text"].as_str().unwrap();
+    let body: Value = serde_json::from_str(text).unwrap();
+    assert_eq!(body["ok"], true);
 
     drop(stdin);
     let _ = child.wait();

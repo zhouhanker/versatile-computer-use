@@ -76,6 +76,10 @@ jobs:
             cp "target/${triple}/release/vcu" "$STAGE/bin/"
             cp "target/${triple}/release/vcu-daemon" "$STAGE/bin/"
             cp "target/${triple}/release/vcu-mcp" "$STAGE/bin/"
+            case "$triple" in
+              aarch64-apple-darwin) bash scripts/build-stage.sh "$STAGE/bin/vcu-stage" arm64-apple-macosx13.0 ;;
+              x86_64-apple-darwin) bash scripts/build-stage.sh "$STAGE/bin/vcu-stage" x86_64-apple-macosx13.0 ;;
+            esac
             chmod +x "$STAGE/bin/"*
             cp -R extension/* "$STAGE/extension/" 2>/dev/null || true
             cp -R skills/* "$STAGE/skills/" 2>/dev/null || true

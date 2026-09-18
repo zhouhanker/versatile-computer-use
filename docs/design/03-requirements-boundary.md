@@ -1,6 +1,8 @@
 # 需求边界与分期
 
-版本：0.1-design
+版本：0.2-design
+
+主路径已改为 Stage+Steward（`docs/design/06-stage-steward.md`）。下面「一期已实现」仍描述 **浏览器 MVP**；desktop surface 是**下一实现史诗**，确认设计前不写 overlay 代码。
 
 ## 1. 一期（MVP）范围 — 设计接受后实现
 
@@ -35,11 +37,13 @@
 - Linux
 - 与 AWR session 的可选桥接（长研发任务）
 
-## 3. 三期
+## 3. 下一实现史诗（设计接受后，原「三期」提前为主路径）
 
-- macOS / Windows App adapter（辅助功能 / UI Automation）
-- 应用 allowlist、虚拟桌面/后台策略
-- 统一 CU 评测集（evals）
+- Steward + Stage Banner + Guide
+- Scene（AX + 截帧）与 Actuator（AXPress/AXSetValue）
+- `--surface desktop` 默认；allowlist；微信 denylist
+- 飞书客户端 / 用户 Edge 真窗口 POC
+- Windows UIA 后置
 
 ## 4. 需求追踪矩阵（用户强制项）
 
@@ -63,15 +67,13 @@
 | 自研扩展 vs 直接依赖 BrowserSkill | 协议自有；实现可先验证互操作，**产品不绑定**其发行节奏 |
 | 视觉默认开 vs 隐私 | **默认不调用云视觉**；需配置；DOM 优先 |
 
-## 6. 设计阶段退出条件
+## 6. 本轮设计退出条件
 
-当用户确认 `docs/design/*` 与本边界后：
+当用户确认 `docs/design/06-stage-steward.md` 后：
 
-1. AWR 将设计工作标 completed（附 source SHA/证据）
-2. 打开实现史诗：`VCU-IMPL-001` 协议 schema 等
-3. **才允许**写产品代码
-
-在此之前禁止实现 daemon/extension 业务代码（文档与台账除外）。
+1. 台账切开 Steward/Stage/Scene/Actuator 实现项
+2. **才允许**写 overlay / AX 执行器产品代码
+3. 现有浏览器 MVP 代码保留为 `browser_agent` 旁路，不删除 Codex CU、不自动化微信
 
 
 ## 7. 实现状态（2026-09-17）

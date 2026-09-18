@@ -8,9 +8,7 @@ async fn end_to_end_mock_session_boundaries() {
     let dir = tempfile::tempdir().unwrap();
     let paths = VcuPaths::from_root(dir.path());
     let mut cfg = UserConfig::default();
-    cfg.daemon_port = 0; // we'll bind ephemeral via start - actually config port is used
-    // pick a high random port
-    cfg.daemon_port = 18000 + (std::process::id() % 1000) as u16;
+    cfg.daemon_port = 0;
     paths.save_config(&cfg).unwrap();
     let token = cfg.pairing_token.clone();
     let handle = vcu_server::start_daemon(paths.clone(), cfg).await.unwrap();

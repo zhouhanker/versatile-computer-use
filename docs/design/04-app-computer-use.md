@@ -1,17 +1,29 @@
-# App Computer Use
+# App / 桌面 Computer Use
 
-状态：**macOS 最小可用 POC 已落地**；Windows UIA 待 CI/实机。
+状态：macOS **最小 POC 已有**（列窗、AX 软降级）。  
+**主路径设计**见 `docs/design/06-stage-steward.md`（Stage + Steward）。确认前不把 POC 扩成 overlay 产品。
 
-## 已实现（macOS）
+## 设计主路径（未实现）
 
 | 能力 | 行为 |
 | --- | --- |
-| `vcu app windows` | 通过 System Events 列出非后台进程（allowlist 过滤） |
-| `vcu app snapshot <id>` | 尝试 AX entire contents；无辅助功能权限时软降级为 process 摘要 |
-| `vcu app focus` | 默认 `FocusPolicyViolation`（禁止抢焦点） |
-| `vcu app invoke` | 默认 `OsCursorDenied`（禁止 OS 级触发） |
+| Steward | `vcu-daemon` 长驻，一次辅助功能 |
+| Scene | AX 树 refs + 窗口截帧 |
+| Actuator | AXPress / AXSetValue / key；不 warp 用户鼠标 |
+| Stage | Banner「VCU 正在使用这台 Mac」+ Guide 虚拟指针 |
+| Abort | 热键结束会话并拆 Stage |
 
-Allowlist 默认：TextEdit, Notes, Safari, Terminal, Ghostty, Finder。
+## 已实现（POC，将降为 desktop 的探测层）
+
+| 能力 | 行为 |
+| --- | --- |
+| `vcu app windows` | System Events 列窗（allowlist） |
+| `vcu app snapshot <id>` | AX entire contents；无权限时软降级 |
+| `vcu app focus` | 默认 `FocusPolicyViolation` |
+| `vcu app invoke` | 默认 `OsCursorDenied` |
+
+Allowlist 默认：Edge, Safari, Feishu/Lark, TextEdit, Notes, Terminal, Ghostty, Finder。  
+Denylist：**微信 / WeChat**。
 
 ## 测试
 
@@ -20,15 +32,10 @@ cargo test -p vcu-server app::
 bash scripts/poc_app_macos.sh
 ```
 
-## Windows
-
-- 源码在 `cfg(target_os = "windows")` 下返回 `UnsupportedAppBackend`
-- `.github/workflows/ci.yml` 的 `windows-latest` job 编译/测试核心与 release 二进制
-- UIA adapter 后续在 Windows runner 上实现
-
 ## 安全不变量
 
-1. 默认不抢焦点  
-2. 默认不 OS 光标/SendInput  
-3. allowlist  
-4. 权限缺失时明确 repair（辅助功能设置）
+1. 不把用户物理光标当主路径（Guide ≠ OS cursor）
+2. 会话必须可见 Stage
+3. allowlist + 微信拒绝
+4. 缺辅助功能时 repair 指向系统设置，而不是 Edge Allow
+5. 不碰 `~/.codex/computer-use/`

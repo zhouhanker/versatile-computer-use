@@ -4,6 +4,7 @@ use vcu_core::{ErrorCode, Envelope, SessionPolicy, SnapshotMode, VcuError, Visio
 fn every_error_code_has_hint() {
     for code in [
         ErrorCode::DaemonNotRunning,
+        ErrorCode::DaemonAlreadyRunning,
         ErrorCode::DaemonAuthFailed,
         ErrorCode::ExtensionDisconnected,
         ErrorCode::SessionNotFound,
@@ -24,6 +25,8 @@ fn every_error_code_has_hint() {
         ErrorCode::IdempotencyConflict,
         ErrorCode::Internal,
         ErrorCode::NotImplemented,
+        ErrorCode::AccessibilityDenied,
+        ErrorCode::AppDenied,
     ] {
         assert!(!code.default_hint().is_empty(), "{code:?}");
         let e = VcuError::coded(code, "x");

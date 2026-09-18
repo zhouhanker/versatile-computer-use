@@ -1,14 +1,21 @@
 {
   "manifest_version": 3,
   "name": "VCU Browser Bridge",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "description": "Versatile Computer Use — Agent Window bridge for Chrome/Edge. Does not move the OS cursor.",
-  "permissions": ["tabs", "windows", "scripting", "storage", "activeTab"],
-  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "permissions": ["tabs", "windows", "scripting", "storage", "activeTab", "alarms", "offscreen"],
+  "host_permissions": ["<all_urls>", "http://127.0.0.1/*", "http://localhost/*"],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
   "action": {
     "default_title": "VCU",
     "default_popup": "popup.html"

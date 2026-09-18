@@ -35,3 +35,9 @@ dist/*.sha256
 
 # Packaged latest pointers can stay out
 dist/latest-*.txt
+
+# Local auth leftovers — never commit
+lark-auth-*.txt
+lark-im-send-auth.png
+
+.awr/clients/

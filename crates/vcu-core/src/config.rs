@@ -121,6 +121,10 @@ impl VcuPaths {
         self.root.join("daemon.pid")
     }
 
+    pub fn lock_path(&self) -> PathBuf {
+        self.root.join("daemon.lock")
+    }
+
     pub fn endpoint_path(&self) -> PathBuf {
         self.root.join("daemon.endpoint")
     }

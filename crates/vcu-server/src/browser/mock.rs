@@ -47,6 +47,8 @@ impl MockBackend {
                     url: "about:blank".into(),
                     agent_owned: true,
                     borrowed_by: None,
+                    login_state: None,
+                    browser_profile: None,
                 },
                 nodes: default_blank_nodes(),
                 body_text: String::new(),
@@ -63,6 +65,8 @@ impl MockBackend {
                     url: "https://mail.example.com/inbox".into(),
                     agent_owned: false,
                     borrowed_by: None,
+                    login_state: None,
+                    browser_profile: None,
                 },
                 nodes: vec![MockNode {
                     id: "e1".into(),
@@ -222,6 +226,7 @@ impl BrowserBackend for MockBackend {
                     Some(n.value.clone())
                 },
                 selector: Some(format!("{}#{}", n.tag, n.id)),
+                frame: None,
             })
             .collect();
 
@@ -259,6 +264,11 @@ impl BrowserBackend for MockBackend {
             screenshot_png: Some(minimal_png()),
             truncated,
             budget_tokens_est: est.min(budget),
+            webview: false,
+            webview_ref: None,
+            webview_png: None,
+            screenshot_scale: None,
+            webview_screenshot_scale: None,
         })
     }
 
@@ -358,6 +368,12 @@ impl BrowserBackend for MockBackend {
             png: minimal_png(),
             width: 1,
             height: 1,
+            frame: None,
+            scale: None,
+            webview_png: None,
+            webview_ref: None,
+            webview_frame: None,
+            webview_scale: None,
         })
     }
 

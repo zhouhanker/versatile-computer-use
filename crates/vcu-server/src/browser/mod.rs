@@ -1,4 +1,5 @@
 pub mod cdp;
+pub mod desktop;
 pub mod extension;
 pub mod mock;
 
@@ -27,6 +28,9 @@ pub trait BrowserBackend: Send + Sync {
     async fn extract(&self, tab_id: &str, selector: &str) -> VcuResult<ExtractResult>;
     async fn screenshot(&self, tab_id: &str, full_page: bool) -> VcuResult<ScreenshotData>;
     async fn act(&mut self, tab_id: &str, action: &ActionRequest) -> VcuResult<ActionResultDetail>;
+    fn abort_watch_path(&self) -> Option<std::path::PathBuf> {
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +41,11 @@ pub struct SnapshotData {
     pub screenshot_png: Option<Vec<u8>>,
     pub truncated: bool,
     pub budget_tokens_est: u64,
+    pub webview: bool,
+    pub webview_ref: Option<String>,
+    pub webview_png: Option<Vec<u8>>,
+    pub screenshot_scale: Option<f64>,
+    pub webview_screenshot_scale: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +59,12 @@ pub struct ScreenshotData {
     pub png: Vec<u8>,
     pub width: u32,
     pub height: u32,
+    pub frame: Option<[f64; 4]>,
+    pub scale: Option<f64>,
+    pub webview_png: Option<Vec<u8>>,
+    pub webview_ref: Option<String>,
+    pub webview_frame: Option<[f64; 4]>,
+    pub webview_scale: Option<f64>,
 }
 
 pub use mock::MockBackend;

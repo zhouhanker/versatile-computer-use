@@ -13,23 +13,36 @@ use vcu_core::{
 
 use super::{ActionResultDetail, BrowserBackend, ScreenshotData, SnapshotData};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ExtensionBridge {
     inner: Arc<Mutex<BridgeState>>,
+    lease_ms: u64,
+}
+
+impl Default for ExtensionBridge {
+    fn default() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(BridgeState::default())),
+            lease_ms: 1_500,
+        }
+    }
 }
 
 #[derive(Default)]
 struct BridgeState {
     connected: bool,
     last_seen_ms: u64,
+    last_poll_ms: u64,
     pending: Vec<PendingCmd>,
     waiters: HashMap<String, oneshot::Sender<serde_json::Value>>,
+    likely_user_profile: bool,
 }
 
 struct PendingCmd {
     id: String,
     method: String,
     params: serde_json::Value,
+    leased_until: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -44,15 +57,51 @@ impl ExtensionBridge {
         Self::default()
     }
 
-    pub async fn mark_hello(&self) {
+    pub fn with_lease_ms(lease_ms: u64) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(BridgeState::default())),
+            lease_ms: lease_ms.max(1),
+        }
+    }
+
+    pub async fn mark_hello(&self, likely_user_profile: bool) {
         let mut g = self.inner.lock().await;
         g.connected = true;
         g.last_seen_ms = now_ms();
+        if likely_user_profile {
+            g.likely_user_profile = true;
+        }
+    }
+
+    pub async fn likely_user_profile(&self) -> bool {
+        self.inner.lock().await.likely_user_profile
     }
 
     pub async fn is_connected(&self) -> bool {
         let g = self.inner.lock().await;
-        g.connected && now_ms().saturating_sub(g.last_seen_ms) < 30_000
+        g.connected && now_ms().saturating_sub(g.last_seen_ms) < 120_000
+    }
+
+    pub async fn is_polling(&self) -> bool {
+        let g = self.inner.lock().await;
+        g.connected && now_ms().saturating_sub(g.last_poll_ms) < 15_000
+    }
+
+    pub async fn pending_len(&self) -> usize {
+        self.inner.lock().await.pending.len()
+    }
+
+    pub async fn waiter_len(&self) -> usize {
+        self.inner.lock().await.waiters.len()
+    }
+
+    pub async fn last_poll_age_ms(&self) -> Option<u64> {
+        let g = self.inner.lock().await;
+        if g.last_poll_ms == 0 {
+            None
+        } else {
+            Some(now_ms().saturating_sub(g.last_poll_ms))
+        }
     }
 
     pub async fn poll(&self, wait_ms: u64) -> Option<ExtensionCommand> {
@@ -61,11 +110,17 @@ impl ExtensionBridge {
             {
                 let mut g = self.inner.lock().await;
                 g.last_seen_ms = now_ms();
-                if let Some(cmd) = g.pending.pop() {
+                g.last_poll_ms = now_ms();
+                let now = now_ms();
+                let lease = self.lease_ms;
+                if let Some(cmd) = g.pending.iter_mut().find(|c| {
+                    c.leased_until.map(|t| t <= now).unwrap_or(true)
+                }) {
+                    cmd.leased_until = Some(now.saturating_add(lease));
                     return Some(ExtensionCommand {
-                        id: cmd.id,
-                        method: cmd.method,
-                        params: cmd.params,
+                        id: cmd.id.clone(),
+                        method: cmd.method.clone(),
+                        params: cmd.params.clone(),
                     });
                 }
             }
@@ -78,12 +133,17 @@ impl ExtensionBridge {
 
     pub async fn submit_result(&self, id: &str, result: serde_json::Value) {
         let mut g = self.inner.lock().await;
+        g.pending.retain(|c| c.id != id);
         if let Some(tx) = g.waiters.remove(id) {
             let _ = tx.send(result);
         }
     }
 
     pub async fn call(&self, method: &str, params: serde_json::Value) -> VcuResult<serde_json::Value> {
+        self.call_timeout(method, params, 30).await
+    }
+
+    pub async fn call_timeout(&self, method: &str, params: serde_json::Value, timeout_secs: u64) -> VcuResult<serde_json::Value> {
         if !self.is_connected().await {
             return Err(VcuError::coded(
                 ErrorCode::ExtensionDisconnected,
@@ -99,9 +159,10 @@ impl ExtensionBridge {
                 id: id.clone(),
                 method: method.to_string(),
                 params,
+                leased_until: None,
             });
         }
-        match tokio::time::timeout(Duration::from_secs(15), rx).await {
+        match tokio::time::timeout(Duration::from_secs(timeout_secs.max(1)), rx).await {
             Ok(Ok(v)) => {
                 if v.get("ok").and_then(|x| x.as_bool()) == Some(false) {
                     return Err(VcuError::with_detail(
@@ -119,6 +180,7 @@ impl ExtensionBridge {
             Err(_) => {
                 let mut g = self.inner.lock().await;
                 g.waiters.remove(&id);
+                g.pending.retain(|c| c.id != id);
                 Err(VcuError::coded(
                     ErrorCode::ActionFailed,
                     "extension command timeout",
@@ -232,6 +294,7 @@ impl BrowserBackend for ExtensionBackend {
                         .get("selector")
                         .and_then(|x| x.as_str())
                         .map(|s| s.to_string()),
+                    frame: None,
                 })
             })
             .collect();
@@ -247,6 +310,11 @@ impl BrowserBackend for ExtensionBackend {
                 .map(|s| s.to_string()),
             screenshot_png: None,
             truncated: v.get("truncated").and_then(|x| x.as_bool()).unwrap_or(false),
+            webview: false,
+            webview_ref: None,
+            webview_png: None,
+            screenshot_scale: None,
+            webview_screenshot_scale: None,
             budget_tokens_est: v
                 .get("budget_tokens_est")
                 .and_then(|x| x.as_u64())
@@ -323,6 +391,12 @@ impl BrowserBackend for ExtensionBackend {
             png,
             width: 0,
             height: 0,
+            frame: None,
+            scale: None,
+            webview_png: None,
+            webview_ref: None,
+            webview_frame: None,
+            webview_scale: None,
         })
     }
 
@@ -366,6 +440,53 @@ impl BrowserBackend for ExtensionBackend {
                     ok: true,
                     detail: serde_json::json!({"url": url}),
                 })
+            }
+            "scroll" => {
+                let dy = action.args.get("dy").and_then(|v| v.as_i64()).unwrap_or(400);
+                let v = self
+                    .bridge
+                    .call("scroll", serde_json::json!({"tab_id": tab_id, "dy": dy}))
+                    .await?;
+                Ok(ActionResultDetail { ok: true, detail: v })
+            }
+            "wait" => {
+                let ms = action.args.get("ms").and_then(|v| v.as_u64()).unwrap_or(100);
+                let v = self
+                    .bridge
+                    .call("wait", serde_json::json!({"tab_id": tab_id, "ms": ms}))
+                    .await?;
+                Ok(ActionResultDetail { ok: true, detail: v })
+            }
+            "hover" => {
+                let r = action
+                    .target
+                    .get("ref")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        VcuError::coded(ErrorCode::InvalidInput, "hover requires target.ref")
+                    })?;
+                let v = self
+                    .bridge
+                    .call("hover", serde_json::json!({"tab_id": tab_id, "ref": r}))
+                    .await?;
+                Ok(ActionResultDetail { ok: true, detail: v })
+            }
+            "keypress" => {
+                let key = action
+                    .args
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        VcuError::coded(ErrorCode::InvalidInput, "keypress requires args.key")
+                    })?;
+                let v = self
+                    .bridge
+                    .call(
+                        "keypress",
+                        serde_json::json!({"tab_id": tab_id, "key": key}),
+                    )
+                    .await?;
+                Ok(ActionResultDetail { ok: true, detail: v })
             }
             other => Err(VcuError::coded(
                 ErrorCode::NotImplemented,

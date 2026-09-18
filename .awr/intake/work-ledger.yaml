@@ -1,0 +1,1089 @@
+# VCU ledger
+milestones:
+  - id: m-phase1-mvp
+    title: 一期 MVP + 安装/MCP/macOS
+    status: completed
+    summary: curl 安装、真 MCP、macOS app/launchd、全 POC 门禁
+    acceptance: ["poc_install_curl", "mcp_stdio", "all pocs"]
+
+work_items:
+
+
+
+
+
+
+
+
+
+
+
+
+
+  - id: EXTRACT-002
+    title: Live USER extension DOM extract (no AX false-green)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: Live ping pongs 0.1.5. Extract source=extension_dom (Bilibili/Etherscan). Timeout is error not AX fake-green.
+    acceptance:
+      - "HTTP extract timeout returns ok=false without ax_scene_fallback"
+      - "fake-extension extract source=extension_dom"
+      - "ping unknown method is stale Reload, never click Allow"
+      - "live vcu browser ping pongs after Reload"
+      - "live extract source=extension_dom"
+    next_action: focused-tab selector click polish; ETH-001 sample tree
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+      - "crates/vcu-server/tests/browser_gates.rs"
+      - "extension/content.js"
+      - "extension/background.js"
+      - "scripts/poc_browser_extract.sh"
+    depends_on: ["EXTRACT-001"]
+
+  - id: EXTRACT-001
+    title: Login-state DOM extract via USER extension (no session)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: vcu browser extract uses USER extension bridge, refuses Agent profile, no HUD. Timeout is an error (no AX false-green). Fake-extension e2e source=extension_dom.
+    acceptance:
+      - "POST /v1/browser/extract without polling fails"
+      - "CLI vcu browser extract exists"
+      - "cargo test --workspace"
+      - "extract timeout is not ax_scene_fallback ok"
+    next_action: EXTRACT-002 live Reload + ping pong + extension_dom
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+      - "crates/vcu-cli/src/main.rs"
+      - "scripts/poc_browser_extract.sh"
+      - "crates/vcu-server/tests/browser_gates.rs"
+    depends_on: ["BROWSER-TEST-001"]
+
+  - id: BROWSER-TEST-001
+    title: Browser-only test plan, cases, and automated gates
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: This version drops App CU. Authoritative browser test plan/cases plus cargo tests for login-state policy, pixel map, mock session, HTTP key gate. make check no longer runs feishu/app/cdp.
+    acceptance:
+      - "docs/testing/BROWSER_TEST_PLAN.md and BROWSER_TEST_CASES.md exist"
+      - "cargo test --workspace"
+      - "make check does not require poc-feishu-scene or poc-app"
+    next_action: EXTRACT-002 live DOM; LOGIN-LIVE after extract green
+    evidence:
+      - "docs/PLAN.md"
+      - "docs/testing/BROWSER_TEST_PLAN.md"
+      - "docs/testing/BROWSER_TEST_CASES.md"
+      - "crates/vcu-server/tests/browser_gates.rs"
+      - "Makefile"
+    depends_on: ["TEST-001"]
+
+  - id: VISION-001
+    title: Pass Scene PNGs into host vision in the same turn
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: snapshot stamps vision_handoff.must_view. MCP observe/snapshot/screenshot attach image content so the host cannot forget to look.
+    acceptance:
+      - "app snapshot JSON includes vision_handoff.must_view when pixels=true"
+      - "MCP tool result content includes type=image when PNG exists"
+      - "cargo test --workspace"
+    next_action: parked FEISHU this version; browser observe still stamps must_view
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+      - "crates/vcu-mcp/src/main.rs"
+      - "playbooks/feishu.md"
+    depends_on: ["TEST-001"]
+
+  - id: TEST-001
+    title: Honest gates — no false-green Feishu send
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: ACCEPTANCE Feishu send FAIL. Unit + poc-feishu-scene assert AX has no 发送. poc_feishu_message refuses CLI (exit 2). make check / release_check require poc-login + poc-feishu-scene; CDP not required.
+    acceptance:
+      - "ACCEPTANCE Feishu send is FAIL until chat screenshot shows test"
+      - "test asserts Feishu scene names contain no 发送"
+      - "make check runs poc-login and poc-feishu-scene; poc-cdp not required"
+    next_action: P2 FEISHU-001 Feishu app + vision send; no lark-cli
+    evidence:
+      - "docs/PLAN.md"
+      - "evals/ACCEPTANCE.md"
+      - "scripts/poc_feishu_scene.sh"
+      - "scripts/poc_feishu_message.sh"
+      - "crates/vcu-server/src/login_state.rs"
+      - "Makefile"
+      - "scripts/release_check.sh"
+    depends_on: ["CDP-001"]
+
+  - id: CDP-001
+    title: Abandon CDP Allow path for login-state
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: Login-state never asks the user to click Allow. Health/doctor use likely_user_profile. DOM via USER Edge extension.
+    acceptance:
+      - "login_next_action never contains click Allow"
+      - "health extension_profile follows likely_user_profile"
+      - "cargo test --workspace"
+    next_action: extension extract on USER Edge; no Agent Edge
+    evidence:
+      - "crates/vcu-server/src/login_state.rs"
+      - "crates/vcu-server/src/api.rs"
+      - "crates/vcu-server/src/doctor.rs"
+    depends_on: ["LOGIN-014"]
+
+  - id: LOGIN-014
+    title: Faster address-bar find (skip WebArea walk)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Chrome BFS treats WebArea as leaf and skips AX frames. type --dry-run ~1.2s.
+    acceptance:
+      - "type --dry-run still returns 地址和搜索栏"
+      - "cargo test --workspace"
+    next_action: Bridge installed; DOM extract via USER extension, not CDP
+    evidence:
+      - "crates/vcu-server/src/app/macos.rs"
+    depends_on: ["LOGIN-013"]
+
+  - id: LOGIN-013
+    title: type dry-run merges address URL into login-latest.json
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Fast observe may omit page_url; type --dry-run writes https URL into sidecar without typing.
+    acceptance:
+      - "login_latest_url_merged true for http(s) address bar"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM
+    evidence:
+      - "crates/vcu-server/src/app/mod.rs"
+      - "crates/vcu-server/src/api.rs"
+    depends_on: ["LOGIN-012"]
+
+  - id: LOGIN-012
+    title: Login-state no-HUD loop is the default agent path
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: README/playbook/MCP instructions default to observe-click-type-wait-key without session HUD.
+    acceptance:
+      - "README login-state loop has browser click/type/key"
+      - "MCP instructions mention vcu_browser_click and confirm_send"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM
+    evidence:
+      - "README.md"
+      - "playbooks/user-browser.md"
+      - "crates/vcu-mcp/src/main.rs"
+    depends_on: ["LOGIN-011"]
+
+  - id: LOGIN-011
+    title: Login-state key policy (no HID, no blind Return)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: vcu browser key never HID. Return gated on confirm_send+Send ref. Escape not injected.
+    acceptance:
+      - "return --dry-run blocked FocusPolicyViolation hid=false"
+      - "return without dry-run errors and does not inject"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM; Feishu send still needs named recipient
+    evidence:
+      - "crates/vcu-server/src/login_state.rs"
+      - "crates/vcu-server/src/api.rs"
+    depends_on: ["LOGIN-010"]
+
+  - id: LOGIN-010
+    title: Fast login-state type/wait
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: type finds address bar by name with early-exit BFS; wait AXWebArea is constant-time. No full Scene dump.
+    acceptance:
+      - "type --dry-run returns 地址和搜索栏 without typing"
+      - "wait --role AXWebArea under 1s"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM
+    evidence:
+      - "crates/vcu-server/src/app/macos.rs"
+      - "crates/vcu-server/src/api.rs"
+    depends_on: ["LOGIN-009"]
+
+  - id: LOGIN-009
+    title: Fast login-state (no full AX on classify)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: login-state used snapshot budget 4000 just to detect Allow infobar (~8s). Now depth-1 window names. observe 0.7s click 0.03s.
+    acceptance:
+      - "login-state does not call snapshot 4000"
+      - "observe under 2s on this machine"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+      - "crates/vcu-server/src/app/macos.rs"
+    depends_on: ["LOGIN-008"]
+
+  - id: LOGIN-008
+    title: Fast login-state Scene (skip chrome AX dump)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: budget<3000 uses targeted PAGE/TAB/WebArea walk; observe default 2000; click dry-run uses sidecar without second AX dump.
+    acceptance:
+      - "observe budget 2000 still page_url+webview"
+      - "click dry-run without extra 6s AX when sidecar present"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM
+    evidence:
+      - "crates/vcu-server/src/app/macos.rs"
+    depends_on: ["LOGIN-007"]
+
+  - id: LOGIN-007
+    title: Login-state wait + center-pixel map
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: vcu browser wait without HUD; webview center pixel maps to AX midpoint.
+    acceptance:
+      - "wait --role AXWebArea found_ref"
+      - "center pixel dry-run ax midpoint"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+    depends_on: ["LOGIN-006"]
+
+  - id: LOGIN-006
+    title: Guide-only flash + login-state type/scroll without HUD
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: flash_guide hud=false at mapped AX point; type/scroll dry-run; teardown vcu-stage. Codex-like cursor without blocking capsule.
+    acceptance:
+      - "click --dry-run --guide overlay=true hud=false leftover stage=0"
+      - "type --dry-run returns address-bar ref"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM
+    evidence:
+      - "crates/vcu-server/src/stage.rs"
+      - "helpers/vcu-stage/main.swift"
+    depends_on: ["LOGIN-005"]
+
+  - id: LOGIN-005
+    title: No-HUD login-state pixel click + compact HUD
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: vcu browser click maps retina pixels without Stage HUD; dry-run; never Allow. HUD 28pt size-to-fit per Apple HIG.
+    acceptance:
+      - "vcu browser click --dry-run hud=false pressed=false"
+      - "cargo test --workspace"
+    next_action: USER Load unpacked for DOM; do not click Allow
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+      - "helpers/vcu-stage/main.swift"
+    depends_on: ["LOGIN-004"]
+
+  - id: LOGIN-004
+    title: Login-state Scene page_url/tabs/AXWebArea without CDP
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: Enable AXEnhancedUserInterface on Chromium/Electron; prefer WebArea in BFS; observe emits page_url, tabs, webview. Never click Allow.
+    acceptance:
+      - "vcu browser observe includes page_url or documented empty"
+      - "AXWebArea counts as webview for pixel space"
+      - "cargo test --workspace"
+    next_action: USER Edge Load unpacked for DOM lens; ETH-001 still needs that or Allow
+    evidence:
+      - "crates/vcu-server/src/app/macos.rs"
+      - "playbooks/user-browser.md"
+    depends_on: ["LOGIN-002"]
+
+  - id: LOGIN-002
+    title: Observe USER browser without HUD
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: vcu browser observe; login-latest.png/json; host vision; no Stage HUD; no Allow click.
+    acceptance:
+      - "make poc-login"
+      - "hud=false screenshot_scale 1/2/3"
+    next_action: USER Edge Load unpacked ~/.vcu/lens-extension for DOM lens
+    evidence:
+      - "crates/vcu-cli/src/main.rs"
+      - "scripts/poc_login_state.sh"
+    depends_on: ["LOGIN-001"]
+
+  - id: LOGIN-003
+    title: install-lens copy for USER Edge unpacked load
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Copies MV3 to ~/.vcu/lens-extension. Does not click UI. next_action includes full path.
+    acceptance:
+      - "vcu browser install-lens copied_files>0"
+      - "vcu browser next contains lens-extension"
+    next_action: user Load unpacked in USER Edge
+    evidence:
+      - "crates/vcu-server/src/lens.rs"
+    depends_on: ["LOGIN-001"]
+
+  - id: FEISHU-002
+    title: Feishu Scene observe without send
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: poc_feishu_scene; feishu-latest.png; webview e15; hud=false; never send.
+    acceptance:
+      - "make poc-feishu-scene"
+    next_action: FEISHU-001 still needs named recipient
+    evidence:
+      - "scripts/poc_feishu_scene.sh"
+    depends_on: ["STEW-017"]
+
+  - id: LOGIN-001
+    title: Login-state user browser (desktop, not agent profile)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: Classify user vs empty Agent Edge. Doctor login_browser. CLI vcu browser login-state. Desktop session prefers user Edge. Host vision optional. Never click CDP Allow.
+    acceptance:
+      - "vcu browser login-state lists user Edge pid"
+      - "doctor login_browser pass when user Edge is running"
+      - "cargo test --workspace"
+    next_action: ETH-001 still needs user Allow or an open Etherscan tab; do not auto-click Allow
+    evidence:
+      - "crates/vcu-server/src/login_state.rs"
+      - "playbooks/user-browser.md"
+    depends_on: ["STEW-026"]
+
+  - id: STEW-027
+    title: Guide maps screenshot pixels to AX points
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: ax_point_from_pixel for scale 1/2/3. Desktop click accepts pixel_x/pixel_y + space window|webview. Guide overlay only. MCP vcu_click pixels.
+    acceptance:
+      - "retina 2x Feishu pixel maps to AX point"
+      - "mock pixel click hits e15 without OS cursor"
+      - "cargo test --workspace"
+    next_action: none
+    evidence:
+      - "crates/vcu-server/src/app/mod.rs"
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "docs/macos/COORDINATES.md"
+    depends_on: ["STEW-024"]
+
+  - id: STEW-028
+    title: Document scale fields and host vision
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P2
+    summary: COORDINATES.md + playbooks/user-browser.md. Doctor vision_model hint says host multimodal is enough.
+    acceptance:
+      - "docs/macos/COORDINATES.md"
+      - "playbooks/user-browser.md"
+    next_action: none
+    evidence:
+      - "docs/macos/COORDINATES.md"
+    depends_on: ["STEW-027"]
+
+  - id: STEW-029
+    title: Compact Apple HUD capsule (hudWindow material)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Stage HUD 300x32 NSVisualEffectView hudWindow, 11pt system font, visibleFrame, Guide 48pt. JXA fallback matched.
+    acceptance:
+      - "vcu-stage compiles"
+      - "STAGE_JXA width 300"
+      - "cargo test --workspace"
+    next_action: none
+    evidence:
+      - "helpers/vcu-stage/main.swift"
+      - "docs/design/07-stage-hud.md"
+    depends_on: ["EXTRACT-002"]
+
+  - id: DESIGN-008
+    title: Codex CU parity design
+    status: completed
+    goal: goal#vcu
+    kind: design
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Structure map Steward/Stage/Guide/Scene vs Codex CU. Login-state desktop user window is the Codex-like path.
+    acceptance:
+      - "docs/design/08-codex-cu-parity.md"
+    next_action: remaining Codex parity (socket IPC, Windows) later
+    evidence:
+      - "docs/design/08-codex-cu-parity.md"
+    depends_on: []
+
+  - id: STEW-026
+    title: MCP type/scroll/wait/extract honor tab_id
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Remaining MCP tools pass tab_id so Feishu pane is not confused with TextEdit. Schema covered; no live HUD.
+    acceptance:
+      - "MCP tools/list type scroll wait extract have tab_id"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 blocked
+    evidence:
+      - "crates/vcu-mcp/src/main.rs"
+      - "crates/vcu-mcp/tests/mcp_stdio.rs"
+    depends_on: ["STEW-023"]
+
+
+  - id: STEW-025
+    title: Full Scene Observation includes pixel_scale
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Desktop mode=full Observation carries screenshot_scale and webview_screenshot_scale. Mock Feishu webview scale 1. Live retina 2.
+    acceptance:
+      - "HTTP full snapshot webview_screenshot_scale"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 blocked
+    evidence:
+      - "crates/vcu-core/src/protocol.rs"
+      - "crates/vcu-server/src/browser/desktop.rs"
+    depends_on: ["STEW-024"]
+
+
+  - id: STEW-024
+    title: Capture pixel_scale for retina AX mapping
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Report screenshot_scale / webview_scale when PNG pixels are 1x/2x/3x the AX point frame. Live Feishu is 2x. Mock crop is 1x.
+    acceptance:
+      - "pixel_scale 2848x2076 / 1424x1038 = 2"
+      - "mock Feishu webview_scale 1"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 blocked
+    evidence:
+      - "crates/vcu-server/src/app/mod.rs"
+      - "crates/vcu-server/src/api.rs"
+    depends_on: ["STEW-023"]
+
+
+  - id: STEW-023
+    title: Screenshot/MCP attach webview crop and honor tab_id
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Desktop screenshot and MCP vcu_screenshot/vcu_snapshot pass tab_id and attach webview crop. Doctor scene_webview_crop. PNG IHDR for retina pixel size. No live HUD.
+    acceptance:
+      - "desktop screenshot Feishu webview_path"
+      - "MCP screenshot/snapshot schema tab_id"
+      - "doctor scene_webview_crop"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 blocked
+    evidence:
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-mcp/src/main.rs"
+      - "crates/vcu-server/src/doctor.rs"
+    depends_on: ["STEW-022"]
+
+
+  - id: STEW-022
+    title: Desktop full Scene includes webview crop
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: SnapshotMode::Full captures webview_ref rect. Observation.webview_screenshot_ref. Mock Feishu e15 covered. No live HUD this slice.
+    acceptance:
+      - "desktop full Feishu webview_png"
+      - "HTTP observation webview_screenshot_ref cas://"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 blocked
+    evidence:
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-core/src/protocol.rs"
+    depends_on: ["STEW-021"]
+
+
+  - id: STEW-021
+    title: Crop messenger webview pixels without HUD
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: app snapshot pixels=true also captures webview_ref frame via screencapture -R. Feishu live 853KB crop vs 1.3MB window. No overlay.
+    acceptance:
+      - "mock Feishu pixels has webview_screenshot_path"
+      - "Feishu live crop smaller than window png"
+      - "no overlay"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 blocked
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+      - "crates/vcu-server/src/app/macos.rs"
+    depends_on: ["STEW-017"]
+
+
+  - id: STEW-020
+    title: Desktop act honors tab_id
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: /v1/session/{id}/act reads tab_id from target or args and sets active tab. Feishu hit no longer lands on TextEdit.
+    acceptance:
+      - "act type=hit args.tab_id Feishu e15 ax_frame_hit"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 blocked on Allow
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+    depends_on: ["STEW-018"]
+
+
+  - id: STEW-017
+    title: Scene webview hint for Electron compose
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: Snapshot sets webview=true and webview_ref to the largest messenger/WebView pane. Feishu live e15 messenger-chat. No overlay.
+    acceptance:
+      - "unit test picks largest messenger pane"
+      - "Feishu snapshot webview=true webview_ref=e15"
+      - "no overlay"
+      - "cargo test --workspace"
+    next_action: STEW-018 frame hit without OS cursor
+    evidence:
+      - "crates/vcu-server/src/app/mod.rs"
+    depends_on: ["STEW-016"]
+
+  - id: STEW-018
+    title: Frame hit without OS cursor warp
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: click/hit webview_ref uses AXPress on the element (input_path=ax_frame_hit), Guide at frame center. No CGWarp/HID/click-at. Mock Feishu e15 + desktop session test.
+    acceptance:
+      - "click webview_ref os_cursor_used=false"
+      - "WeChat AppDenied"
+      - "cargo test --workspace"
+    next_action: STEW-019 playbook; FEISHU-001 needs user
+    evidence:
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-server/src/app/macos.rs"
+      - "crates/vcu-server/src/app/mock_app.rs"
+    depends_on: ["STEW-017"]
+
+  - id: STEW-019
+    title: Feishu compose playbook via Scene pixels + hit
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Document and wire Feishu send path that does not trust AX 发送. Still needs user-named recipient for FEISHU-001.
+    acceptance:
+      - "playbook states webview compose path"
+    next_action: FEISHU-001 still needs user-named recipient
+    evidence:
+      - "playbooks/feishu.md"
+    depends_on: ["STEW-018"]
+
+
+  - id: STEW-016
+    title: BFS AX walk depth 13 (Finder 4)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: snapshot/invoke/set_value share BFS (cap 80, no entire contents). Feishu live 42 nodes includes 搜索/消息/messenger webview. 发送 still not in AX. Finder 61 nodes no hang. No overlay.
+    acceptance:
+      - "shared BFS scripts no entire contents"
+      - "Feishu snapshot includes 搜索 and messenger"
+      - "Finder snapshot finishes without hang"
+      - "no overlay"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 still needs user; 发送 not in AX (Electron webview)
+    evidence:
+      - "crates/vcu-server/src/app/macos.rs"
+    depends_on: ["STEW-015"]
+
+
+  - id: STEW-015
+    title: Fill empty AX names from description/help
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Snapshot uses AXDescription/AXHelp when name is empty. Feishu chrome buttons become 关闭按钮/全屏幕按钮/最小化按钮.
+    acceptance:
+      - "Feishu snapshot names include 关闭按钮"
+      - "no overlay"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 still needs user; 发送 still not in AX
+    evidence:
+      - "crates/vcu-server/src/app/macos.rs"
+    depends_on: ["STEW-014"]
+
+
+  - id: STEW-014
+    title: App snapshot window pixels without Stage HUD
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: /v1/app/snapshot pixels=true writes PNG when Screen Recording already granted. CLI --pixels. MCP pixels. WeChat AppDenied. No overlay.
+    acceptance:
+      - "mock pixels writes png"
+      - "Feishu live png without vcu-stage"
+      - "WeChat pixels AppDenied"
+    next_action: FEISHU-001 still needs user; Electron 发送 still not in AX
+    evidence:
+      - "crates/vcu-server/src/api.rs"
+      - "crates/vcu-cli/src/main.rs"
+    depends_on: ["STEW-013"]
+
+
+  - id: STEW-013
+    title: Bounded AX snapshot without entire contents
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P0
+    summary: Scene/invoke/set_value walk window UI depth 3 cap 80 with 2.5s timeout. Finder no hang. Unnamed buttons/fields kept. Feishu Electron may not expose 发送.
+    acceptance:
+      - "parse unnamed text field"
+      - "Finder app snapshot <2.5s no overlay"
+      - "no entire contents in macos.rs scripts"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 still needs user; 发送 may need Scene screenshot if AX chrome-only
+    evidence:
+      - "crates/vcu-server/src/app/macos.rs"
+    depends_on: ["STEW-012"]
+
+
+  - id: STEW-012
+    title: Desktop Guide hover + abort-aware wait
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: hover moves Guide only; wait returns SessionClosed if Stage abort sidecar appears.
+    acceptance:
+      - "hover guide_hover overlay=true os_cursor_used=false"
+      - "wait abort SessionClosed"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 login CDP
+    evidence:
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-server/src/stage.rs"
+    depends_on: ["STEW-011"]
+
+
+  - id: STEW-011
+    title: Desktop Scene wait until ref/name/role
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: act type=wait sleeps or polls Scene; timeout ActionFailed; MCP vcu_wait; no OS cursor.
+    acceptance:
+      - "wait finds e1/OK"
+      - "missing name times out ActionFailed"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 still needs user; ETH-001 login CDP
+    evidence:
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-mcp/src/main.rs"
+    depends_on: ["STEW-010"]
+
+
+  - id: STEW-010
+    title: Desktop Return/key policy without HID
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: act type=key; Return/Enter requires confirm_send plus Send button ref; no blind Return; Escape not injected; space is AXPress.
+    acceptance:
+      - "unconfirmed Return FocusPolicyViolation"
+      - "blind Return FocusPolicyViolation"
+      - "confirm_send+ref ax_press_send hid_injected=false"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 can use gated send once user names the person; ETH-001 still login CDP
+    evidence:
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-server/tests/desktop_session.rs"
+      - "playbooks/feishu.md"
+    depends_on: ["STEW-009"]
+
+
+  - id: STEW-009
+    title: MCP screenshot + session list/stop-all
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P2
+    summary: vcu-mcp exposes vcu_screenshot, vcu_session_list, and session=all stop.
+    acceptance:
+      - "mcp_stdio lists and calls screenshot/list/stop-all"
+    next_action: FEISHU-001 needs user; ETH-001 login CDP; do not leave desktop sessions
+    evidence:
+      - "crates/vcu-mcp/src/main.rs"
+      - "crates/vcu-mcp/tests/mcp_stdio.rs"
+    depends_on: ["STEW-008"]
+
+
+  - id: STEW-008
+    title: JXA fallback Esc abort + Guide vis fix
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P2
+    summary: JXA capsule fallback writes *.abort on Esc; Guide uses vis not undefined screen. Native helper remains primary.
+    acceptance:
+      - "STAGE_JXA contains keyCode === 53 and .abort"
+      - "STAGE_JXA uses vis.origin not screen.origin"
+      - "cargo test --workspace"
+    next_action: FEISHU-001 needs user; ETH-001 login; do not leave desktop sessions
+    evidence:
+      - "crates/vcu-server/src/stage.rs"
+    depends_on: ["STEW-007"]
+
+
+  - id: STEW-007
+    title: Ship vcu-stage in darwin pack/install/doctor
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: macOS archives copy vcu-stage; install.sh/install-local install it; doctor stage_helper; Windows omits helper.
+    acceptance:
+      - "darwin pack includes bin/vcu-stage"
+      - "install.sh copies vcu-stage when present"
+      - "doctor stage_helper pass/warn"
+      - "Windows installer does not require vcu-stage"
+    next_action: JXA fallback Esc abort; FEISHU-001 needs user; ETH-001 login
+    evidence:
+      - "scripts/pack-release.sh"
+      - "scripts/install/install.sh"
+      - "crates/vcu-server/src/doctor.rs"
+      - "helpers/vcu-stage/main.swift"
+    depends_on: ["STEW-006"]
+
+
+  - id: STEW-003
+    title: Stage HUD compact capsule + Guide
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: One 420x44 capsule HUD below the menu bar plus 56px drawn Guide. Not full-width, not per-screen bars. Vendor PNGs not copied.
+    acceptance:
+      - "one capsule HUD, not full-width, not per-screen bars"
+      - "Guide overlay-only; no OS cursor warp"
+      - "session stop tears down vcu-stage"
+      - "HANDOFF section 0 updated in the same slice"
+    next_action: STEW-004 Esc abort; do not leave desktop sessions running
+    evidence:
+      - "docs/design/07-stage-hud.md"
+      - "helpers/vcu-stage/main.swift"
+      - "crates/vcu-server/src/stage.rs"
+    depends_on: ["STEW-002"]
+
+  - id: STEW-004
+    title: HUD Esc abort wired to Steward
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: Esc (and HUD click) writes a sidecar abort file; Steward watcher stops the desktop session and tears down Stage.
+    acceptance:
+      - "Escape stops desktop session and tears down Stage"
+    next_action: FEISHU-001 / ETH-001 remain deferred; do not leave desktop sessions running
+    evidence:
+      - "helpers/vcu-stage/main.swift"
+      - "crates/vcu-server/src/stage.rs"
+      - "crates/vcu-server/src/api.rs"
+    depends_on: ["STEW-003"]
+
+  - id: STEW-005
+    title: HUD click also aborts desktop session
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P2
+    summary: Capsule is clickable; click uses the same abort sidecar as Esc.
+    acceptance:
+      - "HUD click writes abort sidecar"
+    next_action: none
+    evidence:
+      - "helpers/vcu-stage/main.swift"
+    depends_on: ["STEW-004"]
+
+  - id: STEW-006
+    title: Desktop AX scroll without OS cursor
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: session act type=scroll uses AX on window/scroll area; timeout; no cursor warp. MCP vcu_scroll now works on desktop.
+    acceptance:
+      - "act scroll os_cursor_used=false"
+      - "Finder live ax_scroll ok-split-sa"
+      - "abort watch unit test"
+    next_action: FEISHU-001 needs user open_id; ETH-001 login
+    evidence:
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-server/src/app/macos.rs"
+      - "crates/vcu-server/tests/desktop_session.rs"
+    depends_on: ["STEW-004"]
+
+  - id: FEISHU-001
+    title: Feishu App vision send test to 张北北
+    status: ready
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P3
+    summary: PARKED this version. App CU out of scope. Do not execute until browser suite is the product default.
+    acceptance:
+      - "parked — not in this version"
+    next_action: parked; browser-only version first
+    evidence: ["docs/PLAN.md"]
+    depends_on: ["BROWSER-TEST-001"]
+
+  - id: ETH-001
+    title: Etherscan L1/L2/L3 with login cookies
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P2
+    summary: Public scrape is not the login tree. USER Edge extension extract only. CDP abandoned; never click Allow.
+    acceptance:
+      - "labels_tree.json is login-state L1/L2/L3 or documented blocker"
+    next_action: none — sample L1 labelcloud / L2 augur accounts / L3 Augur Universe address; not a full crawl
+    evidence:
+      - "scripts/poc_etherscan_labels.sh"
+      - "/Users/zhouhan/vcu-etherscan-labels/labels_tree.json"
+    depends_on: ["EXTRACT-002"]
+
+
+  - id: STEW-002
+    title: Stage + Steward slice 2 (Guide + Scene frames)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: Guide overlay-only pointer; AX frames on Scene; mock window capture; live screencapture gated to avoid TCC dialog
+    acceptance:
+      - "click detail.guide.overlay=true"
+      - "dom_refs.frame present"
+      - "full snapshot screenshot_ref on mock"
+      - "no OS cursor warp"
+    next_action: 真机 Guide 目视确认（会升起横幅）；Screen Recording 已授权后再开 VCU_ALLOW_SCREENCAPTURE
+    evidence:
+      - "crates/vcu-server/src/stage.rs"
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-server/tests/desktop_session.rs"
+    depends_on: ["STEW-001"]
+
+
+  - id: STEW-001
+    title: Stage + Steward slice 1 (desktop surface)
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: Design 06 accepted. Protocol Surface/Desktop, AX Actuator, WeChat denylist, Stage banner, session --surface desktop
+    acceptance:
+      - "session start --surface desktop"
+      - "WeChat AppDenied"
+      - "os_cursor_used=false"
+      - "cargo test --workspace"
+    next_action: slice 2 Guide 虚拟指针 + 真窗口 Scene 截帧；勿点 UI / 勿碰微信
+    evidence:
+      - "docs/design/06-stage-steward.md"
+      - "crates/vcu-server/src/browser/desktop.rs"
+      - "crates/vcu-server/src/stage.rs"
+    depends_on: []
+
+  - id: INST-001
+    title: curl/irm 预编译安装
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: pack-release + install.sh/ps1 + poc_install_curl
+    acceptance: ["poc_install_curl PASSED"]
+    next_action: 无
+    evidence: ["scripts/install/install.sh", "scripts/poc_install_curl.sh", "dist/"]
+    depends_on: []
+
+  - id: MCP-001
+    title: MCP 直连 daemon
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: true
+    priority: P0
+    summary: Content-Length 帧；tools 调 HTTP；无 shell
+    acceptance: ["mcp_stdio test"]
+    next_action: 无
+    evidence: ["crates/vcu-mcp", "docs/design/05-agent-integration.md"]
+    depends_on: []
+
+  - id: MAC-NEXT
+    title: macOS 深 AX / 正式发布托管
+    status: ready
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P2
+    summary: 辅助功能授权后完整 AX 树；GitHub Releases 托管 dist
+    acceptance: ["可选"]
+    next_action: 配置 release 托管 URL 后用户 curl 安装
+    evidence: []
+    depends_on: []

@@ -3,8 +3,11 @@ pub mod api;
 pub mod audit;
 pub mod app;
 pub mod browser;
+pub mod login_state;
+pub mod lens;
 pub mod doctor;
 pub mod runtime;
+pub mod stage;
 pub mod state;
 pub mod vision;
 

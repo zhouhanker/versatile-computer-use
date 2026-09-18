@@ -19,7 +19,7 @@ cat > "$PLIST" <<PL
     <string>${VCU_DIR}</string>
   </array>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  <key>KeepAlive</key><false/>
   <key>StandardOutPath</key><string>${HOME}/Library/Logs/vcu/daemon.out.log</string>
   <key>StandardErrorPath</key><string>${HOME}/Library/Logs/vcu/daemon.err.log</string>
   <key>EnvironmentVariables</key>

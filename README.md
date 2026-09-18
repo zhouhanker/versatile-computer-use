@@ -1,99 +1,58 @@
 # Versatile Computer Use (VCU)
 
-**厂商与模型无关、可插拔的 Computer Use 运行时**（Rust CLI/daemon + Chromium 扩展）。
+**厂商与模型无关的 Computer Use 运行时**（Rust CLI / daemon / MCP）。主路径对齐 Codex Computer Use 的结构：长驻 Steward、一次 Accessibility、真窗口 Scene、Stage HUD、Guide overlay。**不搬系统光标。**
 
-## 状态
+宿主模型（Grok 等）若已有视觉，不必 `vcu init model`。
 
-- [x] 浏览器 MVP：mock 全链路 + **真实 Chrome CDP 冒烟** + 扩展 RPC
-- [x] 不抢 OS 光标 / 用户 tab borrow / 视觉模型可插拔
-- [x] CLI · MCP · Skill
-- [x] macOS App CU 最小 POC（list/snapshot；focus/invoke 默认拒绝）
-- [x] GitHub Actions：macOS/Ubuntu/Windows CI 工作流
-- [ ] Windows UIA App adapter（需 Windows runner）
+## 登录态（优先，无 HUD）
 
-## 安装（用户机器，无需 npm / 无需拉源码）
+空 Agent Edge（`~/.vcu/edge-agent-profile`）**没有 cookies**。登录态是用户自己的 Chrome/Edge 窗口。宿主已有视觉（Grok）时走这条 Codex 式闭环，**不要**为点一下去 `session start`。
 
 ```bash
-# 发布后:
-# curl -fsSL https://<release-host>/install.sh | sh
-# 本地打包验证:
+vcu daemon start
+vcu browser login-state
+vcu browser observe --json          # 写 ~/.vcu/captures/login-latest.png
+vcu browser click --pixel-x N --pixel-y N --space webview --dry-run
+vcu browser type --dry-run          # 读地址栏，默认不写入
+vcu browser wait --role AXWebArea
+vcu browser key --key return --dry-run   # 禁 HID；Return 要 confirm_send
+vcu browser ping --json            # 必须 pong；unknown method = Reload 扩展
+vcu browser extract --selector a --json   # source 必须是 extension_dom
+vcu browser install-lens            # 然后 USER Edge Load unpacked ~/.vcu/lens-extension
+```
+
+- 像素：`ax = frame_origin + pixel / screenshot_scale`（1/2/3）；Guide：`--guide` 只 overlay
+- 长任务 HUD：`vcu session start --surface desktop`（胶囊约 220×28）
+- **CDP 已抛弃**：不要 `set-cdp`、不要点 Allow。DOM 用 USER Edge 扩展。禁止微信；禁止 OS 光标 warp；禁止盲目 Return
+
+MCP：`vcu_browser_observe` / `click` / `type` / `wait` / `scroll` / `key` / `ping` / `extract` / `login_state` / `install_lens`
+
+## 安装
+
+```bash
 bash scripts/pack-release.sh
 VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
 ```
 
 Windows: `irm <host>/install.ps1 | iex`
 
-Agent 默认通过 **MCP**（`vcu-mcp`）调用；也可用 CLI。见 `docs/design/05-agent-integration.md`。
-
-## 快速开始（开发）
-
+## 开发
 
 ```sh
-cargo build
-./target/debug/vcu init
-./target/debug/vcu-daemon &          # 或: vcu daemon start --foreground
-
-# mock（无浏览器）
-./target/debug/vcu session start --backend mock --json
-make poc
-
-# 真实 Chrome/Edge CDP（脚本可自动拉起 headless Chrome）
-make poc-cdp
+cargo test --workspace
+vcu daemon start
 ```
 
-### 视觉模型
+Stage HUD（macOS）：`vcu-stage` 顶部胶囊约 **220×28**，`hudWindow` 材质，内容自适应。
 
-```sh
-vcu init model --name vision   --base-url https://api.openai.com/v1   --model gpt-4o-mini   --api-key-env VCU_VISION_API_KEY
-export VCU_VISION_API_KEY=...
-vcu model test vision
+## 硬约束
 
-# 离线 mock 视觉（测试用，不访问网络）
-vcu model set vision --provider mock --base-url http://mock.local --model mock-vl --api-key-env VCU_UNUSED
-vcu model set-policy --mode vision_always
-```
-
-### CDP URL
-
-```sh
-vcu config set-cdp http://127.0.0.1:9333
-```
-
-### 扩展（Chrome/Edge）
-
-见 [extension/README.md](extension/README.md)。配对 `~/.vcu/config.json` 的 `pairing_token`。
-
-### 安装到 ~/.local/bin
-
-```sh
-bash scripts/install.sh
-```
-
-## 测试门禁
-
-```sh
-make check   # test + mock poc + cdp poc + release build
-```
-
-## 架构摘要
-
-| 组件 | 职责 |
-| --- | --- |
-| `vcu` | CLI |
-| `vcu-daemon` | 本地 HTTP IPC（pairing token） |
-| `vcu-mcp` | MCP stdio |
-| backends | `mock` / `cdp` / `extension` |
-| `extension/` | MV3 Agent Window，不抢焦点 |
-
-硬约束：`os_cursor=deny`；用户 tab 写入前必须 `tabs borrow`。
+`os_cursor=deny`；用户 tab 写入前 `tabs borrow`；desktop 会话结束必须 `vcu session stop all`。
 
 ## 文档
 
-- **会话交接（必读）：** [`docs/HANDOFF.md`](docs/HANDOFF.md)
-
+- 交接：[`docs/HANDOFF.md`](docs/HANDOFF.md)
+- 登录态：[`playbooks/user-browser.md`](playbooks/user-browser.md)
+- 坐标：[`docs/macos/COORDINATES.md`](docs/macos/COORDINATES.md)
+- Codex 对齐：[`docs/design/08-codex-cu-parity.md`](docs/design/08-codex-cu-parity.md)
 - 安装：`docs/INSTALL.md`
-- 验收矩阵：`evals/ACCEPTANCE.md`
-
-- 设计：`docs/design/`
-- 调研：`docs/research/`
-- AWR：`.awr/intake/`

@@ -11,6 +11,9 @@ bash "$ROOT/scripts/install/install.sh"
 test -x "$PREFIX/bin/vcu"
 test -x "$PREFIX/bin/vcu-daemon"
 test -x "$PREFIX/bin/vcu-mcp"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  test -x "$PREFIX/bin/vcu-stage"
+fi
 "$PREFIX/bin/vcu" --version | grep -q vcu
 export PATH="$PREFIX/bin:$PATH"
 USER_DIR="$PREFIX/vcu-home"

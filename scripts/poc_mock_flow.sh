@@ -9,6 +9,7 @@ echo "USER_DIR=$USER_DIR"
 
 vcu --user-dir "$USER_DIR" init --json | tee /tmp/vcu-init.json >/dev/null
 jq -e '.ok == true' /tmp/vcu-init.json >/dev/null
+python3 -c "import json,time; from pathlib import Path; p=Path('$USER_DIR')/'config.json'; c=json.loads(p.read_text()); c['daemon_port']=18200+(int(time.time())%200); p.write_text(json.dumps(c,indent=2))"
 
 vcu-daemon --user-dir "$USER_DIR" >/tmp/vcu-daemon.log 2>&1 &
 DPID=$!
@@ -26,7 +27,7 @@ test "$ok" = "1"
 jq -e '.ok == true' /tmp/vcu-health.json >/dev/null
 echo "health ok"
 
-vcu --user-dir "$USER_DIR" doctor | tee /tmp/vcu-doctor.json >/dev/null
+vcu --user-dir "$USER_DIR" doctor --json | tee /tmp/vcu-doctor.json >/dev/null
 jq -e '.ok == true and .data.ok == true' /tmp/vcu-doctor.json >/dev/null
 echo "doctor ok"
 

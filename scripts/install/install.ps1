@@ -45,6 +45,7 @@ try {
   Copy-Item (Join-Path $stage.FullName 'bin\vcu.exe') (Join-Path $BinDir 'vcu.exe') -Force
   Copy-Item (Join-Path $stage.FullName 'bin\vcu-daemon.exe') (Join-Path $BinDir 'vcu-daemon.exe') -Force
   Copy-Item (Join-Path $stage.FullName 'bin\vcu-mcp.exe') (Join-Path $BinDir 'vcu-mcp.exe') -Force
+  # vcu-stage is macOS-only (AppKit overlay). Windows packages omit it.
   $ext = Join-Path $stage.FullName 'extension'
   if (Test-Path $ext) {
     $destExt = Join-Path $ShareDir 'extension'

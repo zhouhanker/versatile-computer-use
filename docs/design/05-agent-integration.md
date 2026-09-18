@@ -14,7 +14,8 @@
 Agent Host
    │  MCP tools/call
    ▼
-vcu-mcp  ──HTTP+X-Vcu-Token──►  vcu-daemon  ──► mock / cdp / extension / app
+vcu-mcp  ──HTTP+X-Vcu-Token──►  Steward (vcu-daemon)  ──► desktop Scene/Actuator
+                                                      └── browser_agent mock/cdp/extension
 ```
 
 - `vcu-mcp` **不**再 shell 出 CLI，直连 daemon HTTP。

@@ -1,7 +1,7 @@
 //! Windows app adapter (PowerShell list on Windows hosts).
 use async_trait::async_trait;
 use vcu_core::{ErrorCode, VcuError, VcuResult};
-use super::{AppBackend, AppSnapshot, AppTarget};
+use super::{is_denied_app, AppBackend, AppSnapshot, AppTarget};
 #[cfg(windows)]
 use super::AppElement;
 
@@ -26,6 +26,9 @@ impl WindowsAppBackend {
 
     #[allow(dead_code)]
     fn allowed(&self, name: &str) -> bool {
+        if is_denied_app(name) {
+            return false;
+        }
         if self.allowlist.is_empty() {
             return true;
         }
@@ -82,6 +85,7 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
                     bundle_or_exe: name.to_string(),
                     pid,
                     allowed: true,
+                    browser_profile: None,
                 });
             }
             Ok(out)
@@ -117,13 +121,21 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
                 role: "window".into(),
                 name: if title.is_empty() || title == "MISSING" { name.clone() } else { title },
                 value: None,
+                frame: None,
             }];
             if budget > 0 && budget < 10 { elements.clear(); }
             Ok(AppSnapshot {
-                target: AppTarget { id: id.to_string(), title: elements.first().map(|e| e.name.clone()).unwrap_or_else(|| name.clone()), bundle_or_exe: name.clone(), pid: None, allowed: true },
+                target: AppTarget { id: id.to_string(), title: elements.first().map(|e| e.name.clone()).unwrap_or_else(|| name.clone()), bundle_or_exe: name.clone(), pid: None, allowed: true, browser_profile: None },
                 summary: format!("process=\"{name}\" elements={} note=uia_tree_mvp_title_only", elements.len()),
                 elements,
                 truncated: true,
+                window_frame: None,
+                webview: false,
+                webview_ref: None,
+                page_title: None,
+                page_url: None,
+                tabs: vec![],
+                ax_enhanced: false,
             })
         }
     }
@@ -131,6 +143,16 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value> {
         let _ = (id, element_ref);
         Err(VcuError::coded(ErrorCode::OsCursorDenied, "Windows app invoke is denied by default safety policy (no SendInput / no cursor)"))
+    }
+
+    async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
+        let _ = (id, element_ref, value);
+        Err(VcuError::coded(ErrorCode::NotImplemented, "Windows app set_value is not implemented in slice 1"))
+    }
+
+    async fn capture_window(&self, id: &str) -> VcuResult<Option<super::AppCapture>> {
+        let _ = id;
+        Ok(None)
     }
 }
 

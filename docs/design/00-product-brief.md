@@ -1,40 +1,39 @@
 # VCU 产品简报
 
-版本：0.1-design  
-日期：2026-09-17  
-状态：待用户确认后进入实现
+版本：0.2-design  
+日期：2026-09-18  
+状态：**Stage+Steward 主路径待用户确认**；确认前不写 overlay/AX 执行器产品代码。
 
 ## 一句话
 
-**Versatile Computer Use (VCU)** 是本地可插拔的 Computer Use 运行时：与 Agent 宿主、模型厂商解耦，先提供 Chrome/Edge 上不打断用户的浏览器自动化与抓取，再扩展到 macOS/Windows 桌面应用。
+**Versatile Computer Use (VCU)** 是与 Agent 宿主、模型厂商解耦的本机 Computer Use 运行时。主路径：**Steward 长驻 + 一次辅助功能授权 + 真实窗口上的 Scene/Actuator + Stage/Guide 可见层**。独立空浏览器只是旁路。
 
 ## 目标用户
 
 - 使用 Codex / Claude Code / Cursor / Pi 等、但希望 **自选模型** 仍能 Computer Use 的开发者
-- 需要 **真实登录态浏览器** 且 **不中断自己操作** 的 Agent 工作流
-- 需要把浏览器能力以 **CLI/MCP/Skill** 接到自建 Agent 的团队
+- 需要 **已登录的真实窗口**（Edge、飞书客户端等），而不是空 profile
+- 需要把能力以 **CLI/MCP/Skill** 接到自建 Agent 的团队
 
 ## 核心价值主张
 
-1. **解耦**：Computer Use ≠ 某家模型的附赠功能  
-2. **不打断**：独立 Agent Window + 禁止 OS 光标抢占（浏览器期）  
-3. **可接管**：扩展附着已打开 Chrome/Edge；用户标签显式 borrow/return  
-4. **可补视觉**：`vcu init model` 配置视觉提供者；主模型可纯文本  
-5. **易接入**：会调 Shell 就能用；可选 MCP 与各 harness Skill  
-6. **可演进**：同一 Observation/Action 协议扩展到桌面 App
+1. **解耦**：Computer Use ≠ 某家模型的附赠功能
+2. **真窗口**：默认操作用户已打开的 App，带登录态
+3. **一次授权**：macOS 辅助功能一次；不再把 CDP Allow 当日常
+4. **可看见**：Stage 横幅「VCU 正在使用这台 Mac」+ Guide 虚拟指针；不搬用户物理鼠标
+5. **可补视觉**：`vcu init model`；主模型可纯文本，Scene 以 AX 为先
+6. **易接入**：CLI / MCP；Steward 对所有宿主相同
 
-## 与 BrowserSkill 的关系
+## 与 Codex CU 的关系
 
-BrowserSkill 是强参照与潜在互操作对象（同为 CLI+扩展、不打断）。  
-VCU 差异化：统一 CU 协议、视觉 provider、session blackboard/主子协同、桌面 App 路线、AWR 式可恢复会话与预算化观察。
+借鉴其结构（长驻服务、AX、叠加层、虚拟指针、真窗口）。**名称、协议、宿主全部自有。** 禁止改/卸 `~/.codex/computer-use/`。详见 `docs/design/06-stage-steward.md` 与 `docs/research/10-stage-from-codex-cu-lessons.md`。
 
-一期实现策略：**协议与集成面自有**；浏览器执行器可 **先适配/学习 BrowserSkill 交互，再自研扩展**（实现阶段再定 make-or-integrate，设计阶段不锁死代码依赖）。
+## 与独立 Agent Edge 的关系
 
-## 成功指标（设计验收，非实现 KPI）
+`browser_agent`（空 profile + 扩展）保留：公开页、CI、不想碰用户窗。日常默认改为 `desktop`。
 
-- [ ] 语言与组件边界文档被接受（Rust 核心 + TS 扩展）
-- [ ] 浏览器不打断/接管/抓取方案被接受
-- [ ] CLI 命令草图含 `vcu init model` 与 session 流
-- [ ] 无视觉主模型路径被接受
-- [ ] 需求边界与分期清晰
-- [ ] AWR 台账反映上述结论并可 `awr ready` 指向下一实现准备项
+## 成功指标（本设计）
+
+- [ ] Stage+Steward 文档被接受
+- [ ] 名称不与 Codex 产品撞车
+- [ ] 微信 denylist、不碰 Codex CU 写进边界
+- [ ] 用户确认后台账才切开实现

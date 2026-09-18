@@ -1,0 +1,22 @@
+[project]
+name = "versatile-computer-use"
+authority_mode = "source_first"
+authorized_roots = []
+context_profile = "minimal"
+
+[[sources]]
+domain = "goal"
+role = "primary"
+path = ".awr/intake/GOALS.md"
+adapter = "markdown-heading-v1"
+
+[sources.options]
+key_prefix = "goal"
+
+[[sources]]
+domain = "ledger"
+role = "primary"
+path = ".awr/intake/work-ledger.yaml"
+adapter = "yaml-ledger-v1"
+
+[sources.options]

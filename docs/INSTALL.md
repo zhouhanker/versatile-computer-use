@@ -8,7 +8,7 @@ Repository: https://github.com/zhouhanker/versatile-computer-use
 curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh | sh
 ```
 
-Installs to `~/.local/bin` (`vcu`, `vcu-daemon`, `vcu-mcp`) and bundles the browser extension under `~/.local/share/vcu/extension`.
+Installs to `~/.local/bin` (`vcu`, `vcu-daemon`, `vcu-mcp`, and on macOS `vcu-stage`) and bundles the browser extension under `~/.local/share/vcu/extension`. Windows omits `vcu-stage`.
 
 ### Local mirror (dev)
 
