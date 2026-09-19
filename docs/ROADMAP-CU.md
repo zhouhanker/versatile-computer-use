@@ -155,6 +155,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-070 | Notepad 真写入（无 HID） | **完成（CI 真机，非产品会话）** run `35463098806` @ `1c86e6e`：`SETVALUE_OK path=wm_settext` class=Edit。Server 2022 Notepad Edit 是 `ControlType.Pane`，`GetSupportedPatterns` 为空，**不是** ValuePattern。禁止 SendInput。 |
 | CU-D-080 | WindowsAppBackend set_value 回退 WM_SETTEXT | **完成（单测）** `ok:wm_settext` → `input_path=wm_settext` `os_cursor_used=false`。无 SendInput。未接 `vcu session` 真机。 |
 | CU-D-090 | 经 `vcu` 的 Windows Stage + Notepad type | **完成（CI 真机）** run `35465535542`：`STAGE_OK presenter=winforms`；`SNAP_OK source=uia_scene ref=e2`；`TYPE_OK path=wm_settext os_cursor_used=False`。无 SendInput。不是完整 Windows CU。 |
+| CU-D-100 | 经 `vcu click` 的 UIA InvokePattern | **进行中** 抛弃型 WinForms 按钮 `VcuCount`；CI `INVOKE_OK path=uia_invoke`；无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -173,6 +174,7 @@ CU-D-000 文档
     → CU-D-070 Notepad 真写入（CI WM_SETTEXT）
     → CU-D-080 backend set_value 回退
     → CU-D-090 vcu Windows set_value
+    → CU-D-100 vcu Windows invoke
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

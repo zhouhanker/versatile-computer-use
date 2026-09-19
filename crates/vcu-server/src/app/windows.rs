@@ -707,6 +707,14 @@ mod tests {
         let l90 = s90.to_ascii_lowercase();
         assert!(!l90.contains("sendinput("));
         assert!(!l90.contains("[system.windows.forms.sendkeys"));
+        let p100 = root.join("scripts/poc_cu_d_100.ps1");
+        let s100 = std::fs::read_to_string(&p100).unwrap_or_default();
+        assert!(s100.contains("INVOKE_OK"), "{}", p100.display());
+        assert!(s100.contains("VcuCount"));
+        assert!(s100.contains("click"));
+        let l100 = s100.to_ascii_lowercase();
+        assert!(!l100.contains("sendinput("));
+        assert!(!l100.contains("[system.windows.forms.sendkeys"));
     }
 
     #[cfg(not(windows))]
