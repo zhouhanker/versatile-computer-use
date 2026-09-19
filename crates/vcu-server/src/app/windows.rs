@@ -1427,6 +1427,15 @@ mod tests {
         let l230 = s230.to_ascii_lowercase();
         assert!(!l230.contains("sendinput("));
         assert!(!l230.contains("[system.windows.forms.sendkeys"));
+        let p240 = root.join("scripts/poc_cu_d_240.ps1");
+        let s240 = std::fs::read_to_string(&p240).unwrap_or_default();
+        assert!(s240.contains("ABORT_OK"), "{}", p240.display());
+        assert!(s240.contains("HUD_GONE"));
+        assert!(s240.contains("ACT_DENIED"));
+        assert!(s240.contains("CU-D-240 OK"));
+        let l240 = s240.to_ascii_lowercase();
+        assert!(!l240.contains("sendinput("));
+        assert!(!l240.contains("[system.windows.forms.sendkeys"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());

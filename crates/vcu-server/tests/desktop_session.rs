@@ -381,6 +381,7 @@ async fn session_abort_removes_desktop_session() {
     assert_eq!(aborted["ok"], true, "{aborted}");
     assert_eq!(aborted["data"]["aborted"], true);
     assert_eq!(aborted["data"]["hud"], false);
+    assert_eq!(aborted["data"]["stage_signaled"], true, "{aborted}");
 
     let listed: serde_json::Value = auth(client.get(format!("{base}/v1/session/list")))
         .send()

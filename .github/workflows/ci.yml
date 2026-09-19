@@ -116,6 +116,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_230.ps1
+      - name: windows vcu desktop session abort (CU-D-240)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_240.ps1
 
   package-macos:
     needs: test
