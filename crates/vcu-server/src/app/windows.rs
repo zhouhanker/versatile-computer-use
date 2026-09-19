@@ -163,9 +163,28 @@ while ($q.Count -gt 0) {{
       $inv = $el.GetCurrentPattern($pat)
       $inv.Invoke()
       'ok:uia_invoke'
-    }} catch {{
-      'error:no-invoke-pattern'
+      exit 0
+    }} catch {{}}
+    try {{
+      $leg = $el.GetCurrentPattern([System.Windows.Automation.LegacyIAccessiblePattern]::Pattern)
+      $leg.DoDefaultAction()
+      'ok:legacy_invoke'
+      exit 0
+    }} catch {{}}
+    if (-not ("Vcu.VcuInvoke100" -as [type])) {{
+      $sig = @'
+[DllImport("user32.dll")]
+public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+'@
+      Add-Type -MemberDefinition $sig -Name VcuInvoke100 -Namespace Vcu | Out-Null
     }}
+    $nh = [int64]$el.Current.NativeWindowHandle
+    if ($nh -ne 0) {{
+      [void][Vcu.VcuInvoke100]::SendMessage([IntPtr]$nh, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)
+      'ok:bm_click'
+      exit 0
+    }}
+    'error:no-invoke-pattern'
     exit 0
   }}
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
@@ -411,19 +430,24 @@ pub fn snapshot_from_uia(id: &str, name: &str, pid: Option<i32>, raw: &str, budg
 }
 
 pub fn invoke_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuResult<serde_json::Value> {
-    if out.contains("ok:uia_invoke") {
-        Ok(serde_json::json!({
-            "ok": true,
-            "process": name,
-            "ref": element_ref,
-            "result": out,
-            "input_path": "uia_invoke",
-            "os_cursor_used": false,
-            "hid_injected": false
-        }))
+    let path = if out.contains("ok:uia_invoke") {
+        "uia_invoke"
+    } else if out.contains("ok:legacy_invoke") {
+        "legacy_invoke"
+    } else if out.contains("ok:bm_click") {
+        "bm_click"
     } else {
-        Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia invoke failed", out))
-    }
+        return Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia invoke failed", out));
+    };
+    Ok(serde_json::json!({
+        "ok": true,
+        "process": name,
+        "ref": element_ref,
+        "result": out,
+        "input_path": path,
+        "os_cursor_used": false,
+        "hid_injected": false
+    }))
 }
 
 pub fn set_value_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuResult<serde_json::Value> {
@@ -661,7 +685,11 @@ mod tests {
         let ok = invoke_from_uia_output("notepad", "e2", "ok:uia_invoke").unwrap();
         assert_eq!(ok["input_path"], "uia_invoke");
         assert_eq!(ok["os_cursor_used"], false);
+        let bm = invoke_from_uia_output("form", "e2", "ok:bm_click").unwrap();
+        assert_eq!(bm["input_path"], "bm_click");
+        assert_eq!(bm["os_cursor_used"], false);
         assert!(invoke_from_uia_output("notepad", "e2", "not-found").is_err());
+        assert!(inv.contains("ok:bm_click") || inv.contains("0x00F5"));
         let typed = set_value_from_uia_output("notepad", "e2", "ok:uia_set_value").unwrap();
         assert_eq!(typed["input_path"], "uia_set_value");
         let wm = set_value_from_uia_output("notepad", "e2", "ok:wm_settext").unwrap();

@@ -96,7 +96,9 @@ try {
   $path = [string]$clicked.data.detail.input_path
   $cursor = [bool]$clicked.data.detail.os_cursor_used
   if ($cursor) { throw "os_cursor_used true" }
-  if ($path -ne "uia_invoke") { throw "unexpected input_path" }
+  if ($path -ne "uia_invoke" -and $path -ne "legacy_invoke" -and $path -ne "bm_click") {
+    throw "unexpected input_path"
+  }
   $got = $false
   for ($i = 0; $i -lt 20; $i++) {
     if (Test-Path -LiteralPath $marker) {
