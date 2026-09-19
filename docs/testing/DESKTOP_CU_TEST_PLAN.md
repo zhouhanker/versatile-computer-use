@@ -146,7 +146,8 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-180 | Notepad scroll without HID | **通过** run `35471497693` `SCROLL_OK path=wm_vscroll`；无 SendInput |
 | TC-D-190 | extract typed Notepad value | **通过** run `35471859281` `EXTRACT_OK count=1`；无 SendInput |
 | TC-D-200 | wait until Notepad value | **通过** run `35472199783` `WAIT_OK path=scene_wait found_ref=e2`；无 SendInput |
-| TC-D-210 | wait miss times out honestly | **未过** `WAIT_MISS_OK` / `WAIT_REF_MISS_OK`；`ActionFailed`；无 SendInput |
+| TC-D-210 | wait miss times out honestly | **通过** run `35472851832` `WAIT_MISS_OK` / `WAIT_REF_MISS_OK`；`ActionFailed`；无 SendInput |
+| TC-D-220 | Notepad key return denied | **未过** `KEY_DENIED` FocusPolicyViolation；无 SendInput |
 
 ## 8. 未通过不得宣称完成
 

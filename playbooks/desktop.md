@@ -76,3 +76,5 @@ Windows extract（CU-D-190，CI）：type 后再 `vcu extract`，scene value 来
 Windows wait（CU-D-200，CI）：type 标记后 `vcu act` wait，`args.value` 匹配 name/value，`input_path=scene_wait`。
 
 Windows wait miss（CU-D-210，CI）：等不存在的 value/ref 必须 `ok=false` `error.code=ActionFailed`，文案含 `timed out`，不得假绿。无 SendInput。
+
+Windows key（CU-D-220，CI）：Notepad `act type=key return` 无 `confirm_send` → FocusPolicyViolation。不要用 Return 当保存/发送。无 SendInput。
