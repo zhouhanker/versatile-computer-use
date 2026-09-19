@@ -4,9 +4,9 @@
 
 ## 本轮
 
-- CU-D-041 **真机通过**（Terminal.app，非 Ghostty）：Scene `CGWindow`；`vcu type` → `ax_menu_paste`；剪贴板读回标记；含换行的 type 与无 confirm_send 的 Return 均为 `FocusPolicyViolation`。
-- 终端 AX 无文本区，输入不是 AXSetValue，也不是 HID keystroke。
+- CU-D-042 **观察通过、未发送**：`proc:Feishu:11666` Scene `CGWindow` 标题「飞书」；无 AX 发送控件；Return `FocusPolicyViolation`。聊天气泡不在 AX（Electron webview）。
+- 单测：Feishu 快照后点 `e_send`（发送）→ FocusPolicyViolation。
 
 ## 下一刀
 
-CU-D-042 飞书 / Lark **客户端**：打开已有会话、读可见消息。禁止自动发送。不要碰 Edge 组 1/3。
+CU-D-043 系统设置：只读观察；辅助功能 repair 只给 hint，不自动改权限。

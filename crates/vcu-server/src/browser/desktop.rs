@@ -331,6 +331,23 @@ impl DesktopBackend {
             .map(|r| r.role.clone())
     }
 
+    fn cached_name(&self, tab_id: &str, target_ref: &str) -> Option<String> {
+        let cache = self.last_refs.lock().ok()?;
+        let refs = cache.get(tab_id)?;
+        refs.iter()
+            .find(|r| r.r#ref == target_ref)
+            .map(|r| r.name.clone())
+    }
+
+    fn feishu_like(tab_id: &str) -> bool {
+        let t = tab_id.to_ascii_lowercase();
+        t.contains("feishu") || t.contains("lark") || tab_id.contains("飞书")
+    }
+
+    fn looks_like_send(name: &str) -> bool {
+        crate::login_state::ax_exposes_send_control([name])
+    }
+
 }
 
 #[async_trait]
@@ -481,6 +498,16 @@ impl BrowserBackend for DesktopBackend {
     }
 
     async fn click(&mut self, tab_id: &str, target_ref: &str) -> VcuResult<ActionResultDetail> {
+        if Self::feishu_like(tab_id) {
+            if let Some(name) = self.cached_name(tab_id, target_ref) {
+                if Self::looks_like_send(&name) {
+                    return Err(VcuError::coded(
+                        ErrorCode::FocusPolicyViolation,
+                        "Feishu/Lark send is not automatic; name a recipient first",
+                    ));
+                }
+            }
+        }
         let frame = self.frame_for(tab_id, target_ref).await;
         let webview = self.ref_is_webview(tab_id, target_ref);
         if webview {
@@ -1088,6 +1115,8 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(fs_typed_btn.code(), ErrorCode::InvalidInput);
+        let send = b.click(&feishu.tab_id, "e_send").await.unwrap_err();
+        assert_eq!(send.code(), ErrorCode::FocusPolicyViolation);
         let err = b.snapshot(&wechat.tab_id, SnapshotMode::A11y, 2000).await.unwrap_err();
         assert_eq!(err.code(), ErrorCode::AppDenied);
         let err = b

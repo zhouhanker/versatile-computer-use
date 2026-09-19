@@ -354,7 +354,12 @@ fn ax_is_notes(process: &str) -> bool {
 
 fn uses_cg_windows(process: &str) -> bool {
     let p = process.to_ascii_lowercase();
-    p == "finder" || p == "terminal" || p.contains("ghostty")
+    p == "finder"
+        || p == "terminal"
+        || p.contains("ghostty")
+        || p.contains("feishu")
+        || p.contains("lark")
+        || process.contains("飞书")
 }
 
 fn uses_menu_paste(process: &str) -> bool {
@@ -1766,6 +1771,8 @@ mod tests {
         assert!(ax_prefer_text_kids("TextEdit"));
         assert!(!ax_prefer_text_kids("Finder"));
         assert!(uses_cg_windows("Terminal"));
+        assert!(uses_cg_windows("Feishu"));
+        assert!(uses_cg_windows("Lark"));
         assert!(uses_menu_paste("Terminal"));
         assert!(!uses_menu_paste("TextEdit"));
         let paste = ax_terminal_paste_script("Terminal", "hello");

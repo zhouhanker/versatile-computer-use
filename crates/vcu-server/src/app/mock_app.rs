@@ -130,6 +130,13 @@ impl AppBackend for MockAppBackend {
                     value: None,
                     frame: Some([2218.0, 36.0, 1424.0, 1038.0]),
                 },
+                AppElement {
+                    r#ref: "e_send".into(),
+                    role: "AXButton".into(),
+                    name: "发送".into(),
+                    value: None,
+                    frame: Some([3500.0, 1000.0, 80.0, 28.0]),
+                },
             ]
         } else if target.browser_profile.as_deref() == Some("user") {
             vec![
