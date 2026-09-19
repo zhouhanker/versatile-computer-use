@@ -21,7 +21,9 @@ awr --project . context compile --work <ID> --goal 'goal#vcu' --budget 5000
 
 Authoritative sources (in order):
 
-- `docs/PLAN.md` — current version plan (browser-only)
+- `docs/PLAN.md` — current released version (browser Bridge 0.2.8)
+- `docs/ROADMAP-CU.md` — next epic: Codex-like CU including desktop
+- `docs/testing/DESKTOP_CU_TEST_PLAN.md` — desktop CU tests
 - `.awr/intake/GOALS.md`
 - `.awr/intake/work-ledger.yaml`
 - `docs/HANDOFF.md` — session continuity (do not treat stacked snapshots as the plan)
@@ -29,13 +31,13 @@ Authoritative sources (in order):
 
 ## Working rules
 
-- **This version is browser-only Computer Use.** Feishu/Lark client, Finder, WeChat, CDP Allow, OS cursor warp are out of scope.
-- Login-state path: USER Edge/Chrome + VCU Browser Bridge (`~/.vcu/lens-extension`). Host vision (Grok) is enough; do not require `vcu init model`.
+- **Released 0.2.8 is browser Computer Use.** Next epic is desktop CU per `docs/ROADMAP-CU.md`. Do not implement a desktop slice until that ID is the active work; do not describe unfinished desktop as done.
+- Login-state web path stays USER Edge/Chrome + `~/.vcu/lens-extension`. Host vision (Grok) is enough; do not require `vcu init model`.
 - DOM extract/click/type/scroll must be `source=extension_dom` when using the extension. AX chrome is not HTML DOM.
-- Never click Edge Allow debugging. Never automate WeChat. Never warp the OS cursor.
+- Never click Edge Allow debugging. Never automate WeChat. Never warp the OS cursor. Never edit `~/.codex/computer-use/`.
 - Prefer editing authoritative Markdown/YAML; reindex with `awr source reindex`.
 - Preserve unrelated edits; keep commits focused.
 
 ## Session continuity
 
-On a new session, read **`docs/PLAN.md` then `docs/HANDOFF.md`**.
+On a new session, read **`docs/PLAN.md`**, then **`docs/ROADMAP-CU.md`** if doing desktop work, then **`docs/HANDOFF.md`**.

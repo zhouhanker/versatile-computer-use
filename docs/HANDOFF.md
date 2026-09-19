@@ -1,39 +1,21 @@
 # VCU 会话交接
 
-更新时间：2026-09-19。作者zhouhanker。
+更新时间：2026-09-20。作者zhouhanker。
 
-**先读 [当前计划](PLAN.md)，再读本文。** 当前定版是浏览器 Bridge **0.2.8**。总体目标未宣布全部完成。
+**先读 [当前计划](PLAN.md)。** 已发布 Bridge **0.2.8**（浏览器）。用户已要求对标 Codex CU **含桌面**；执行总览是 [ROADMAP-CU.md](ROADMAP-CU.md)，测试是 [testing/DESKTOP_CU_TEST_PLAN.md](testing/DESKTOP_CU_TEST_PLAN.md)。桌面切片尚未开工。
 
-## 1. 本轮做了什么
+## 硬约束（桌面史诗也不破）
 
-实现并修复未完成项：
+不点 Allow；不自动化微信；不 warp OS 光标；不修改 `~/.codex/computer-use/`；不碰用户 Edge 组 `1` / `3`。网页细操作仍走 extension_dom。
 
-- 已 Load unpacked 的 Edge/Chrome lens 热更新：`vcu browser install-lens --reload`
-- ping `--reload` 向每个已连接客户端发 `reload_self`
-- 默认 `browser open` 钉在 last-focused USER 窗口的新标签；只有 `--new-window` 才开新窗口
-- 本机安装新 CLI/daemon 并 Reload lens 到 0.2.8
+## 已发布
 
-硬约束未变：browser-only；不点 Allow；不 warp OS 光标；不改 `~/.codex/computer-use/`；不碰用户 Edge 组 `1` / `3`。
-
-## 2. 状态
-
-| 项目 | 状态 |
+| 项 | 值 |
 | --- | --- |
-| Bridge | **0.2.8** |
-| runtime package | **0.1.0** |
-| 热更新 | `vcu browser install-lens --reload`；已打开旧页仍可能 stale content.js |
+| Git | `e960014` README；功能 `98997b7` Bridge 0.2.8 |
+| 热更新 | `vcu browser install-lens --reload` |
+| 默认 open | 现有窗口新标签 |
 
-## 3. 仍不是完成项
+## 下一刀
 
-- 跨源 iframe / trusted 手势 / TC-B-040 AX 网页像素
-- 双浏览器 `tab_id` 撞号
-- 飞书 / 微信 / CDP / OS 光标
-
-## 4. 验证
-
-```sh
-node --test extension/tests/*.test.cjs
-cargo test --workspace --offline
-vcu browser ping --json
-vcu browser install-lens --reload
-```
+CU-D-010：desktop 会话必须升起 Stage HUD，否则拒绝。先单测，不要先对用户真窗口开Actuator。

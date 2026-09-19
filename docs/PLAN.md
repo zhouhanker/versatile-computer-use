@@ -1,10 +1,14 @@
 # VCU 当前计划（浏览器版）
 
-更新：2026-09-19。本文优先于HANDOFF历史快照；作者zhouhanker。
+更新：2026-09-20。本文优先于HANDOFF历史快照；作者zhouhanker。
 
 ## 当前节点
 
-**浏览器版 Bridge 0.2.8。** 0.2.5–0.2.7 门禁仍有效。本轮补完已加载 lens 热更新与默认 open 新标签（钉现有窗口）。总体产品目标仍是浏览器 CU，不是全桌面 CU。
+**已发布：浏览器版 Bridge 0.2.8。** 浏览器门禁仍有效。
+
+**下一史诗（已立项、尚未开工实现）：** 对标 Codex Computer Use **含桌面**。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
+
+0.2.8 仍是登录态浏览器操作层；桌面工作不得回退 `make check` / 扩展测试，不得 warp OS 光标、代点 Allow、自动化微信、修改 Codex CU 安装。
 
 额度规则：用户已重置总额度。旧“周额度不足10%”提示无效；今后按重置后的**总额度剩10%**要求写交接，不能把goal token计数当账户余额。
 
@@ -15,7 +19,7 @@
 - 主路径：USER Edge/Chrome + Browser Bridge，保留登录态。宿主已有视觉时不要求`vcu init model`。
 - 网页：明确tab、DOM selector、绑定截图的viewport坐标点击、输入/滚动、原生标签组。
 - 浏览器整窗：macOS窗口ID截图与Guide；AXPress失败必须诚实报错。
-- 不做：飞书等桌面App产品路径、微信自动化、CDP Allow、OS cursor warp。不得修改Codex CU安装。
+- 0.2.8 冻结：不做桌面 App 产品路径。微信自动化、CDP Allow、OS cursor warp、修改 Codex CU 安装在桌面史诗中也仍然禁止。桌面编排见 ROADMAP-CU。
 
 ## 阶段清单
 
@@ -50,7 +54,8 @@
 - [x] **P2 / PARITY-005（定版提交）**：工作树已定版提交 `d8ee9ad` 并准备推送 origin/main。AWR 证据绑定该 SHA；光标终验与 Chrome 真机仍未完成。
 - [x] **P2 / 0.2.7 体验补丁**：光标朝向与点击压缩、viewport 截图保留光标、合并 Edge+Chrome tabs、CLI/MCP hover、同源 iframe 内层点选、canvas 合成点击。
 - [x] **P2 / 0.2.8**：`install-lens --reload` 热更新已连接 Edge/Chrome SW；默认 `open` 在现有 USER 窗口开新标签。
-- [ ] **P2 后续**：跨源 iframe / trusted 手势 / TC-B-040 AX 网页像素仍不在范围内。双浏览器 tabs 真机复检。没有新证据时不扩大重构。
+- [ ] **P2 后续（浏览器）**：跨源 iframe / trusted 手势 / TC-B-040 仍不在浏览器范围内。双浏览器 tabs 真机复检。
+- [ ] **下一史诗 CU-D-000…**：桌面会话 / Scene / Actuator / Stage，见 ROADMAP-CU。第一刀 CU-D-010 会话必须升起 HUD。
 
 ## 操作入口
 

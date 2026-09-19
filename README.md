@@ -143,7 +143,8 @@ macOS Stage helper：`vcu-stage`。Guide overlay 不移动物理鼠标。当前�
 
 ## 文档
 
-- 计划：[`docs/PLAN.md`](docs/PLAN.md)
+- 计划（已发布浏览器版）：[`docs/PLAN.md`](docs/PLAN.md)
+- 下一史诗（含桌面）：[`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md)
 - 交接：[`docs/HANDOFF.md`](docs/HANDOFF.md)
 - 浏览器操作：[`playbooks/user-browser.md`](playbooks/user-browser.md)
 - 安装：[`docs/INSTALL.md`](docs/INSTALL.md)
