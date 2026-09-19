@@ -16,7 +16,7 @@
 | --- | --- |
 | Browser Bridge | **0.2.8** |
 | Runtime package | **0.1.0** |
-| 范围 | 浏览器 Bridge **0.2.8 冻结**（USER Edge / Chrome + `~/.vcu/lens-extension`）。桌面对标 Codex CU 史诗进行中：TextEdit 真机 AX 输入已过，**还不是**完整桌面 CU。 |
+| 范围 | 浏览器 Bridge **0.2.8 冻结**。macOS 桌面：可见 Stage HUD、Abort、TextEdit 输入、Finder Launch Services 打开自建文件夹、Terminal 粘贴输入（无 Return）、飞书/系统设置只读观察。**不是**完整 Codex CU（无 Windows 产品切片、无微信、无 HID、飞书不自动发送）。 |
 
 VCU 是独立的登录态浏览器操作层，**不是** Codex 官方桌面 Computer Use，也不是通用 OS 键鼠。桌面路径见 [`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md)。
 
@@ -30,11 +30,13 @@ VCU 是独立的登录态浏览器操作层，**不是** Codex 官方桌面 Comp
 - 已加载扩展热更新：`vcu browser install-lens --reload`
 - CLI、HTTP、MCP 同一套动作
 
-网页动作必须 `source=extension_dom`，`trusted=false`，`os_cursor_used=false`。
+网页动作必须 `source=extension_dom`，`trusted=false`，`os_cursor_used=false`。桌面网页仍走扩展；AXWebArea 不是 DOM 点击。
 
 ## 做不到 / 不要指望
 
-- 飞书 / Lark 客户端、Finder、微信自动化
+- 微信自动化、飞书客户端自动发送、系统设置里勾 TCC
+- Finder 图标 AXPress（当前 macOS AX 无图标；打开走 NSWorkspace）
+- 通用桌面键鼠 / Windows UIA 产品切片
 - CDP、点击 Edge「允许调试」
 - 移动系统光标、HID、把合成事件伪装成用户手势
 - 跨源 iframe / `object`（明确拒绝）

@@ -597,6 +597,16 @@ mod tests {
         assert!(swift.contains(r#"let hudSub = "Esc 取消""#));
         assert!(!swift.contains(r#"let hudTitle = "ChatGPT"#));
         assert!(!swift.contains("Codex is using"));
+        assert!(swift.contains("Compact dart, no hard ring, no long stem"));
+        assert!(swift.contains("fogCenter"));
+    }
+
+    #[test]
+    fn guide_overlay_is_short_dart_with_fog() {
+        let swift = include_str!("../../../helpers/vcu-stage/main.swift");
+        assert!(swift.contains("Compact dart, no hard ring, no long stem"));
+        assert!(swift.contains("fogCenter"));
+        assert!(swift.contains("endRadius: 36"));
     }
 
     #[test]

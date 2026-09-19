@@ -1935,6 +1935,16 @@ async fn snapshot(
     slot.blackboard.candidates = snap.dom_refs;
     slot.session.revision += 1;
     slot.blackboard.revision = slot.session.revision;
+    crate::audit::append(
+        &state.paths,
+        "session.snapshot",
+        serde_json::json!({
+            "session": id,
+            "tab": tab,
+            "surface": slot.session.surface,
+            "source": obs.source,
+        }),
+    );
     Json(Envelope::ok_rev(obs, slot.session.revision)).into_response()
 }
 
@@ -2190,6 +2200,18 @@ async fn act(
     match slot.backend.act(&tab, &req).await {
         Ok(detail) => {
             slot.session.revision += 1;
+            crate::audit::append(
+                &state.paths,
+                "session.act",
+                serde_json::json!({
+                    "session": id,
+                    "tab": tab,
+                    "type": req.r#type,
+                    "surface": slot.session.surface,
+                    "ok": detail.ok,
+                    "source": detail.detail.get("input_path"),
+                }),
+            );
             let ar = ActionResult {
                 action_id: new_id(),
                 session_id: id,

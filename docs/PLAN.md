@@ -6,7 +6,7 @@
 
 **已发布：浏览器版 Bridge 0.2.8。** 浏览器门禁仍有效。
 
-**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 HUD 文案已过。下一刀 CU-D-051 Guide 造型。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
+**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 体验对齐已过。Windows（CU-D-060）后置，macOS 第一版门禁已齐。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
 
 本地对照实现在 gitignore 的 `/reference/computer-use/`：可反编译作结构参考，笔记进 `docs/research/`，自有代码进仓库；`.app` / 反编译源码 / 官方素材不上传。
 

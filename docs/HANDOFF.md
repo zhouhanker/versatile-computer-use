@@ -1,11 +1,14 @@
 # VCU 会话交接
 
-更新：2026-09-20。桌面史诗进行中。
+更新：2026-09-20。macOS 桌面第一版门禁已齐。
 
 ## 本轮
 
-- CU-D-050 **完成**：HUD 文案 `VCU 正在使用这台 Mac` / `Esc 取消`；禁止 ChatGPT/Codex 用户文案（单测）。真机 desktop session abort → `hud=false`、会话消失。
+- CU-D-050 HUD 文案 + Abort 真机。
+- CU-D-051 Guide 短三角+柔光（单测锁定）。
+- CU-D-052 `VCU_AUDIT=1` 记录 tab/source/surface，默认关。
+- README 已诚实写桌面覆盖与未覆盖。
 
 ## 下一刀
 
-CU-D-051 Guide 与浏览器虚拟光标同一套短三角+柔光。不宣称官方动画复刻。
+CU-D-060 Windows UIA **后置**（路线图：macOS 门禁过了才开）。不要把 VCU 写成已有 Windows 桌面 CU。不要碰 Edge 组 1/3。
