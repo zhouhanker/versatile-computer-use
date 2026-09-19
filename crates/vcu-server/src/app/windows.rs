@@ -1,7 +1,7 @@
 //! Windows app adapter (PowerShell list on Windows hosts).
+use super::{is_denied_app, AppBackend, AppElement, AppSnapshot, AppTarget};
 use async_trait::async_trait;
 use vcu_core::{ErrorCode, VcuError, VcuResult};
-use super::{is_denied_app, AppBackend, AppElement, AppSnapshot, AppTarget};
 
 pub struct WindowsAppBackend {
     pub allowlist: Vec<String>,
@@ -18,6 +18,7 @@ impl WindowsAppBackend {
                 "windows terminal".into(),
                 "powershell".into(),
                 "cmd".into(),
+                "conhost".into(),
             ],
         }
     }
@@ -31,7 +32,9 @@ impl WindowsAppBackend {
             return true;
         }
         let lower = name.to_lowercase();
-        self.allowlist.iter().any(|a| lower.contains(&a.to_lowercase()))
+        self.allowlist
+            .iter()
+            .any(|a| lower.contains(&a.to_lowercase()))
     }
 
     #[cfg(windows)]
@@ -41,7 +44,11 @@ impl WindowsAppBackend {
         let mut bytes = vec![0xEF, 0xBB, 0xBF];
         bytes.extend_from_slice(script.as_bytes());
         std::fs::write(&path, &bytes).map_err(|e| {
-            VcuError::with_detail(ErrorCode::Internal, "write powershell script", e.to_string())
+            VcuError::with_detail(
+                ErrorCode::Internal,
+                "write powershell script",
+                e.to_string(),
+            )
         })?;
         let ps = {
             let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
@@ -59,11 +66,19 @@ impl WindowsAppBackend {
             .output();
         let _ = std::fs::remove_file(&path);
         let output = output.map_err(|e| {
-            VcuError::with_detail(ErrorCode::Internal, "powershell spawn failed", e.to_string())
+            VcuError::with_detail(
+                ErrorCode::Internal,
+                "powershell spawn failed",
+                e.to_string(),
+            )
         })?;
         if !output.status.success() {
             let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(VcuError::with_detail(ErrorCode::ActionFailed, "powershell failed", err));
+            return Err(VcuError::with_detail(
+                ErrorCode::ActionFailed,
+                "powershell failed",
+                err,
+            ));
         }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
@@ -73,7 +88,11 @@ impl WindowsAppBackend {
 pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Vec<AppTarget> {
     let mut out = Vec::new();
     for (idx, line) in raw.lines().enumerate() {
-        let mut parts = if line.contains('|') { line.split('|') } else { line.split('\t') };
+        let mut parts = if line.contains('|') {
+            line.split('|')
+        } else {
+            line.split('\t')
+        };
         let name = parts.next().unwrap_or("").trim();
         let pid = parts.next().and_then(|s| s.trim().parse().ok());
         let title = parts.next().unwrap_or(name).trim();
@@ -87,7 +106,11 @@ pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Ve
             continue;
         }
         out.push(AppTarget {
-            id: format!("win:{}:{}", name.replace(' ', "_"), pid.unwrap_or(idx as i32)),
+            id: format!(
+                "win:{}:{}",
+                name.replace(' ', "_"),
+                pid.unwrap_or(idx as i32)
+            ),
             title: if title.is_empty() {
                 name.to_string()
             } else {
@@ -101,7 +124,6 @@ pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Ve
     }
     out
 }
-
 
 /// PowerShell: UIA tree walk. No SendInput / mouse_event.
 fn pid_from_win_id(id: &str) -> Option<i32> {
@@ -118,16 +140,88 @@ fn windows_console_app(name: &str) -> bool {
         || n.contains("wt")
 }
 
+/// Resolve HWND for processes whose window is owned by conhost (cmd.exe MainWindowHandle is often 0).
+fn hwnd_resolve_ps() -> &'static str {
+    r#"
+if (-not ("VcuHwndResolve" -as [type])) {
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class VcuHwndResolve {
+  public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc lpEnumFunc, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+  [DllImport("kernel32.dll")] public static extern bool AttachConsole(uint dwProcessId);
+  [DllImport("kernel32.dll")] public static extern bool FreeConsole();
+  [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+  static IntPtr found = IntPtr.Zero;
+  static uint want = 0;
+  public static bool VisibleOwnedCb(IntPtr h, IntPtr l) {
+    uint wpid = 0;
+    GetWindowThreadProcessId(h, out wpid);
+    if (wpid == want && IsWindowVisible(h)) { found = h; return false; }
+    return true;
+  }
+  public static bool OwnedCb(IntPtr h, IntPtr l) {
+    uint wpid = 0;
+    GetWindowThreadProcessId(h, out wpid);
+    if (wpid == want) { found = h; return false; }
+    return true;
+  }
+  public static IntPtr ForPid(uint pid) {
+    found = IntPtr.Zero;
+    want = pid;
+    EnumWindows(new EnumProc(VisibleOwnedCb), IntPtr.Zero);
+    if (found != IntPtr.Zero) return found;
+    EnumWindows(new EnumProc(OwnedCb), IntPtr.Zero);
+    if (found != IntPtr.Zero) return found;
+    FreeConsole();
+    if (AttachConsole(pid)) {
+      found = GetConsoleWindow();
+      FreeConsole();
+      if (found != IntPtr.Zero) return found;
+    }
+    return IntPtr.Zero;
+  }
+}
+"@
+}
+function Get-VcuHwnd([int]$ProcessId) {
+  $p = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+  if ($null -eq $p) { return [IntPtr]::Zero }
+  try { $p.Refresh() } catch {}
+  if ($p.MainWindowHandle -ne [IntPtr]::Zero) { return [IntPtr]$p.MainWindowHandle }
+  return [VcuHwndResolve]::ForPid([uint32]$ProcessId)
+}
+function Wait-VcuHwnd([int]$ProcessId) {
+  $hwnd = [IntPtr]::Zero
+  for ($t = 0; $t -lt 15; $t++) {
+    $hwnd = Get-VcuHwnd $ProcessId
+    if ($hwnd -ne [IntPtr]::Zero) { return $hwnd }
+    Start-Sleep -Milliseconds 200
+  }
+  return $hwnd
+}
+"#
+}
+
 pub fn uia_tree_script(pid: i32, max_nodes: i32) -> String {
-    format!(
+    let mut s = hwnd_resolve_ps().to_string();
+    s.push_str(&format!(
         r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
 $targetPid = {pid}
 $max = {max}
-$proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
-if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'MISSING'; exit 0 }}
-$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
-if ($null -eq $win) {{ 'MISSING'; exit 0 }}
+$hwnd = Wait-VcuHwnd $targetPid
+if ($hwnd -eq [IntPtr]::Zero) {{ 'MISSING'; exit 0 }}
+$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
+if ($null -eq $win) {{
+  $proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
+  $nm = if ($null -ne $proc) {{ $proc.ProcessName }} else {{ 'window' }}
+  'e1|ControlType.Window|{{0}}|0,0,0,0|ConsoleWindowClass' -f $nm
+  exit 0
+}}
 $q = New-Object System.Collections.Queue
 $q.Enqueue($win)
 $n = 0
@@ -146,20 +240,22 @@ while ($q.Count -gt 0 -and $n -lt $max) {{
 "#,
         pid = pid,
         max = max_nodes
-    )
+    ));
+    s
 }
 
 /// PowerShell: InvokePattern on the Nth UIA node (eN). No SendInput.
 pub fn uia_invoke_script(pid: i32, eref: &str) -> String {
     let n = eref.trim_start_matches('e').parse::<i32>().unwrap_or(0);
-    format!(
+    let mut s = hwnd_resolve_ps().to_string();
+    s.push_str(&format!(
         r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
 $targetPid = {pid}
 $want = {n}
-$proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
-if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
-$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
+$hwnd = Wait-VcuHwnd $targetPid
+if ($hwnd -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
+$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
 if ($null -eq $win) {{ 'not-found'; exit 0 }}
 $q = New-Object System.Collections.Queue
 $q.Enqueue($win)
@@ -204,14 +300,44 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, In
 "#,
         pid = pid,
         n = n
-    )
+    ));
+    s
 }
 
-/// PowerShell: ValuePattern.SetValue on eN, else WM_SETTEXT. No SendInput.
+/// PowerShell: ValuePattern.SetValue on eN, else WM_SETTEXT. Consoles skip WM_SETTEXT (false green) and paste. No SendInput.
 pub fn uia_set_value_script(pid: i32, eref: &str, value: &str) -> String {
+    uia_set_value_script_for(pid, eref, value, false)
+}
+
+fn uia_set_value_script_for(pid: i32, eref: &str, value: &str, console: bool) -> String {
     let n = eref.trim_start_matches('e').parse::<i32>().unwrap_or(0);
     let val = value.replace('\'', "''");
-    format!(
+    let mut s = hwnd_resolve_ps().to_string();
+    if console {
+        s.push_str(&format!(
+            r#"
+$targetPid = {pid}
+$val = '{val}'
+$hwnd = Wait-VcuHwnd $targetPid
+if ($hwnd -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
+if (-not ("Vcu.VcuPaste140" -as [type])) {{
+  $sig = @'
+[DllImport("user32.dll")]
+public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+'@
+  Add-Type -MemberDefinition $sig -Name VcuPaste140 -Namespace Vcu | Out-Null
+}}
+Set-Clipboard -Value $val
+Start-Sleep -Milliseconds 80
+[void][Vcu.VcuPaste140]::SendMessage([IntPtr]$hwnd, 0x0302, [IntPtr]::Zero, [IntPtr]::Zero)
+'ok:clipboard_paste'
+"#,
+            pid = pid,
+            val = val
+        ));
+        return s;
+    }
+    s.push_str(&format!(
         r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
 if (-not ("Vcu.VcuSetValue070" -as [type])) {{
@@ -224,9 +350,9 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, st
 $targetPid = {pid}
 $want = {n}
 $val = '{val}'
-$proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
-if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
-$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
+$hwnd = Wait-VcuHwnd $targetPid
+if ($hwnd -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
+$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
 if ($null -eq $win) {{ 'not-found'; exit 0 }}
 $q = New-Object System.Collections.Queue
 $q.Enqueue($win)
@@ -256,13 +382,9 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, In
       Add-Type -MemberDefinition $sig -Name VcuPaste140 -Namespace Vcu | Out-Null
     }}
     Set-Clipboard -Value $val
-    $hwnd = $proc.MainWindowHandle
-    if ($hwnd -ne [IntPtr]::Zero) {{
-      [void][Vcu.VcuPaste140]::SendMessage($hwnd, 0x0302, [IntPtr]::Zero, [IntPtr]::Zero)
-      'ok:clipboard_paste'
-      exit 0
-    }}
-    'error:no-value-pattern'
+    Start-Sleep -Milliseconds 80
+    [void][Vcu.VcuPaste140]::SendMessage([IntPtr]$hwnd, 0x0302, [IntPtr]::Zero, [IntPtr]::Zero)
+    'ok:clipboard_paste'
     exit 0
   }}
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
@@ -272,13 +394,15 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, In
 "#,
         pid = pid,
         n = n,
-        val = val,
-    )
+        val = val
+    ));
+    s
 }
 
 /// PowerShell: PrintWindow of the process main HWND to PNG (base64). Not CopyFromScreen of an occluded desktop, not SendInput.
 pub fn uia_capture_script(pid: i32) -> String {
-    format!(
+    let mut s = hwnd_resolve_ps().to_string();
+    s.push_str(&format!(
         r#"
 Add-Type -AssemblyName System.Drawing | Out-Null
 Add-Type -TypeDefinition @"
@@ -290,9 +414,8 @@ public static class VcuPrintWindow {{
   [StructLayout(LayoutKind.Sequential)] public struct RECT {{ public int Left; public int Top; public int Right; public int Bottom; }}
 }}
 "@
-$proc = Get-Process -Id {pid} -ErrorAction SilentlyContinue
-if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'MISSING'; exit 0 }}
-$hwnd = $proc.MainWindowHandle
+$hwnd = Wait-VcuHwnd {pid}
+if ($hwnd -eq [IntPtr]::Zero) {{ 'MISSING'; exit 0 }}
 $rect = New-Object VcuPrintWindow+RECT
 [void][VcuPrintWindow]::GetWindowRect($hwnd, [ref]$rect)
 $w = [Math]::Max(1, $rect.Right - $rect.Left)
@@ -312,14 +435,18 @@ $ms.Dispose()
 $b64
 "#,
         pid = pid
-    )
+    ));
+    s
 }
 
 pub fn parse_uia_capture_output(raw: &str) -> Option<(Vec<u8>, [f64; 4])> {
     let mut lines = raw.lines().map(|l| l.trim()).filter(|l| !l.is_empty());
     let header = lines.next()?;
     let rest = header.strip_prefix("FRAME|")?;
-    let nums: Vec<f64> = rest.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+    let nums: Vec<f64> = rest
+        .split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .collect();
     if nums.len() != 4 {
         return None;
     }
@@ -413,11 +540,18 @@ pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
 }
 
 impl Default for WindowsAppBackend {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-
-pub fn snapshot_from_uia(id: &str, name: &str, pid: Option<i32>, raw: &str, budget: u64) -> AppSnapshot {
+pub fn snapshot_from_uia(
+    id: &str,
+    name: &str,
+    pid: Option<i32>,
+    raw: &str,
+    budget: u64,
+) -> AppSnapshot {
     let mut elements = parse_uia_element_lines(raw);
     if budget > 0 && budget < 10 {
         elements.clear();
@@ -436,10 +570,16 @@ pub fn snapshot_from_uia(id: &str, name: &str, pid: Option<i32>, raw: &str, budg
             allowed: true,
             browser_profile: None,
         },
-                summary: if elements.is_empty() {
-            format!("process=\"{name}\" elements=0 note=uia_tree raw={}", raw.chars().take(160).collect::<String>())
+        summary: if elements.is_empty() {
+            format!(
+                "process=\"{name}\" elements=0 note=uia_tree raw={}",
+                raw.chars().take(160).collect::<String>()
+            )
         } else {
-            format!("process=\"{name}\" elements={} note=uia_tree", elements.len())
+            format!(
+                "process=\"{name}\" elements={} note=uia_tree",
+                elements.len()
+            )
         },
         elements,
         truncated: true,
@@ -453,7 +593,11 @@ pub fn snapshot_from_uia(id: &str, name: &str, pid: Option<i32>, raw: &str, budg
     }
 }
 
-pub fn invoke_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuResult<serde_json::Value> {
+pub fn invoke_from_uia_output(
+    name: &str,
+    element_ref: &str,
+    out: &str,
+) -> VcuResult<serde_json::Value> {
     let path = if out.contains("ok:uia_invoke") {
         "uia_invoke"
     } else if out.contains("ok:legacy_invoke") {
@@ -461,7 +605,11 @@ pub fn invoke_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuRe
     } else if out.contains("ok:bm_click") {
         "bm_click"
     } else {
-        return Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia invoke failed", out));
+        return Err(VcuError::with_detail(
+            ErrorCode::ActionFailed,
+            "uia invoke failed",
+            out,
+        ));
     };
     Ok(serde_json::json!({
         "ok": true,
@@ -474,8 +622,15 @@ pub fn invoke_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuRe
     }))
 }
 
-pub fn set_value_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuResult<serde_json::Value> {
-    if out.contains("ok:uia_set_value") || out.contains("ok:wm_settext") || out.contains("ok:clipboard_paste") {
+pub fn set_value_from_uia_output(
+    name: &str,
+    element_ref: &str,
+    out: &str,
+) -> VcuResult<serde_json::Value> {
+    if out.contains("ok:uia_set_value")
+        || out.contains("ok:wm_settext")
+        || out.contains("ok:clipboard_paste")
+    {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
         } else if out.contains("ok:wm_settext") {
@@ -493,7 +648,11 @@ pub fn set_value_from_uia_output(name: &str, element_ref: &str, out: &str) -> Vc
             "hid_injected": false
         }))
     } else {
-        Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia set_value failed", out))
+        Err(VcuError::with_detail(
+            ErrorCode::ActionFailed,
+            "uia set_value failed",
+            out,
+        ))
     }
 }
 
@@ -527,17 +686,25 @@ Start-Process -FilePath explorer.exe -ArgumentList ('/select,' + $path) | Out-Nu
 
 #[async_trait]
 impl AppBackend for WindowsAppBackend {
-    fn platform(&self) -> &str { "windows" }
+    fn platform(&self) -> &str {
+        "windows"
+    }
 
     async fn list_windows(&self) -> VcuResult<Vec<AppTarget>> {
         #[cfg(not(windows))]
         {
-            Err(VcuError::coded(ErrorCode::NotImplemented, "WindowsAppBackend::list_windows only runs on Windows hosts"))
+            Err(VcuError::coded(
+                ErrorCode::NotImplemented,
+                "WindowsAppBackend::list_windows only runs on Windows hosts",
+            ))
         }
         #[cfg(windows)]
         {
             let script = r#"
-Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
+Get-Process | Where-Object {
+  $_.MainWindowTitle -ne '' -or
+  @('cmd','conhost','powershell','pwsh','WindowsTerminal') -contains $_.ProcessName
+} |
   ForEach-Object { '{0}|{1}|{2}' -f $_.ProcessName, $_.Id, ($_.MainWindowTitle -replace '[\r\n\t]',' ') }
 "#;
             let raw = Self::run_powershell(script)?;
@@ -547,25 +714,44 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
 
     async fn focus_window(&mut self, _id: &str, allow_focus_steal: bool) -> VcuResult<()> {
         if !allow_focus_steal {
-            return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, "refusing to steal app focus on Windows"));
+            return Err(VcuError::coded(
+                ErrorCode::FocusPolicyViolation,
+                "refusing to steal app focus on Windows",
+            ));
         }
-        Err(VcuError::coded(ErrorCode::NotImplemented, "explicit Windows focus is gated"))
+        Err(VcuError::coded(
+            ErrorCode::NotImplemented,
+            "explicit Windows focus is gated",
+        ))
     }
 
     async fn snapshot(&self, id: &str, budget: u64) -> VcuResult<AppSnapshot> {
         #[cfg(not(windows))]
         {
             let _ = budget;
-            Err(VcuError::coded(ErrorCode::NotImplemented, format!("Windows snapshot unavailable on this host for {id}")))
+            Err(VcuError::coded(
+                ErrorCode::NotImplemented,
+                format!("Windows snapshot unavailable on this host for {id}"),
+            ))
         }
         #[cfg(windows)]
         {
-            let name = id.strip_prefix("win:").and_then(|rest| rest.split(':').next()).map(|s| s.replace('_', " ")).unwrap_or_else(|| id.to_string());
+            let name = id
+                .strip_prefix("win:")
+                .and_then(|rest| rest.split(':').next())
+                .map(|s| s.replace('_', " "))
+                .unwrap_or_else(|| id.to_string());
             if !self.allowed(&name) {
-                return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
+                return Err(VcuError::coded(
+                    ErrorCode::FocusPolicyViolation,
+                    format!("process '{name}' not in app allowlist"),
+                ));
             }
             let pid = pid_from_win_id(id).ok_or_else(|| {
-                VcuError::coded(ErrorCode::InvalidInput, "Windows snapshot requires win:name:pid")
+                VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "Windows snapshot requires win:name:pid",
+                )
             })?;
             let raw = Self::run_powershell(&uia_tree_script(pid, 80))?;
             Ok(snapshot_from_uia(id, &name, Some(pid), &raw, budget))
@@ -579,34 +765,54 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
             .map(|s| s.replace('_', " "))
             .unwrap_or_else(|| id.to_string());
         if is_denied_app(&name) {
-            return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+            return Err(VcuError::coded(
+                ErrorCode::AppDenied,
+                format!("app '{name}' is denied by VCU policy"),
+            ));
         }
         #[cfg(not(windows))]
         {
             let _ = (id, element_ref);
-            Err(VcuError::coded(ErrorCode::OsCursorDenied, "Windows app invoke is denied by default safety policy (no SendInput / no cursor)"))
+            Err(VcuError::coded(
+                ErrorCode::OsCursorDenied,
+                "Windows app invoke is denied by default safety policy (no SendInput / no cursor)",
+            ))
         }
         #[cfg(windows)]
         {
             if !self.allowed(&name) {
-                return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
+                return Err(VcuError::coded(
+                    ErrorCode::FocusPolicyViolation,
+                    format!("process '{name}' not in app allowlist"),
+                ));
             }
             let pid = pid_from_win_id(id).ok_or_else(|| {
-                VcuError::coded(ErrorCode::InvalidInput, "Windows invoke requires win:name:pid")
+                VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "Windows invoke requires win:name:pid",
+                )
             })?;
             let out = Self::run_powershell(&uia_invoke_script(pid, element_ref))?;
             invoke_from_uia_output(&name, element_ref, &out)
         }
     }
 
-    async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
+    async fn set_value(
+        &mut self,
+        id: &str,
+        element_ref: &str,
+        value: &str,
+    ) -> VcuResult<serde_json::Value> {
         let name = id
             .strip_prefix("win:")
             .and_then(|rest| rest.split(':').next())
             .map(|s| s.replace('_', " "))
             .unwrap_or_else(|| id.to_string());
         if is_denied_app(&name) {
-            return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+            return Err(VcuError::coded(
+                ErrorCode::AppDenied,
+                format!("app '{name}' is denied by VCU policy"),
+            ));
         }
         if windows_console_app(&name) && value.chars().any(|c| c == '\n' || c == '\r') {
             return Err(VcuError::coded(
@@ -617,17 +823,31 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
         #[cfg(not(windows))]
         {
             let _ = (id, element_ref, value);
-            Err(VcuError::coded(ErrorCode::NotImplemented, "Windows set_value only runs on Windows hosts"))
+            Err(VcuError::coded(
+                ErrorCode::NotImplemented,
+                "Windows set_value only runs on Windows hosts",
+            ))
         }
         #[cfg(windows)]
         {
             if !self.allowed(&name) {
-                return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
+                return Err(VcuError::coded(
+                    ErrorCode::FocusPolicyViolation,
+                    format!("process '{name}' not in app allowlist"),
+                ));
             }
             let pid = pid_from_win_id(id).ok_or_else(|| {
-                VcuError::coded(ErrorCode::InvalidInput, "Windows set_value requires win:name:pid")
+                VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "Windows set_value requires win:name:pid",
+                )
             })?;
-            let out = Self::run_powershell(&uia_set_value_script(pid, element_ref, value))?;
+            let out = Self::run_powershell(&uia_set_value_script_for(
+                pid,
+                element_ref,
+                value,
+                windows_console_app(&name),
+            ))?;
             set_value_from_uia_output(&name, element_ref, &out)
         }
     }
@@ -639,21 +859,37 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
             .map(|s| s.replace('_', " "))
             .unwrap_or_else(|| id.to_string());
         if is_denied_app(&name) {
-            return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+            return Err(VcuError::coded(
+                ErrorCode::AppDenied,
+                format!("app '{name}' is denied by VCU policy"),
+            ));
         }
         #[cfg(not(windows))]
         {
             let _ = path;
-            Err(VcuError::coded(ErrorCode::NotImplemented, "Windows open_path only runs on Windows hosts"))
+            Err(VcuError::coded(
+                ErrorCode::NotImplemented,
+                "Windows open_path only runs on Windows hosts",
+            ))
         }
         #[cfg(windows)]
         {
-            if path.chars().any(|c| matches!(c, '"' | '`' | '\n' | '\r' | '{' | '}')) {
-                return Err(VcuError::coded(ErrorCode::InvalidInput, "Windows open_path path has forbidden characters"));
+            if path
+                .chars()
+                .any(|c| matches!(c, '"' | '`' | '\n' | '\r' | '{' | '}'))
+            {
+                return Err(VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "Windows open_path path has forbidden characters",
+                ));
             }
             let out = Self::run_powershell(&explorer_open_script(path))?;
             if !out.contains("ok:explorer_open") {
-                return Err(VcuError::with_detail(ErrorCode::ActionFailed, "explorer open_path failed", out));
+                return Err(VcuError::with_detail(
+                    ErrorCode::ActionFailed,
+                    "explorer open_path failed",
+                    out,
+                ));
             }
             Ok(serde_json::json!({
                 "ok": true,
@@ -674,21 +910,37 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
             .map(|s| s.replace('_', " "))
             .unwrap_or_else(|| id.to_string());
         if is_denied_app(&name) {
-            return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+            return Err(VcuError::coded(
+                ErrorCode::AppDenied,
+                format!("app '{name}' is denied by VCU policy"),
+            ));
         }
         #[cfg(not(windows))]
         {
             let _ = path;
-            Err(VcuError::coded(ErrorCode::NotImplemented, "Windows reveal_path only runs on Windows hosts"))
+            Err(VcuError::coded(
+                ErrorCode::NotImplemented,
+                "Windows reveal_path only runs on Windows hosts",
+            ))
         }
         #[cfg(windows)]
         {
-            if path.chars().any(|c| matches!(c, '"' | '`' | '\n' | '\r' | '{' | '}')) {
-                return Err(VcuError::coded(ErrorCode::InvalidInput, "Windows reveal_path path has forbidden characters"));
+            if path
+                .chars()
+                .any(|c| matches!(c, '"' | '`' | '\n' | '\r' | '{' | '}'))
+            {
+                return Err(VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "Windows reveal_path path has forbidden characters",
+                ));
             }
             let out = Self::run_powershell(&explorer_reveal_script(path))?;
             if !out.contains("ok:explorer_reveal") {
-                return Err(VcuError::with_detail(ErrorCode::ActionFailed, "explorer reveal failed", out));
+                return Err(VcuError::with_detail(
+                    ErrorCode::ActionFailed,
+                    "explorer reveal failed",
+                    out,
+                ));
             }
             Ok(serde_json::json!({
                 "ok": true,
@@ -728,7 +980,12 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
             let Some((width, height)) = super::png_ihdr_size(&png) else {
                 return Ok(None);
             };
-            Ok(Some(super::AppCapture { png, width, height, frame }))
+            Ok(Some(super::AppCapture {
+                png,
+                width,
+                height,
+                frame,
+            }))
         }
     }
 }
@@ -746,7 +1003,10 @@ mod tests {
         #[cfg(not(windows))]
         {
             assert_eq!(err.code(), ErrorCode::OsCursorDenied);
-            assert!(err.message().to_ascii_lowercase().contains("sendinput") || err.message().to_ascii_lowercase().contains("cursor"));
+            assert!(
+                err.message().to_ascii_lowercase().contains("sendinput")
+                    || err.message().to_ascii_lowercase().contains("cursor")
+            );
         }
         #[cfg(windows)]
         {
@@ -756,7 +1016,10 @@ mod tests {
         assert_eq!(denied.code(), ErrorCode::AppDenied);
         let denied = b.open_path("win:WeChat:2", "C:\\Temp").await.unwrap_err();
         assert_eq!(denied.code(), ErrorCode::AppDenied);
-        let err = b.open_path("win:notepad:1", "C:\\vcu-no-such-dir").await.unwrap_err();
+        let err = b
+            .open_path("win:notepad:1", "C:\\vcu-no-such-dir")
+            .await
+            .unwrap_err();
         #[cfg(not(windows))]
         assert_eq!(err.code(), ErrorCode::NotImplemented);
         #[cfg(windows)]
@@ -765,9 +1028,15 @@ mod tests {
         assert!(open_script.contains("explorer.exe"));
         assert!(open_script.contains("ok:explorer_open"));
         assert!(!open_script.to_ascii_lowercase().contains("sendinput("));
-        let denied = b.reveal_path("win:WeChat:2", "C:\\Temp\\x.txt").await.unwrap_err();
+        let denied = b
+            .reveal_path("win:WeChat:2", "C:\\Temp\\x.txt")
+            .await
+            .unwrap_err();
         assert_eq!(denied.code(), ErrorCode::AppDenied);
-        let err = b.reveal_path("win:notepad:1", "C:\\vcu-no-such-file.txt").await.unwrap_err();
+        let err = b
+            .reveal_path("win:notepad:1", "C:\\vcu-no-such-file.txt")
+            .await
+            .unwrap_err();
         #[cfg(not(windows))]
         assert_eq!(err.code(), ErrorCode::NotImplemented);
         #[cfg(windows)]
@@ -781,7 +1050,10 @@ mod tests {
         assert_eq!(err.code(), ErrorCode::NotImplemented);
         #[cfg(windows)]
         assert_eq!(err.code(), ErrorCode::ActionFailed);
-        let nl = b.set_value("win:cmd:1", "e1", "echo\nhi").await.unwrap_err();
+        let nl = b
+            .set_value("win:cmd:1", "e1", "echo\nhi")
+            .await
+            .unwrap_err();
         assert_eq!(nl.code(), ErrorCode::FocusPolicyViolation);
         let setv = uia_set_value_script(4242, "e2", "hello");
         assert!(setv.contains("ValuePattern"));
@@ -796,14 +1068,18 @@ mod tests {
     #[test]
     fn parse_process_list_keeps_allowlist_drops_wechat() {
         let b = WindowsAppBackend::new();
-        let raw = "notepad\t1001\tUntitled - Notepad\nWeChat\t2002\tWeChat\nexplorer\t3003\tDocuments\nmsedge\t4004\tMicrosoft Edge\n";
+        let raw = "notepad\t1001\tUntitled - Notepad\nWeChat\t2002\tWeChat\nexplorer\t3003\tDocuments\nmsedge\t4004\tMicrosoft Edge\ncmd\t5005\t\nconhost\t5006\tVCU-D-140\n";
         let wins = parse_process_list_lines(raw, |n| b.allowed(n));
         let names: Vec<_> = wins.iter().map(|w| w.bundle_or_exe.as_str()).collect();
         assert!(names.contains(&"notepad"));
         assert!(names.contains(&"explorer"));
         assert!(names.contains(&"msedge"));
+        assert!(names.contains(&"cmd"));
+        assert!(names.contains(&"conhost"));
         assert!(!names.iter().any(|n| n.to_lowercase().contains("wechat")));
         assert!(wins.iter().any(|w| w.id.starts_with("win:notepad:")));
+        assert!(wins.iter().any(|w| w.id == "win:cmd:5005"));
+        assert!(wins.iter().any(|w| w.id == "win:conhost:5006"));
     }
 
     #[test]
@@ -819,6 +1095,8 @@ mod tests {
         assert!(tree.contains("UIAutomationClient"));
         assert!(tree.contains("FromHandle"));
         assert!(tree.contains("ClassName"));
+        assert!(tree.contains("AttachConsole"));
+        assert!(tree.contains("VcuHwndResolve"));
         assert!(!tree.to_ascii_lowercase().contains("sendinput"));
         let inv = uia_invoke_script(4242, "e2");
         assert!(inv.contains("InvokePattern"));
@@ -857,7 +1135,15 @@ mod tests {
         assert!(setv.contains("ok:clipboard_paste"));
         assert!(setv.contains("Set-Clipboard"));
         assert!(setv.contains("SendMessage"));
+        assert!(setv.contains("VcuHwndResolve"));
         assert!(!setv.to_ascii_lowercase().contains("sendinput("));
+        let cmdv = uia_set_value_script_for(4242, "e1", "echo-not-run", true);
+        assert!(cmdv.contains("ok:clipboard_paste"));
+        assert!(cmdv.contains("Set-Clipboard"));
+        assert!(cmdv.contains("0x0302"));
+        assert!(cmdv.contains("AttachConsole"));
+        assert!(!cmdv.contains("ok:wm_settext"));
+        assert!(!cmdv.to_ascii_lowercase().contains("sendinput("));
         assert!(set_value_from_uia_output("notepad", "e2", "error:no-value-pattern").is_err());
         let cap_script = uia_capture_script(4242);
         assert!(cap_script.contains("PrintWindow"));
@@ -866,7 +1152,8 @@ mod tests {
         assert!(!cap_script.to_ascii_lowercase().contains("mouse_event"));
         assert!(!cap_script.to_ascii_lowercase().contains("copyfromscreen"));
         let b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
-        let parsed = parse_uia_capture_output(&format!("FRAME|10,20,800,600\n{b64}\n")).expect("parse capture");
+        let parsed = parse_uia_capture_output(&format!("FRAME|10,20,800,600\n{b64}\n"))
+            .expect("parse capture");
         assert_eq!(parsed.1, [10.0, 20.0, 800.0, 600.0]);
         assert_eq!(crate::app::png_ihdr_size(&parsed.0), Some((1, 1)));
     }

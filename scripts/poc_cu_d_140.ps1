@@ -22,8 +22,24 @@ $cfg = Get-Content $cfgPath | ConvertFrom-Json
 $cfg.daemon_port = 19000 + (Get-Random -Maximum 1000)
 $cfg | ConvertTo-Json | Set-Content $cfgPath
 
-$cmd = Start-Process -FilePath "cmd.exe" -PassThru
-Start-Sleep -Seconds 1
+$cmdExe = Join-Path $env:SystemRoot "System32\cmd.exe"
+$conhost = Join-Path $env:SystemRoot "System32\conhost.exe"
+$hostProc = $null
+if (Test-Path $conhost) {
+  $hostProc = Start-Process -FilePath $conhost -ArgumentList @($cmdExe, "/k", "title VCU-D-140") -WindowStyle Normal -PassThru
+  Start-Sleep -Seconds 1
+  $child = Get-CimInstance Win32_Process -Filter ("ParentProcessId={0}" -f $hostProc.Id) -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -eq "cmd.exe" } |
+    Select-Object -First 1
+  if ($child) {
+    $cmd = Get-Process -Id ([int]$child.ProcessId)
+  } else {
+    $cmd = $hostProc
+  }
+} else {
+  $cmd = Start-Process -FilePath $cmdExe -ArgumentList @("/k", "title VCU-D-140") -WindowStyle Normal -PassThru
+  Start-Sleep -Seconds 1
+}
 $daemon = $null
 try {
   $daemon = Start-Process -FilePath $daemonBin -ArgumentList @("--user-dir", $ud) -PassThru -WindowStyle Hidden
@@ -35,7 +51,9 @@ try {
   }
   if (-not $ok) { throw "daemon health failed" }
 
-  $tab = "win:cmd:$($cmd.Id)"
+  $procName = [string]$cmd.ProcessName
+  if ($procName -ne "cmd" -and $procName -ne "conhost") { $procName = "cmd" }
+  $tab = "win:${procName}:$($cmd.Id)"
   $startRaw = & $vcu --user-dir $ud session start --surface desktop --app-id $tab --json
   Write-Host $startRaw
   $start = $startRaw | ConvertFrom-Json
@@ -43,20 +61,26 @@ try {
   $sid = [string]$start.data.session_id
   Write-Host ("STAGE_OK session={0}" -f $sid)
 
-  $snapRaw = & $vcu --user-dir $ud snapshot --session $sid --tab $tab --json
-  Write-Host $snapRaw
-  $snap = $snapRaw | ConvertFrom-Json
-  if (-not $snap.ok) { throw "snapshot failed" }
+  $snap = $null
   $ref = $null
-  foreach ($r in @($snap.data.dom_refs)) {
-    $role = [string]$r.role
-    if ($role -like "*Edit*") { $ref = [string]$r.ref; break }
+  for ($i = 0; $i -lt 15; $i++) {
+    $snapRaw = & $vcu --user-dir $ud snapshot --session $sid --tab $tab --json
+    Write-Host $snapRaw
+    $snap = $snapRaw | ConvertFrom-Json
+    if (-not $snap.ok) { throw "snapshot failed" }
+    $ref = $null
+    foreach ($r in @($snap.data.dom_refs)) {
+      $role = [string]$r.role
+      if ($role -like "*Edit*") { $ref = [string]$r.ref; break }
+    }
+    if (-not $ref) {
+      $first = @($snap.data.dom_refs)[0]
+      if ($null -ne $first) { $ref = [string]$first.ref }
+    }
+    if ($ref) { break }
+    Start-Sleep -Milliseconds 300
   }
-  if (-not $ref) {
-    $first = @($snap.data.dom_refs)[0]
-    if ($null -eq $first) { throw "empty cmd scene" }
-    $ref = [string]$first.ref
-  }
+  if (-not $ref) { throw "empty cmd scene" }
   Write-Host ("SNAP_OK ref={0}" -f $ref)
 
   $typeRaw = & $vcu --user-dir $ud type --session $sid --tab $tab --ref $ref --text "echo-not-run" --json
@@ -87,5 +111,8 @@ try {
   }
   if ($cmd -and -not $cmd.HasExited) {
     Stop-Process -Id $cmd.Id -Force -ErrorAction SilentlyContinue
+  }
+  if ($hostProc -and -not $hostProc.HasExited) {
+    Stop-Process -Id $hostProc.Id -Force -ErrorAction SilentlyContinue
   }
 }
