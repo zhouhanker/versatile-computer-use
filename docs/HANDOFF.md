@@ -1,12 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。macOS 第一版门禁已齐。Windows 真机仍未跑。
+更新：2026-09-20。macOS 第一版门禁已齐。Windows 真机仍待 CI/主机。
 
 ## 本轮
 
-- CU-D-060：把 Windows 成功路径抽成 `snapshot_from_uia` / `invoke_from_uia_output` / `set_value_from_uia_output`，在 macOS 上也能单测（ok 与失败）。交叉编译缺 mingw gcc，未做 windows-gnu 链接。
-- 真机 UIA 仍需 Windows 主机。
+- CU-D-060：`scripts/poc_desktop_windows.ps1` 在 Windows 上开 Notepad，用 UIAutomation 找窗（无 SendInput）。Darwin 上 sh 诚实 SKIP。
+- CI `windows-latest` 增加 `windows UIA notepad smoke` 步骤。本机未跑该 ps1。
 
 ## 下一刀
 
-Windows 主机跑 Notepad 真机。不要宣称已有 Windows 桌面 CU。
+等 Windows CI 或真机跑通 `poc_desktop_windows.ps1` 后再把 CU-D-060 标真机完成。不要提前宣称 Windows CU 可用。

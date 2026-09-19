@@ -56,6 +56,10 @@ jobs:
           if (-not $snap.ok) { throw "snapshot failed" }
           Stop-Process -Id $d.Id -Force -ErrorAction SilentlyContinue
           Write-Host "WINDOWS MOCK SMOKE PASSED"
+      - name: windows UIA notepad smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -NonInteractive -File scripts/poc_desktop_windows.ps1
 
   package-macos:
     needs: test
