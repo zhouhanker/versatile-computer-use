@@ -92,6 +92,9 @@ async fn mcp_initialize_and_session_tools() {
     assert!(arr.iter().any(|t| t["name"] == "vcu_browser_login_state"));
     assert!(arr.iter().any(|t| t["name"] == "vcu_browser_ping"));
     assert!(arr.iter().any(|t| t["name"] == "vcu_browser_extract"));
+    for name in ["vcu_browser_tabs", "vcu_browser_select", "vcu_browser_open", "vcu_browser_group", "vcu_browser_group_update", "vcu_browser_ungroup"] {
+        assert!(arr.iter().any(|t| t["name"] == name), "missing {name}");
+    }
     let ext_tool = arr.iter().find(|t| t["name"] == "vcu_browser_extract").unwrap();
     assert!(ext_tool["inputSchema"]["properties"].get("selector").is_some());
     assert!(arr.iter().any(|t| t["name"] == "vcu_snapshot"));

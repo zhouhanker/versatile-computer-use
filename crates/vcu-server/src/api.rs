@@ -3,12 +3,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::{ConnectInfo, Path, Query, State};
+use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderName, Method, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::Utc;
+use base64::Engine;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -30,7 +31,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/extension/bootstrap", post(extension_bootstrap))
         .route("/v1/extension/hello", post(extension_hello))
         .route("/v1/extension/poll", get(extension_poll))
-        .route("/v1/extension/result", post(extension_result))
+        .route("/v1/extension/result", post(extension_result).layer(DefaultBodyLimit::max(16 * 1024 * 1024)))
         .route("/v1/app/windows", get(app_windows))
         .route("/v1/app/snapshot", post(app_snapshot))
         .route("/v1/app/invoke", post(app_invoke))
@@ -46,6 +47,13 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/browser/extract", post(browser_extract))
         .route("/v1/browser/ping", post(browser_ping))
         .route("/v1/browser/open", post(browser_open))
+        .route("/v1/browser/tabs", get(browser_tabs))
+        .route("/v1/browser/screenshot", post(browser_screenshot))
+        .route("/v1/browser/select", post(browser_select))
+        .route("/v1/browser/close", post(browser_close))
+        .route("/v1/browser/group", post(browser_group))
+        .route("/v1/browser/group/update", post(browser_group_update))
+        .route("/v1/browser/ungroup", post(browser_ungroup))
         .route("/v1/session/start", post(session_start))
         .route("/v1/session/list", get(session_list))
         .route("/v1/session/{id}", get(session_show))
@@ -185,6 +193,8 @@ struct BrowserClickReq {
     selector: Option<String>,
     #[serde(default)]
     tab_id: Option<String>,
+    #[serde(default)]
+    capture_id: Option<String>,
 }
 
 async fn browser_click(
@@ -194,6 +204,18 @@ async fn browser_click(
 ) -> impl IntoResponse {
     if let Err(e) = require_auth(&headers, &state).await {
         return err_response(e);
+    }
+    if req.space.as_deref() == Some("viewport") {
+        return browser_viewport_click(state, req).await;
+    }
+    if req.capture_id.is_some() {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "capture_id requires space=viewport"));
+    }
+    if req.selector.is_some() && (req.pixel_x.is_some() || req.pixel_y.is_some()) {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "choose selector or screenshot pixels, not both"));
+    }
+    if req.selector.is_none() && req.tab_id.is_some() {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "tab_id requires selector; pixel clicks target the observed browser window"));
     }
     let login = crate::login_state::inspect_login_browsers();
     if !req.dry_run && login.allow_dialog_visible {
@@ -219,7 +241,7 @@ async fn browser_click(
             "selector": selector,
             "dry_run": req.dry_run,
         });
-        if let Some(id) = req.tab_id.as_deref().filter(|s| !s.is_empty()) {
+        if let Some(id) = req.tab_id.as_deref() {
             if let Ok(n) = id.parse::<i64>() {
                 params["tab_id"] = json!(n);
             } else {
@@ -231,7 +253,7 @@ async fn browser_click(
                 return Json(Envelope::ok(json!({
                     "login_state": true,
                     "hud": false,
-                    "pressed": v.get("pressed").cloned().unwrap_or(json!(!req.dry_run)),
+                    "pressed": v.get("pressed").cloned().unwrap_or(json!(false)),
                     "dry_run": req.dry_run,
                     "selector": selector,
                     "source": "extension_dom",
@@ -268,8 +290,11 @@ async fn browser_click(
     let side = fs::read(&sidecar)
         .ok()
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok());
+    if side.as_ref().and_then(|v| v.get("app_id")).and_then(Value::as_str) != Some(id.as_str()) {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "observe this browser first; screenshot belongs to a different or missing window"));
+    }
     let mut window_frame = side.as_ref().and_then(|v| json_frame(v.get("screenshot_frame")));
-    let mut window_scale = side.as_ref().and_then(|v| v.get("screenshot_scale").and_then(|x| x.as_f64()));
+    let window_scale = side.as_ref().and_then(|v| v.get("screenshot_scale").and_then(|x| x.as_f64()));
     let mut webview_frame = side.as_ref().and_then(|v| json_frame(v.get("webview_screenshot_frame")));
     let mut webview_scale = side.as_ref().and_then(|v| v.get("webview_screenshot_scale").and_then(|x| x.as_f64()));
     let mut refs: Vec<(String, [f64; 4])> = Vec::new();
@@ -281,6 +306,9 @@ async fn browser_click(
         let backend = state.app_backend.read().await;
         match backend.snapshot(&id, 2000).await {
             Ok(snap) => {
+                if !req.dry_run && window_frame != snap.window_frame {
+                    return err_response(VcuError::coded(ErrorCode::InvalidInput, "browser window moved or resized since screenshot; observe again before clicking"));
+                }
                 refs = snap
                     .elements
                     .iter()
@@ -293,12 +321,12 @@ async fn browser_click(
                     webview_frame = webview_crop_frame(snap.elements.as_slice(), snap.webview_ref.as_deref());
                 }
             }
-            Err(e) if window_frame.is_none() && webview_frame.is_none() => return err_response(e),
+            Err(e) if !req.dry_run || (window_frame.is_none() && webview_frame.is_none()) => return err_response(e),
             Err(_) => {}
         }
     }
     if window_scale.is_none() {
-        window_scale = Some(2.0);
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "screenshot scale missing; observe again before clicking"));
     }
     if webview_scale.is_none() && webview_frame.is_some() {
         webview_scale = window_scale;
@@ -407,6 +435,8 @@ struct BrowserTypeReq {
     dry_run: bool,
     #[serde(default)]
     app_id: Option<String>,
+    #[serde(default)]
+    tab_id: Option<String>,
 }
 
 async fn browser_type(
@@ -437,20 +467,24 @@ async fn browser_type(
                 "extension_profile is not user; refusing Agent Edge type",
             ));
         }
-        let params = json!({
+        let mut params = json!({
             "selector": selector,
             "text": req.text.clone().unwrap_or_default(),
             "dry_run": req.dry_run,
         });
-        match state.extension_bridge.call_timeout("type", params, 3).await {
+        if let Some(tab) = &req.tab_id { params["tab_id"] = json!(tab); }
+        match state.extension_bridge.call_timeout("type", params, 8).await {
             Ok(v) => {
                 return Json(Envelope::ok(json!({
                     "login_state": true,
                     "hud": false,
-                    "typed": v.get("typed").cloned().unwrap_or(json!(!req.dry_run)),
+                    "typed": v.get("typed").cloned().unwrap_or(json!(false)),
                     "dry_run": req.dry_run,
                     "selector": selector,
                     "source": "extension_dom",
+                    "tab_id": v.get("tab_id"),
+                    "page_url": v.get("page_url"),
+                    "focused": v.get("focused"),
                     "os_cursor_used": false,
                     "never_click_allow": true,
                     "extension": v,
@@ -458,6 +492,9 @@ async fn browser_type(
             }
             Err(e) => return err_response(e),
         }
+    }
+    if req.tab_id.is_some() {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "tab_id requires a DOM selector for type"));
     }
     let id = match login_user_app_id(&login, req.app_id.clone()) {
         Ok(v) => v,
@@ -511,6 +548,8 @@ struct BrowserScrollReq {
     dry_run: bool,
     #[serde(default)]
     app_id: Option<String>,
+    #[serde(default)]
+    tab_id: Option<String>,
 }
 fn default_scroll_dy() -> i32 { 600 }
 
@@ -538,19 +577,27 @@ async fn browser_scroll(
         "os_cursor_used": false,
         "never_click_allow": true,
     });
-    if req.dry_run {
-        return Json(Envelope::ok(body)).into_response();
-    }
     if state.extension_bridge.is_polling().await && state.extension_bridge.likely_user_profile().await {
-        match state.extension_bridge.call_timeout("scroll", json!({"dy": req.dy}), 3).await {
+        let mut params = json!({"dy": req.dy, "dry_run": req.dry_run});
+        if let Some(tab) = &req.tab_id { params["tab_id"] = json!(tab); }
+        match state.extension_bridge.call_timeout("scroll", params, 8).await {
             Ok(v) => {
-                body["scrolled"] = json!(true);
+                body["scrolled"] = v.get("scrolled").cloned().unwrap_or(json!(false));
                 body["source"] = json!("extension_dom");
+                for key in ["tab_id", "page_url", "focused"] {
+                    if let Some(value) = v.get(key) { body[key] = value.clone(); }
+                }
                 body["extension"] = v;
                 return Json(Envelope::ok(body)).into_response();
             }
-            Err(_) => {}
+            Err(e) => return err_response(e),
         }
+    }
+    if req.tab_id.is_some() {
+        return err_response(VcuError::coded(ErrorCode::ExtensionDisconnected, "explicit tab scroll requires the USER extension"));
+    }
+    if req.dry_run {
+        return Json(Envelope::ok(body)).into_response();
     }
     let id = match login_user_app_id(&login, req.app_id.clone()) {
         Ok(v) => v,
@@ -746,31 +793,9 @@ async fn browser_extract(
         ));
     }
     let mut params = json!({"selector": req.selector});
-    let mut tab_id = req.tab_id.clone();
-    if tab_id.is_none() {
-        match state.extension_bridge.call("list_tabs", json!({})).await {
-            Ok(v) => {
-                let tabs = v.get("tabs").and_then(|x| x.as_array()).cloned().unwrap_or_default();
-                tab_id = tabs.iter().find_map(|t| {
-                    let url = t.get("url").and_then(|u| u.as_str()).unwrap_or("");
-                    if url.starts_with("http") {
-                        t.get("tab_id").and_then(|id| id.as_str()).map(|s| s.to_string())
-                    } else {
-                        None
-                    }
-                }).or_else(|| {
-                    tabs.first().and_then(|t| t.get("tab_id").and_then(|id| id.as_str()).map(|s| s.to_string()))
-                });
-            }
-            Err(e) => return err_response(e),
-        }
-    }
-    if let Some(id) = tab_id.clone() {
-        if let Ok(n) = id.parse::<i64>() {
-            params["tab_id"] = json!(n);
-        } else {
-            params["tab_id"] = json!(id);
-        }
+    // Resolve the focused tab in the extension; never substitute the first page.
+    if let Some(id) = &req.tab_id {
+        params["tab_id"] = json!(id);
     }
     match state.extension_bridge.call_timeout("extract", params, 8).await {
         Ok(v) => {
@@ -785,6 +810,9 @@ async fn browser_extract(
                 "source": "extension_dom",
                 "tab_id": v.get("tab_id").cloned().unwrap_or(json!(req.tab_id)),
                 "selector": req.selector,
+                "page_url": v.get("page_url"),
+                "focused": v.get("focused"),
+                "truncated": v.get("truncated").cloned().unwrap_or(json!(false)),
                 "count": count,
                 "matches": matches,
                 "os_cursor_used": false,
@@ -864,47 +892,212 @@ async fn browser_ping(
 }
 
 #[derive(Deserialize)]
-struct BrowserOpenReq {
-    url: String,
+struct BrowserScreenshotReq {
+    #[serde(default)]
+    tab_id: Option<String>,
 }
 
-async fn browser_open(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(req): Json<BrowserOpenReq>,
-) -> impl IntoResponse {
-    if let Err(e) = require_auth(&headers, &state).await {
-        return err_response(e);
-    }
+async fn user_extension_ready(state: &AppState) -> Result<(), VcuError> {
     if !state.extension_bridge.is_polling().await {
-        return err_response(VcuError::coded(
-            ErrorCode::ExtensionDisconnected,
-            "USER Edge extension is not polling",
-        ));
+        return Err(VcuError::coded(ErrorCode::ExtensionDisconnected, "USER browser extension is not polling"));
     }
     if !state.extension_bridge.likely_user_profile().await {
-        return err_response(VcuError::coded(
-            ErrorCode::ActionFailed,
-            "extension_profile is not user; refusing Agent Edge open",
-        ));
+        return Err(VcuError::coded(ErrorCode::ActionFailed, "USER browser extension required"));
     }
-    let url = req.url.trim();
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
-        return err_response(VcuError::coded(ErrorCode::InvalidInput, "open requires http(s) url"));
+    Ok(())
+}
+
+async fn browser_screenshot(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<BrowserScreenshotReq>) -> axum::response::Response {
+    if let Err(e) = require_auth(&headers, &state).await { return err_response(e); }
+    if let Err(e) = user_extension_ready(&state).await { return err_response(e); }
+    let mut params = json!({});
+    if let Some(tab) = &req.tab_id { params["tab_id"] = json!(tab); }
+    let mut result = match state.extension_bridge.call_timeout("capture_tab", params, 8).await {
+        Ok(v) => v, Err(e) => return err_response(e),
+    };
+    let invalid = || VcuError::coded(ErrorCode::ActionFailed, "extension screenshot must contain a PNG and bound viewport metadata");
+    let Some(encoded) = result.get("png_base64").and_then(Value::as_str) else { return err_response(invalid()); };
+    if encoded.len() > 24_000_000 { return err_response(invalid()); }
+    let png = match base64::engine::general_purpose::STANDARD.decode(encoded) {
+        Ok(v) => v, Err(_) => return err_response(invalid()),
+    };
+    let Some((width, height)) = crate::app::png_ihdr_size(&png) else { return err_response(invalid()); };
+    let viewport = result.get("viewport").cloned().unwrap_or(Value::Null);
+    if viewport.get("document_id").and_then(Value::as_str).is_none()
+        || result.get("tab_id").and_then(Value::as_str).is_none()
+        || viewport.get("width").and_then(Value::as_f64).filter(|v| v.is_finite() && *v > 0.0).is_none()
+        || viewport.get("height").and_then(Value::as_f64).filter(|v| v.is_finite() && *v > 0.0).is_none() {
+        return err_response(invalid());
     }
-    match state.extension_bridge.call_timeout("open_tab", json!({"url": url}), 5).await {
-        Ok(v) => Json(Envelope::ok(json!({
-            "login_state": true,
-            "hud": false,
-            "source": "extension_dom",
-            "os_cursor_used": false,
-            "never_click_allow": true,
-            "url": url,
-            "tab_id": v.get("tab_id").cloned().unwrap_or(json!(null)),
-            "extension": v,
-        }))).into_response(),
+    let capture_id = new_id();
+    let dir = state.paths.captures_dir();
+    let path = dir.join(format!("viewport-{capture_id}.png"));
+    let metadata = json!({"capture_id": capture_id, "tab_id": result["tab_id"], "viewport": viewport, "width": width, "height": height, "created_at_ms": Utc::now().timestamp_millis()});
+    let write = fs::create_dir_all(&dir).and_then(|_| fs::write(&path, &png))
+        .and_then(|_| fs::write(dir.join(format!("viewport-{capture_id}.json")), serde_json::to_vec(&metadata).unwrap()));
+    if let Err(e) = write { return err_response(VcuError::with_detail(ErrorCode::Internal, "save viewport screenshot", e.to_string())); }
+    result.as_object_mut().unwrap().remove("png_base64");
+    // Keep the complete geometry binding in the sidecar, not in every model
+    // tool response. A dense page can otherwise emit thousands of JSON fields.
+    summarize_viewport_result(&mut result);
+    result["capture_id"] = json!(capture_id);
+    result["screenshot_path"] = json!(path.display().to_string());
+    result["screenshot_width"] = json!(width);
+    result["screenshot_height"] = json!(height);
+    result["coordinate_space"] = json!("viewport");
+    result["source"] = json!("extension_viewport");
+    result["vision_handoff"] = json!({"must_view": [path], "serial":true, "rule":"View this image before clicking. Use its capture_id and space=viewport; captures expire after 60s and a real click consumes the capture."});
+    Json(Envelope::ok(result)).into_response()
+}
+
+async fn browser_viewport_click(state: Arc<AppState>, req: BrowserClickReq) -> axum::response::Response {
+    if req.selector.is_some() || req.app_id.is_some() {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "viewport click takes capture_id and screenshot pixels, without selector/app_id"));
+    }
+    let Some(id) = req.capture_id.as_deref().filter(|s| s.len() == 26 && s.bytes().all(|c| c.is_ascii_alphanumeric())) else {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "capture_id from browser screenshot is required"));
+    };
+    let dir = state.paths.captures_dir();
+    let metadata = fs::read(dir.join(format!("viewport-{id}.json"))).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok());
+    let Some(meta) = metadata else { return err_response(VcuError::coded(ErrorCode::InvalidInput, "screenshot capture not found; capture again")); };
+    let age = Utc::now().timestamp_millis() - meta["created_at_ms"].as_i64().unwrap_or(0);
+    if !(0..=60_000).contains(&age) { return err_response(VcuError::coded(ErrorCode::InvalidInput, "screenshot expired; capture again")); }
+    let Some(tab) = meta["tab_id"].as_str() else { return err_response(VcuError::coded(ErrorCode::InvalidInput, "capture has no tab")); };
+    if req.tab_id.as_deref().is_some_and(|t| t != tab) { return err_response(VcuError::coded(ErrorCode::InvalidInput, "tab differs from screenshot target")); }
+    let Some((x, y)) = viewport_pixel_point(req.pixel_x, req.pixel_y, &meta) else {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "viewport pixels must be finite and inside the screenshot"));
+    };
+    if let Err(e) = user_extension_ready(&state).await { return err_response(e); }
+    let used = dir.join(format!("viewport-{id}.used"));
+    if used.exists() { return err_response(VcuError::coded(ErrorCode::InvalidInput, "screenshot already used for an action; capture again")); }
+    if !req.dry_run {
+        // Atomic consumption prevents concurrent or user-retried actions from
+        // replaying against a screenshot after an ambiguous/lost reply.
+        if fs::OpenOptions::new().write(true).create_new(true).open(&used).is_err() {
+            return err_response(VcuError::coded(ErrorCode::InvalidInput, "cannot consume screenshot; capture again"));
+        }
+    }
+    let params = json!({"tab_id": tab, "x":x, "y":y, "expected_viewport":meta["viewport"], "dry_run":req.dry_run});
+    match state.extension_bridge.call_timeout("click_point", params, 8).await {
+        Ok(mut v) => {
+            v["capture_id"] = json!(id);
+            v["coordinate_space"] = json!("viewport");
+            v["source"] = json!("extension_dom");
+            v["os_cursor_used"] = json!(false);
+            Json(Envelope::ok(v)).into_response()
+        }
+        Err(e) => {
+            if let Some(mut detail) = e.detail().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
+                summarize_viewport_result(&mut detail);
+                return err_response(VcuError::with_detail(e.code(), e.message(), detail.to_string()));
+            }
+            err_response(e)
+        }
+    }
+}
+
+fn summarize_viewport_result(result: &mut Value) {
+    if let Some(signature) = result.pointer_mut("/viewport/layout_signature").and_then(Value::as_object_mut) {
+        signature.remove("nodes");
+    }
+}
+
+fn viewport_pixel_point(px: Option<f64>, py: Option<f64>, meta: &Value) -> Option<(f64, f64)> {
+    let (px, py) = (px?, py?);
+    let width = meta["width"].as_f64()?;
+    let height = meta["height"].as_f64()?;
+    let css_width = meta["viewport"]["width"].as_f64()?;
+    let css_height = meta["viewport"]["height"].as_f64()?;
+    if ![px, py, width, height, css_width, css_height].iter().all(|v| v.is_finite())
+        || px < 0.0 || py < 0.0 || px >= width || py >= height || css_width <= 0.0 || css_height <= 0.0 { return None; }
+    Some((px * css_width / width, py * css_height / height))
+}
+
+// Browser chrome operations are routed through the USER extension, not AX/CDP.
+fn validate_tab_management(method: &str, params: &Value) -> Result<(), VcuError> {
+    let invalid = |message: &str| VcuError::coded(ErrorCode::InvalidInput, message);
+    let string = |key: &str| params.get(key).and_then(Value::as_str).filter(|s| !s.trim().is_empty());
+    let valid_id = |key: &str| string(key).and_then(|s| s.parse::<u32>().ok()).is_some();
+    if !params.is_object() { return Err(invalid("expected an object")); }
+    if matches!(method, "select_tab" | "close_tab") && !valid_id("tab_id") {
+        return Err(invalid("tab_id must be a nonnegative integer string"));
+    }
+    if method == "update_group" && !valid_id("group_id") {
+        return Err(invalid("group_id must be a nonnegative integer string"));
+    }
+    if matches!(method, "group_tabs" | "ungroup_tabs") {
+        let ids = params.get("tab_ids").and_then(Value::as_array)
+            .ok_or_else(|| invalid("tab_ids must be a nonempty array of ID strings"))?;
+        if ids.is_empty() || ids.iter().any(|v| v.as_str().and_then(|s| s.parse::<u32>().ok()).is_none()) {
+            return Err(invalid("tab_ids must be a nonempty array of ID strings"));
+        }
+    }
+    if method == "group_tabs" && string("title").is_none() {
+        return Err(invalid("title must be nonempty"));
+    }
+    for key in ["title", "session_name"] {
+        if params.get(key).is_some() && string(key).is_none() { return Err(invalid("group title must be nonempty")); }
+    }
+    if let Some(color) = params.get("color") {
+        if !["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"].iter().any(|c| color.as_str() == Some(c)) {
+            return Err(invalid("unsupported tab group color"));
+        }
+    }
+    for key in ["collapsed", "active", "new_window"] {
+        if params.get(key).is_some_and(|v| !v.is_boolean()) { return Err(invalid("collapsed and active must be booleans")); }
+    }
+    if method == "open_tab" {
+        let url = string("url").ok_or_else(|| invalid("http(s) url required"))?;
+        if !(url.starts_with("http://") || url.starts_with("https://")) { return Err(invalid("http(s) url required")); }
+        if params.get("session_name").is_some() && params.get("group_id").is_some() { return Err(invalid("session_name and group_id are mutually exclusive")); }
+        if params.get("new_window").and_then(Value::as_bool) == Some(true) && params.get("group_id").is_some() { return Err(invalid("new_window and group_id are mutually exclusive")); }
+        if params.get("group_id").is_some() && !valid_id("group_id") { return Err(invalid("invalid group_id")); }
+    }
+    Ok(())
+}
+
+async fn browser_tab_command(state: Arc<AppState>, headers: HeaderMap, method: &str, params: Value) -> axum::response::Response {
+    if let Err(e) = require_auth(&headers, &state).await { return err_response(e); }
+    if let Err(e) = validate_tab_management(method, &params) { return err_response(e); }
+    if !state.extension_bridge.is_polling().await {
+        return err_response(VcuError::coded(ErrorCode::ExtensionDisconnected, "USER browser extension is not polling"));
+    }
+    if !state.extension_bridge.likely_user_profile().await {
+        return err_response(VcuError::coded(ErrorCode::ActionFailed, "extension_profile is not user; refusing Agent browser operation"));
+    }
+    match state.extension_bridge.call_timeout(method, params, 8).await {
+        Ok(mut value) => {
+            if !value.is_object() { return err_response(VcuError::coded(ErrorCode::ActionFailed, "invalid extension response")); }
+            value["source"] = json!("extension_tabs");
+            value["login_state"] = json!(true);
+            value["hud"] = json!(false);
+            value["os_cursor_used"] = json!(false);
+            Json(Envelope::ok(value)).into_response()
+        }
         Err(e) => err_response(e),
     }
+}
+
+async fn browser_tabs(State(state): State<Arc<AppState>>, headers: HeaderMap) -> impl IntoResponse {
+    browser_tab_command(state, headers, "list_tabs", json!({})).await
+}
+async fn browser_select(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
+    browser_tab_command(state, headers, "select_tab", params).await
+}
+async fn browser_close(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
+    browser_tab_command(state, headers, "close_tab", params).await
+}
+async fn browser_group(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
+    browser_tab_command(state, headers, "group_tabs", params).await
+}
+async fn browser_group_update(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
+    browser_tab_command(state, headers, "update_group", params).await
+}
+async fn browser_ungroup(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
+    browser_tab_command(state, headers, "ungroup_tabs", params).await
+}
+async fn browser_open(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
+    browser_tab_command(state, headers, "open_tab", params).await
 }
 
 async fn browser_install_lens(
@@ -2181,12 +2374,16 @@ async fn app_snapshot(
                     snap.elements.as_slice(),
                     snap.webview_ref.as_deref(),
                 ) {
+                    // A raw screen crop can show an overlapping app. Browser page
+                    // captures use the extension viewport screenshot instead.
+                    if !req.id.contains("Edge") && !req.id.contains("Chrome") {
                     match backend.capture_rect(frame).await {
                         Ok(Some(cap)) => {
                             attach_capture(&mut body, &state.paths.captures_dir(), &cap, "webview_");
                         }
                         Ok(None) => {}
                         Err(e) => return err_response(e),
+                    }
                     }
                 }
                 if let Some(src) = body.get("screenshot_path").and_then(|v| v.as_str()).map(|s| s.to_string()) {
@@ -2390,5 +2587,28 @@ mod vision_handoff_unit_tests {
         let mut body = json!({"hello": 1});
         stamp_vision_handoff(&mut body);
         assert!(body.get("vision_handoff").is_none());
+    }
+}
+
+#[cfg(test)]
+mod viewport_coordinate_tests {
+    use super::*;
+    #[test]
+    fn model_receives_summary_while_internal_capture_keeps_geometry_binding() {
+        let internal = json!({"viewport":{"layout_signature":{"visible_count":400,"overflow":false,"nodes":[{"id":"i1","left":20}]}}});
+        let mut public = internal.clone();
+        summarize_viewport_result(&mut public);
+        assert!(public.pointer("/viewport/layout_signature/nodes").is_none());
+        assert_eq!(public.pointer("/viewport/layout_signature/visible_count"), Some(&json!(400)));
+        assert!(internal.pointer("/viewport/layout_signature/nodes").is_some());
+    }
+
+    #[test]
+    fn screenshot_pixels_map_at_retina_and_browser_zoom_without_guessing_scale() {
+        let meta = json!({"width":1600,"height":960,"viewport":{"width":1000,"height":600}});
+        assert_eq!(viewport_pixel_point(Some(800.0), Some(480.0), &meta), Some((500.0,300.0)));
+        for (x,y) in [(1600.0,0.0),(-1.0,0.0),(0.0,960.0),(f64::NAN,0.0),(0.0,f64::INFINITY)] {
+            assert_eq!(viewport_pixel_point(Some(x),Some(y),&meta), None);
+        }
     }
 }

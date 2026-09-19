@@ -219,6 +219,7 @@ fn parse_frame(s: &str) -> Option<[f64; 4]> {
 }
 
 
+
 struct ParsedAxSnapshot {
     window_frame: Option<[f64; 4]>,
     elements: Vec<AppElement>,
@@ -420,8 +421,35 @@ fn ax_read_el_snippet() -> &'static str {
 /// BFS over `UI elements of window 1`. Finder stays shallow (huge folder trees).
 /// Lists are named vcuFront/vcuNext so `set end of` does not collide with UI.
 /// Browser/Electron: enable AXEnhancedUserInterface and prefer AXWebArea kids.
+fn prefer_browser_content_window(script: String, process: &str) -> String {
+    let lower = process.to_ascii_lowercase();
+    if !lower.contains("edge") && !lower.contains("chrome") { return script; }
+    let marker = format!("tell process \"{process}\"");
+    let prelude = r#"
+                try
+                  set value of attribute "AXEnhancedUserInterface" to true
+                end try
+                repeat 4 times
+                  if (count of windows) > 0 then exit repeat
+                  delay 0.05
+                end repeat
+                set vcuBrowserWindow to missing value
+                repeat with candidateWindow in windows
+                  try
+                    set candidateSize to size of candidateWindow
+                    if (item 1 of candidateSize >= 200) and (item 2 of candidateSize >= 150) then
+                      set vcuBrowserWindow to candidateWindow
+                      exit repeat
+                    end if
+                  end try
+                end repeat
+                if vcuBrowserWindow is missing value then error "no browser content window"
+"#;
+    script.replace("window 1", "vcuBrowserWindow").replacen(&marker, &format!("{marker}\n{prelude}"), 1)
+}
+
 fn ax_bfs_script(process: &str, on_match: &str, not_found: &str) -> String {
-    format!(
+    prefer_browser_content_window(format!(
         r#"
             tell application "System Events"
               tell process "{process}"
@@ -499,7 +527,7 @@ fn ax_bfs_script(process: &str, on_match: &str, not_found: &str) -> String {
         read_el = ax_read_el_snippet(),
         on_match = on_match,
         not_found = not_found,
-    )
+    ), process)
 }
 
 fn ax_snapshot_script(process: &str) -> String {
@@ -564,7 +592,7 @@ pub fn login_set_address_field(app_id: &str, value: &str) -> VcuResult<String> {
 
 /// Chrome-only BFS: no frames, do not enter AXWebArea (page DOM). For address bar.
 fn ax_chrome_bfs_script(process: &str, on_match: &str, not_found: &str) -> String {
-    format!(
+    prefer_browser_content_window(format!(
         r#"
             tell application "System Events"
               tell process "{process}"
@@ -623,7 +651,7 @@ fn ax_chrome_bfs_script(process: &str, on_match: &str, not_found: &str) -> Strin
         process = process,
         on_match = on_match,
         not_found = not_found,
-    )
+    ), process)
 }
 
 fn ax_set_address_script(process: &str, val: &str) -> String {
@@ -729,7 +757,7 @@ fn ax_debug_ui_blob_script(process: &str) -> String {
 }
 
 fn ax_window_meta_script(process: &str) -> String {
-    format!(
+    prefer_browser_content_window(format!(
         r#"
             tell application "System Events"
               tell process "{process}"
@@ -751,7 +779,7 @@ fn ax_window_meta_script(process: &str) -> String {
             end tell
             "#,
         process = process,
-    )
+    ), process)
 }
 
 #[cfg(test)]
@@ -1071,8 +1099,7 @@ impl AppBackend for MacosAppBackend {
             y = y
         );
         let out = Self::run_jxa_timeout(&script, 2500)?;
-        let low = out.to_ascii_lowercase();
-        if low.starts_with("error:") {
+        if !super::ax_position_press_succeeded(&out) {
             if let Some(code) = super::hit_error_code(&out) {
                 if code == ErrorCode::AppDenied {
                     return Err(super::denied_app_error(&out));
@@ -1241,7 +1268,28 @@ impl AppBackend for MacosAppBackend {
         let Some(frame) = parse_frame(&raw) else {
             return Ok(None);
         };
-        self.capture_rect(frame).await
+        let pid = Self::pid_from_id(id).ok_or_else(|| VcuError::coded(ErrorCode::InvalidInput, "window capture requires a process ID"))?;
+        let helper = crate::stage::resolve_stage_bin().ok_or_else(|| VcuError::coded(ErrorCode::ActionFailed, "vcu-stage window capture helper is missing; install the current helper"))?;
+        let output = Command::new(helper).args(["--window-info", &pid.to_string(), &frame[0].to_string(), &frame[1].to_string(), &frame[2].to_string(), &frame[3].to_string()]).output()
+            .map_err(|e| VcuError::with_detail(ErrorCode::ActionFailed, "identify browser capture window", e.to_string()))?;
+        let info: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| VcuError::coded(ErrorCode::ActionFailed, "cannot identify browser window for capture; refusing an occluded screen-region screenshot"))?;
+        let window_id = info["window_id"].as_u64().filter(|id| *id > 0).ok_or_else(|| VcuError::coded(ErrorCode::ActionFailed, "invalid native window id"))?;
+        // AX window 1 may be an extension popup or native CU status capsule.
+        // Screenshot coordinates must describe the actual captured CGWindow.
+        let frame = super::json_frame(info.get("frame")).ok_or_else(|| VcuError::coded(ErrorCode::ActionFailed, "invalid native window frame"))?;
+        let out = std::env::temp_dir().join(format!("vcu-window-{}.png", vcu_core::new_id()));
+        let status = std::process::Command::new("screencapture")
+            .args(["-x", "-o", "-l", &window_id.to_string()])
+            .arg(&out).status()
+            .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "window screencapture", e.to_string()))?;
+        if !status.success() {
+            let _ = std::fs::remove_file(&out);
+            return Err(VcuError::coded(ErrorCode::ActionFailed, "window screenshot failed"));
+        }
+        let png = std::fs::read(&out).unwrap_or_default();
+        let _ = std::fs::remove_file(&out);
+        let (width, height) = super::png_ihdr_size(&png).ok_or_else(|| VcuError::coded(ErrorCode::ActionFailed, "invalid window screenshot PNG"))?;
+        Ok(Some(AppCapture { png, width, height, frame }))
     }
 
     async fn capture_rect(&self, frame: [f64; 4]) -> VcuResult<Option<AppCapture>> {
@@ -1284,6 +1332,13 @@ impl AppBackend for MacosAppBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn browser_window_selection_enables_accessibility_before_enumeration() {
+        let script = ax_window_meta_script("Microsoft Edge");
+        assert!(script.find("AXEnhancedUserInterface").unwrap() < script.find("repeat with candidateWindow").unwrap());
+    }
+
 
     #[test]
     fn denylist_beats_allowlist_and_edge_feishu_are_allowed() {

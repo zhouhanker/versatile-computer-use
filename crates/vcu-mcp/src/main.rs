@@ -76,7 +76,7 @@ async fn serve(paths: VcuPaths) -> VcuResult<()> {
                         "name": "vcu-mcp",
                         "version": env!("CARGO_PKG_VERSION")
                     },
-                    "instructions": "VCU computer-use. Host vision is enough (no vcu init model). Serial loop: observe/snapshot/screenshot returns image content plus JSON. Look at the image in THIS turn before click/type. Never stop to ask the user what is on screen. Default login-state: vcu_browser_observe then click/type/wait/scroll/key. DOM: vcu_browser_ping must pong; vcu_browser_extract source=extension_dom. No Stage HUD on this path. click pixels use screenshot_scale 1/2/3 (ax=origin+pixel/scale). key Return is gated (confirm_send + Send ref). CDP is abandoned. Never click Edge Allow, never warp OS cursor, never WeChat, never blind Return."
+                    "instructions": "VCU browser computer-use on USER Chrome/Edge. Host vision is enough. First ping, list tabs, choose an exact tab. For webpage pixels: vcu_browser_screenshot(tab_id), view its PNG in THIS turn, then vcu_browser_click(space=viewport,capture_id,pixel_x,pixel_y). Captures bind the document and layout, expire in 60s and are consumed by one real action; on stale/timeout observe again, do not blindly replay. Selector click/type/extract/scroll use extension_dom and explicit tab_id; DOM input is synthetic (trusted=false), so verify the page result. vcu_browser_observe is the native whole-window path; window/webview pixels use its own screenshot_scale and must never be mixed with viewport images. Native tab groups provide named, collapsible tasks; open new_window only when wanted. No desktop session/HUD required. Never CDP Allow, OS cursor warp, WeChat, or blind Return."
                 }
             }),
             "ping" => json!({"jsonrpc":"2.0","id": id, "result": {}}),
@@ -136,14 +136,16 @@ fn tool_defs() -> Vec<Value> {
                 "budget":{"type":"integer","default":2500}
             }
         })),
-        tool("vcu_browser_click", "Click USER browser without HUD. Pixels map to AX. selector uses USER extension DOM. dry_run does not press. Never Allow, never OS cursor, never WeChat overlay.", json!({
+        tool("vcu_browser_screenshot", "Capture a USER tab viewport as PNG, bound to its document and layout. View image before click with space=viewport and capture_id. Expires in 60s; real click consumes capture.", json!({"type":"object","properties":{"tab_id":{"type":"string"}}})),
+        tool("vcu_browser_click", "Click a USER webpage by unique selector or bound viewport screenshot pixels (capture_id required). window/webview is the separate AX path. dry_run does not press; verify page outcome. Never OS cursor or Allow.", json!({
             "type":"object",
             "properties":{
+                "capture_id":{"type":"string","description":"Required for space=viewport; use browser_screenshot capture_id"},
                 "pixel_x":{"type":"number"},
                 "pixel_y":{"type":"number"},
                 "selector":{"type":"string","description":"CSS selector; DOM click via USER extension"},
                 "tab_id":{"type":"string","description":"USER Edge tab id; default last-focused http tab"},
-                "space":{"type":"string","description":"window or webview","default":"window"},
+                "space":{"type":"string","description":"viewport (bound browser screenshot), window or webview (AX)","default":"window"},
                 "dry_run":{"type":"boolean","default":false},
                 "guide":{"type":"boolean","default":false}
             }
@@ -153,12 +155,14 @@ fn tool_defs() -> Vec<Value> {
                 "text":{"type":"string"},
                 "ref":{"type":"string"},
                 "selector":{"type":"string","description":"CSS selector; DOM type via USER extension"},
+                "tab_id":{"type":"string","description":"Exact tab ID; no fallback if missing"},
                 "dry_run":{"type":"boolean","default":false}
             }
         })),
-        tool("vcu_browser_scroll", "AX scroll USER browser without HUD. dry_run does not scroll.", json!({
+        tool("vcu_browser_scroll", "Scroll USER tab via extension DOM. Explicit tab never falls back to AX. dry_run does not scroll.", json!({
             "type":"object","properties":{
                 "dy":{"type":"integer","default":600},
+                "tab_id":{"type":"string","description":"Exact tab ID; no fallback if missing"},
                 "dry_run":{"type":"boolean","default":false}
             }
         })),
@@ -179,6 +183,19 @@ fn tool_defs() -> Vec<Value> {
                 "role":{"type":"string"}
             }
         })),
+        tool("vcu_browser_tabs", "List USER browser tabs and native groups, including focus and collapsed state.", json!({"type":"object","properties":{}})),
+        tool("vcu_browser_select", "Select an exact tab, expand its group and focus its browser window.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"}}})),
+        tool("vcu_browser_close", "Close exactly the explicitly named tab. Use for completed task tabs; never substitutes another tab.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"}}})),
+        tool("vcu_browser_open", "Open a USER browser page; session_name creates a named native group, group_id joins one. Mutually exclusive.", json!({"type":"object","required":["url"],"properties":{
+            "url":{"type":"string"},"session_name":{"type":"string"},"group_id":{"type":"string"},"active":{"type":"boolean","default":true},"new_window":{"type":"boolean","default":false,"description":"Separate USER-profile window; incompatible with group_id"}
+        }})),
+        tool("vcu_browser_group", "Group explicit same-window tab IDs in a named, colored native browser group.", json!({"type":"object","required":["tab_ids","title"],"properties":{
+            "tab_ids":{"type":"array","minItems":1,"items":{"type":"string"}},"title":{"type":"string"},"color":{"type":"string","default":"purple"},"collapsed":{"type":"boolean","default":false}
+        }})),
+        tool("vcu_browser_group_update", "Rename, recolor, expand or collapse a native browser group. Does not close tabs.", json!({"type":"object","required":["group_id"],"properties":{
+            "group_id":{"type":"string"},"title":{"type":"string"},"color":{"type":"string"},"collapsed":{"type":"boolean"}
+        }})),
+        tool("vcu_browser_ungroup", "Ungroup explicit tab IDs without closing their pages.", json!({"type":"object","required":["tab_ids"],"properties":{"tab_ids":{"type":"array","minItems":1,"items":{"type":"string"}}}})),
         tool("vcu_browser_ping", "Ping USER Edge extension SW. Must pong. unknown method ping means Reload unpacked lens. Never click Allow.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_extract", "DOM extract via USER Edge extension. source must be extension_dom. No HUD, no Agent Edge, no AX chrome fake-green.", json!({
             "type":"object","properties":{
@@ -417,6 +434,9 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
                     json!({"id": id, "budget": budget, "pixels": pixels, "selector": selector}),
                 )
                 .await?;
+            if snap.get("ok").and_then(Value::as_bool) != Some(true) {
+                return Ok(snap);
+            }
             json!({
                 "ok": true,
                 "data": {
@@ -430,12 +450,14 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
                 }
             })
         }
+        "vcu_browser_screenshot" => client.post("/v1/browser/screenshot", args).await?,
         "vcu_browser_click" => {
             let mut body = json!({
                 "space": args.get("space").and_then(|v| v.as_str()).unwrap_or("window"),
                 "dry_run": args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false),
                 "guide": args.get("guide").and_then(|v| v.as_bool()).unwrap_or(false)
             });
+            if let Some(id) = args.get("capture_id") { body["capture_id"] = id.clone(); }
             if let Some(px) = args.get("pixel_x") { body["pixel_x"] = px.clone(); }
             if let Some(py) = args.get("pixel_y") { body["pixel_y"] = py.clone(); }
             if let Some(sel) = args.get("selector") { body["selector"] = sel.clone(); }
@@ -449,10 +471,12 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(t) = args.get("text") { body["text"] = t.clone(); }
             if let Some(r) = args.get("ref") { body["ref"] = r.clone(); }
             if let Some(sel) = args.get("selector") { body["selector"] = sel.clone(); }
+            if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
             client.post("/v1/browser/type", body).await?
         }
         "vcu_browser_scroll" => {
             client.post("/v1/browser/scroll", json!({
+                "tab_id": args.get("tab_id"),
                 "dy": args.get("dy").and_then(|v| v.as_i64()).unwrap_or(600),
                 "dry_run": args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false)
             })).await?
@@ -475,6 +499,13 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(r) = args.get("role") { body["role"] = r.clone(); }
             client.post("/v1/browser/wait", body).await?
         }
+        "vcu_browser_tabs" => client.get("/v1/browser/tabs").await?,
+        "vcu_browser_select" => client.post("/v1/browser/select", args).await?,
+        "vcu_browser_close" => client.post("/v1/browser/close", args).await?,
+        "vcu_browser_open" => client.post("/v1/browser/open", args).await?,
+        "vcu_browser_group" => client.post("/v1/browser/group", args).await?,
+        "vcu_browser_group_update" => client.post("/v1/browser/group/update", args).await?,
+        "vcu_browser_ungroup" => client.post("/v1/browser/ungroup", args).await?,
         "vcu_browser_ping" => client.post("/v1/browser/ping", json!({})).await?,
         "vcu_browser_extract" => {
             let mut body = json!({

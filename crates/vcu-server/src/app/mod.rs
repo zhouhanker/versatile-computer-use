@@ -179,6 +179,12 @@ pub fn hit_error_code(detail: &str) -> Option<ErrorCode> {
     }
 }
 
+/// AXPress returns zero on success. A successful script process is not enough.
+pub fn ax_position_press_succeeded(detail: &str) -> bool {
+    detail.starts_with("ok:ax_position_press:pid:")
+        && detail.rsplit_once(":axpress:").is_some_and(|(_, code)| code.trim() == "0")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppTarget {
     pub id: String,
@@ -544,6 +550,14 @@ pub fn detect_app_backend_with_allowlist(allowlist: Option<Vec<String>>) -> Box<
 mod tests {
     use super::*;
     use vcu_core::ErrorCode;
+
+    #[test]
+    fn ax_press_errors_are_not_successful_clicks() {
+        assert!(ax_position_press_succeeded("ok:ax_position_press:pid:123:axpress:0"));
+        for detail in ["ok:ax_position_press:pid:123:axpress:-25206", "ok:ax_position_press:pid:123:axpress:-25204", "", "ok", "error:other-pid:999:Finder"] {
+            assert!(!ax_position_press_succeeded(detail), "{detail}");
+        }
+    }
 
     #[tokio::test]
     async fn detect_returns_platform_backend() {

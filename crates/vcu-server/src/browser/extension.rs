@@ -114,7 +114,11 @@ impl ExtensionBridge {
                 let now = now_ms();
                 let lease = self.lease_ms;
                 if let Some(cmd) = g.pending.iter_mut().find(|c| {
-                    c.leased_until.map(|t| t <= now).unwrap_or(true)
+                    // A lost reply does not mean a mutation failed. Replaying a click,
+                    // type or open can produce a second user-visible side effect.
+                    c.leased_until.map(|t| t <= now && matches!(c.method.as_str(),
+                        "ping" | "list_tabs" | "extract" | "snapshot" | "screenshot"
+                    )).unwrap_or(true)
                 }) {
                     cmd.leased_until = Some(now.saturating_add(lease));
                     return Some(ExtensionCommand {
@@ -164,7 +168,7 @@ impl ExtensionBridge {
         }
         match tokio::time::timeout(Duration::from_secs(timeout_secs.max(1)), rx).await {
             Ok(Ok(v)) => {
-                if v.get("ok").and_then(|x| x.as_bool()) == Some(false) {
+                if v.get("ok").and_then(|x| x.as_bool()) != Some(true) {
                     return Err(VcuError::with_detail(
                         ErrorCode::ActionFailed,
                         method,

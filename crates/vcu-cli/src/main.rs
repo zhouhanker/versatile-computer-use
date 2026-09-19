@@ -364,7 +364,12 @@ enum BrowserCmd {
         #[arg(long, default_value_t = 80)]
         budget: u64,
     },
-    /// Map or AXPress screenshot pixels on the USER browser without Stage HUD
+    /// Capture the selected tab viewport, bound to its document and layout state.
+    Screenshot {
+        #[arg(long)]
+        tab: Option<String>,
+    },
+    /// Click screenshot pixels (viewport with --capture) or a unique DOM selector.
     Click {
         #[arg(long)]
         pixel_x: Option<f64>,
@@ -376,6 +381,8 @@ enum BrowserCmd {
         tab: Option<String>,
         #[arg(long, default_value = "window")]
         space: String,
+        #[arg(long)]
+        capture: Option<String>,
         #[arg(long, default_value_t = false)]
         dry_run: bool,
         #[arg(long, default_value_t = false)]
@@ -389,11 +396,15 @@ enum BrowserCmd {
         target_ref: Option<String>,
         #[arg(long)]
         selector: Option<String>,
+        #[arg(long, requires = "selector")]
+        tab: Option<String>,
         #[arg(long, default_value_t = false)]
         dry_run: bool,
     },
-    /// AX scroll on the USER browser window. No HUD.
+    /// Scroll a USER browser tab through the extension, or AX when disconnected.
     Scroll {
+        #[arg(long)]
+        tab: Option<String>,
         #[arg(long, default_value_t = 600)]
         dy: i32,
         #[arg(long, default_value_t = false)]
@@ -414,6 +425,54 @@ enum BrowserCmd {
     Open {
         #[arg(long)]
         url: String,
+        #[arg(long, conflicts_with = "group")]
+        session_name: Option<String>,
+        #[arg(long)]
+        group: Option<String>,
+        #[arg(long)]
+        background: bool,
+        /// Open a separate USER-profile window, retaining its login state.
+        #[arg(long, conflicts_with = "group")]
+        new_window: bool,
+    },
+    /// List USER browser tabs and native groups.
+    Tabs,
+    /// Select a tab, expand its group and focus its browser window.
+    Select {
+        #[arg(long)]
+        tab: String,
+    },
+    /// Close exactly the named tab. No default or fallback target.
+    Close {
+        #[arg(long)]
+        tab: String,
+    },
+    /// Group explicitly selected tabs in their current window.
+    Group {
+        #[arg(long, value_delimiter = ',', required = true, num_args = 1..)]
+        tabs: Vec<String>,
+        #[arg(long)]
+        title: String,
+        #[arg(long, default_value = "purple")]
+        color: String,
+        #[arg(long)]
+        collapsed: bool,
+    },
+    /// Rename, recolor, expand or collapse a native group.
+    GroupUpdate {
+        #[arg(long)]
+        group: String,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        color: Option<String>,
+        #[arg(long, action = clap::ArgAction::Set)]
+        collapsed: Option<bool>,
+    },
+    /// Remove explicit tabs from groups without closing them.
+    Ungroup {
+        #[arg(long, value_delimiter = ',', required = true, num_args = 1..)]
+        tabs: Vec<String>,
     },
     /// Ping USER Edge extension (no page script)
     Ping {
@@ -569,8 +628,9 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                             "pairing_token_set": !cfg.pairing_token.is_empty(),
                             "next": [
                                 "vcu daemon start",
-                                "Load extension from ./extension (Chrome/Edge unpacked) OR use --backend mock/cdp",
-                                "vcu init model   # if main agent lacks vision"
+                                "vcu browser install-lens   # load unpacked in USER Chrome/Edge",
+                                "vcu browser ping --json",
+                                "vcu browser tabs --json   # select an exact tab, then browser screenshot"
                             ]
                         }),
                         json,
@@ -1027,6 +1087,10 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                     body["selector"] = json!("*");
                 }
                 let snap = api_post(&paths, "/v1/app/snapshot", body).await?;
+                if snap.get("ok").and_then(Value::as_bool) != Some(true) {
+                    println!("{}", serde_json::to_string_pretty(&snap).unwrap_or_default());
+                    return Ok(ok_exit(&snap));
+                }
                 let ext_profile = ls
                     .pointer("/data/extension_profile")
                     .and_then(|v| v.as_str())
@@ -1052,12 +1116,20 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 );
                 Ok(ok_exit(&snap))
             }
+            BrowserCmd::Screenshot { tab } => {
+                let mut body = json!({});
+                if let Some(t) = tab { body["tab_id"] = json!(t); }
+                let v = api_post(&paths, "/v1/browser/screenshot", body).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
             BrowserCmd::Click {
                 pixel_x,
                 pixel_y,
                 selector,
                 tab,
                 space,
+                capture,
                 dry_run,
                 guide,
             } => {
@@ -1070,6 +1142,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                         "selector": selector,
                         "tab_id": tab,
                         "space": space,
+                        "capture_id": capture,
                         "dry_run": dry_run,
                         "guide": guide,
                     }),
@@ -1082,6 +1155,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 text,
                 target_ref,
                 selector,
+                tab,
                 dry_run,
             } => {
                 let mut body = json!({ "dry_run": dry_run });
@@ -1094,15 +1168,16 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 if let Some(sel) = selector {
                     body["selector"] = json!(sel);
                 }
+                if let Some(t) = tab { body["tab_id"] = json!(t); }
                 let v = api_post(&paths, "/v1/browser/type", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Scroll { dy, dry_run } => {
+            BrowserCmd::Scroll { dy, dry_run, tab } => {
                 let v = api_post(
                     &paths,
                     "/v1/browser/scroll",
-                    json!({ "dy": dy, "dry_run": dry_run }),
+                    json!({ "dy": dy, "dry_run": dry_run, "tab_id": tab }),
                 )
                 .await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
@@ -1126,8 +1201,45 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Open { url } => {
-                let v = api_post(&paths, "/v1/browser/open", json!({"url": url})).await?;
+            BrowserCmd::Open { url, session_name, group, background, new_window } => {
+                let mut body = json!({"url": url, "active": !background, "new_window": new_window});
+                if let Some(name) = session_name { body["session_name"] = json!(name); }
+                if let Some(id) = group { body["group_id"] = json!(id); }
+                let v = api_post(&paths, "/v1/browser/open", body).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Tabs => {
+                let v = api_get(&paths, "/v1/browser/tabs").await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Select { tab } => {
+                let v = api_post(&paths, "/v1/browser/select", json!({"tab_id": tab})).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Close { tab } => {
+                let v = api_post(&paths, "/v1/browser/close", json!({"tab_id": tab})).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Group { tabs, title, color, collapsed } => {
+                let v = api_post(&paths, "/v1/browser/group", json!({"tab_ids": tabs, "title": title, "color": color, "collapsed": collapsed})).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::GroupUpdate { group, title, color, collapsed } => {
+                let mut body = json!({"group_id": group});
+                if let Some(v) = title { body["title"] = json!(v); }
+                if let Some(v) = color { body["color"] = json!(v); }
+                if let Some(v) = collapsed { body["collapsed"] = json!(v); }
+                let v = api_post(&paths, "/v1/browser/group/update", body).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Ungroup { tabs } => {
+                let v = api_post(&paths, "/v1/browser/ungroup", json!({"tab_ids": tabs})).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }

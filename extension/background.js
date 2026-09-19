@@ -1,5 +1,9 @@
 // VCU extension service worker — Codex-like: auto-pair with local daemon, no CDP Allow dialogs.
 const DEFAULT_ENDPOINT = "http://127.0.0.1:17890";
+const DEFAULT_GROUP_COLOR = "purple";
+const TAB_GROUP_COLORS = new Set([
+  "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange",
+]);
 let agentWindowId = null;
 let pairingToken = null;
 let endpoint = DEFAULT_ENDPOINT;
@@ -15,8 +19,23 @@ chrome.alarms.onAlarm.addListener((a) => {
 });
 void bootstrapAndStart();
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
+    if (msg.type === "browser_command") {
+      const popupUrl = chrome.runtime.getURL("popup.html");
+      const allowed = new Set(["list_tabs", "select_tab", "group_tabs", "update_group", "ungroup_tabs"]);
+      const command = msg.command || {};
+      if (!sender || sender.id !== chrome.runtime.id || sender.url !== popupUrl) {
+        sendResponse({ ok: false, error: "browser_command requires the VCU popup sender" });
+        return;
+      }
+      if (!allowed.has(command.method)) {
+        sendResponse({ ok: false, error: "browser_command method not allowed" });
+        return;
+      }
+      sendResponse(await handleCommand({ method: command.method, params: command.params || {} }));
+      return;
+    }
     if (msg.type === "set_config") {
       endpoint = msg.endpoint || endpoint;
       pairingToken = msg.token || pairingToken;
@@ -57,6 +76,30 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+let captureQueue = Promise.resolve();
+let lastCaptureAt = 0;
+function captureVisiblePng(windowId) {
+  const job = captureQueue.then(async () => {
+    const perSecond = Number(chrome.tabs.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND) || 2;
+    const interval = Math.ceil(1000 / perSecond) + 25;
+    const wait = Math.max(0, lastCaptureAt + interval - Date.now());
+    if (wait) await sleep(wait);
+    lastCaptureAt = Date.now();
+    try {
+      return await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+    } catch (error) {
+      // A worker restart may inherit the browser's quota while losing the
+      // in-memory clock. Screenshots are read-only, so one bounded retry is safe.
+      if (!String(error).includes("MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND")) throw error;
+      await sleep(1000);
+      lastCaptureAt = Date.now();
+      return chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+    }
+  });
+  captureQueue = job.catch(() => {});
+  return job;
 }
 
 function withTimeout(promise, ms, timeoutValue) {
@@ -173,22 +216,100 @@ async function ensureAgentWindow() {
   return agentWindowId;
 }
 
-async function listTabs() {
-  const tabs = await chrome.tabs.query({});
+function groupInfo(group) {
+  if (!group || group.id == null) return null;
+  return {
+    group_id: String(group.id),
+    window_id: String(group.windowId),
+    title: group.title || "",
+    color: group.color || DEFAULT_GROUP_COLOR,
+    collapsed: !!group.collapsed,
+  };
+}
+
+async function queryTabGroups() {
+  if (!chrome.tabGroups || typeof chrome.tabGroups.query !== "function") return [];
+  const groups = await chrome.tabGroups.query({});
+  return (groups || []).map(groupInfo).filter(Boolean);
+}
+
+async function listTabsState() {
+  const rawTabs = await chrome.tabs.query({});
   let focusedId = null;
   try {
     const f = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (f && f[0]) focusedId = String(f[0].id);
   } catch (_) {}
-  return tabs.map((t) => ({
-    tab_id: String(t.id),
-    window_id: String(t.windowId),
-    title: t.title || "",
-    url: t.url || "",
-    active: !!t.active,
-    focused: String(t.id) === focusedId,
-    agent_owned: String(t.windowId) === String(agentWindowId),
-  }));
+  const groups = await queryTabGroups();
+  const groupById = new Map(groups.map((g) => [g.group_id, g]));
+  const tabs = (rawTabs || []).map((t) => {
+    const rawGroupId = t.groupId;
+    const numericGroupId = Number(rawGroupId);
+    const groupId = rawGroupId != null && Number.isFinite(numericGroupId) && numericGroupId >= 0
+      ? String(numericGroupId)
+      : null;
+    return {
+      tab_id: String(t.id),
+      window_id: String(t.windowId),
+      title: t.title || "",
+      url: t.url || "",
+      active: !!t.active,
+      focused: String(t.id) === focusedId,
+      pinned: !!t.pinned,
+      controllable: /^https?:/i.test(t.url || "") && !isRestrictedUrl(t.url),
+      group_id: groupId,
+      group: groupId ? (groupById.get(groupId) || null) : null,
+      agent_owned: String(t.windowId) === String(agentWindowId),
+    };
+  });
+  return { tabs, groups };
+}
+
+async function listTabs() {
+  return (await listTabsState()).tabs;
+}
+
+function tabIdNumber(id) {
+  if (id === undefined || id === null || id === "") return null;
+  const n = Number(id);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+function isInjectableHttpTab(tab) {
+  return !!tab && /^https?:/i.test(tab.url || "") && !isRestrictedUrl(tab.url);
+}
+
+function tabActionState(tab) {
+  return {
+    tab_id: tab ? String(tab.tab_id) : null,
+    page_url: tab ? (tab.url || "") : "",
+    focused: !!(tab && tab.focused),
+  };
+}
+
+async function resolveHttpTab(preferredId) {
+  const { tabs } = await listTabsState();
+  const hasPreferred = preferredId !== undefined && preferredId !== null;
+  if (hasPreferred) {
+    const id = String(preferredId);
+    const hit = tabs.find((t) => t.tab_id === id);
+    // An explicit target is authoritative. A missing, restricted, non-http, or
+    // otherwise non-injectable target must never silently select another tab.
+    return hit && isInjectableHttpTab(hit) ? tabIdNumber(hit.tab_id) : 0;
+  }
+  // The default is deliberately narrow: only the last-focused USER tab. The
+  // active tab in another window, an Etherscan tab, and the first HTTP tab are
+  // not valid implicit targets.
+  const focused = tabs.find((t) => t.focused && !t.agent_owned && isInjectableHttpTab(t));
+  return focused ? tabIdNumber(focused.tab_id) : 0;
+}
+
+async function resolveHttpTabState(preferredId) {
+  const tabId = await resolveHttpTab(preferredId);
+  if (!tabId) return null;
+  const { tabs } = await listTabsState();
+  const tab = tabs.find((t) => String(t.tab_id) === String(tabId));
+  return tab ? { id: tabId, tab } : null;
 }
 
 async function fetchJson(url, opts = {}, timeoutMs = 10000) {
@@ -252,22 +373,6 @@ async function waitTabComplete(tabId, timeoutMs) {
   try { return await chrome.tabs.get(tabId); } catch (_) { return null; }
 }
 
-async function resolveHttpTab(preferredId) {
-  const tabs = await listTabs();
-  const id = preferredId ? String(preferredId) : "";
-  const http = tabs.filter((t) => (t.url || "").startsWith("http") && !isRestrictedUrl(t.url) && !t.agent_owned);
-  if (id) {
-    const hit = http.find((t) => t.tab_id === id) || tabs.find((t) => t.tab_id === id);
-    if (hit && !isRestrictedUrl(hit.url)) return Number(hit.tab_id);
-  }
-  const focused = http.find((t) => t.focused) || http.find((t) => t.active);
-  if (focused) return Number(focused.tab_id);
-  const eth = http.find((t) => /etherscan\.io/i.test(t.url || ""));
-  if (eth) return Number(eth.tab_id);
-  const first = http[0] || tabs.find((t) => (t.url || "").startsWith("http") && !isRestrictedUrl(t.url));
-  return first ? Number(first.tab_id) : 0;
-}
-
 async function sendToTab(tabId, payload, ms) {
   try {
     const msg = await withTimeout(chrome.tabs.sendMessage(tabId, payload), ms, null);
@@ -277,62 +382,342 @@ async function sendToTab(tabId, payload, ms) {
   }
 }
 
-async function extractViaContent(tabId, selector) {
-  let msg = await sendToTab(tabId, { type: "vcu_extract", selector }, 400);
-  if (msg && msg.ok) return Object.assign({ via: "content_message" }, msg);
+async function injectContent(tabId, timeoutMs) {
   try {
     const injected = await withTimeout(chrome.scripting.executeScript({
       target: { tabId },
       files: ["content.js"],
       injectImmediately: true,
-    }), 900, null);
+    }), timeoutMs, null);
     if (!injected) return { ok: false, error: "inject timeout" };
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: "inject content.js: " + String(e) };
   }
-  msg = await sendToTab(tabId, { type: "vcu_extract", selector }, 400);
-  if (msg && msg.ok) return Object.assign({ via: "content_inject" }, msg);
+}
+
+async function ensureContent(tabId, injectTimeoutMs, pingTimeoutMs) {
+  const expectedVersion = chrome.runtime.getManifest().version;
+  let ping = await sendToTab(tabId, { type: "vcu_ping_page" }, pingTimeoutMs);
+  if (ping) {
+    if (ping.ok && ping.version === expectedVersion) return { ok: true, via: "content_message" };
+    if (ping.ok) return { ok: false, error: "content lens is stale; reload this page" };
+    return ping;
+  }
+
+  // A failed/timeout ping has no page mutation attached to it, so it is safe
+  // to install the listener. The action itself is sent only once below.
+  const injected = await injectContent(tabId, injectTimeoutMs);
+  if (!injected.ok) return injected;
+  ping = await sendToTab(tabId, { type: "vcu_ping_page" }, pingTimeoutMs);
+  if (ping && ping.ok && ping.version === expectedVersion) return { ok: true, via: "content_inject" };
+  if (ping && ping.ok) return { ok: false, error: "content lens is stale; reload this page" };
+  if (ping && ping.ok === false) return ping;
   return { ok: false, error: "no content script" };
+}
+
+async function actionViaContent(tabId, payload, actionName, actionTimeoutMs, injectTimeoutMs, pingTimeoutMs) {
+  const ready = await ensureContent(tabId, injectTimeoutMs, pingTimeoutMs);
+  if (!ready.ok) return ready;
+  // Native CU pointers keep their apparent size when the webpage zooms.
+  // Scale only our drawing; event and hit-test coordinates remain CSS px.
+  if (typeof chrome.tabs.getZoom === "function") {
+    payload.cursor_zoom = await chrome.tabs.getZoom(tabId);
+  }
+  const msg = await sendToTab(tabId, payload, actionTimeoutMs);
+  // An explicit response is authoritative. In particular, do not replay an
+  // action after the page reports ok:false: it may already have side effects.
+  if (msg && msg.ok) return Object.assign({ via: ready.via }, msg);
+  if (msg && msg.ok === false) return msg;
+  return { ok: false, error: actionName + " content timeout" };
+}
+
+async function extractViaContent(tabId, selector) {
+  const ready = await ensureContent(tabId, 900, 400);
+  if (!ready.ok) return ready;
+  const msg = await sendToTab(tabId, { type: "vcu_extract", selector }, 400);
+  if (msg && msg.ok) return Object.assign({ via: ready.via }, msg);
+  if (msg && msg.ok === false) return msg;
+  return { ok: false, error: "extract content timeout" };
 }
 
 async function typeViaContent(tabId, selector, text, dryRun) {
-  let msg = await sendToTab(tabId, { type: "vcu_type", selector: selector || null, text: text || "", dry_run: !!dryRun }, 1500);
-  if (msg && msg.ok) return Object.assign({ via: "content_message" }, msg);
-  try {
-    await withTimeout(chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["content.js"],
-      injectImmediately: true,
-    }), 2500, null);
-  } catch (e) {
-    return { ok: false, error: "inject content.js: " + String(e) };
-  }
-  msg = await sendToTab(tabId, { type: "vcu_type", selector: selector || null, text: text || "", dry_run: !!dryRun }, 1500);
-  if (msg && msg.ok) return Object.assign({ via: "content_inject" }, msg);
-  return { ok: false, error: "type content timeout" };
+  return actionViaContent(
+    tabId,
+    { type: "vcu_type", selector: selector || null, text: text || "", dry_run: !!dryRun },
+    "type",
+    1500,
+    2500,
+    1500,
+  );
 }
 
 async function clickViaContent(tabId, selector, dryRun) {
-  let msg = await sendToTab(tabId, { type: "vcu_click", selector: selector || null, dry_run: !!dryRun }, 400);
-  if (msg && msg.ok) return Object.assign({ via: "content_message" }, msg);
-  try {
-    const injected = await withTimeout(chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["content.js"],
-      injectImmediately: true,
-    }), 900, null);
-    if (!injected) return { ok: false, error: "inject timeout" };
-  } catch (e) {
-    return { ok: false, error: "inject content.js: " + String(e) };
+  return actionViaContent(
+    tabId,
+    { type: "vcu_click", selector: selector || null, dry_run: !!dryRun },
+    "click",
+    1500,
+    900,
+    1000,
+  );
+}
+
+async function scrollViaContent(tabId, dy, dryRun) {
+  return actionViaContent(
+    tabId,
+    { type: "vcu_scroll", dy, dry_run: !!dryRun },
+    "scroll",
+    1500,
+    2500,
+    1500,
+  );
+}
+
+function groupIdNumber(groupId) {
+  if (groupId === undefined || groupId === null || groupId === "") return null;
+  const n = Number(groupId);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+async function findGroup(groupId) {
+  const id = String(groupId);
+  const groups = await queryTabGroups();
+  return groups.find((g) => g.group_id === id) || null;
+}
+
+function normalizeTabIds(rawIds) {
+  if (!Array.isArray(rawIds) || rawIds.length === 0) {
+    return { ok: false, error: "tab_ids must be a non-empty array" };
   }
-  msg = await sendToTab(tabId, { type: "vcu_click", selector: selector || null, dry_run: !!dryRun }, 400);
-  if (msg && msg.ok) return Object.assign({ via: "content_inject" }, msg);
-  return { ok: false, error: "no content script" };
+  const ids = [];
+  const seen = new Set();
+  for (const raw of rawIds) {
+    const id = tabIdNumber(raw);
+    if (id === null) return { ok: false, error: "invalid tab_id " + String(raw) };
+    if (seen.has(String(id))) return { ok: false, error: "duplicate tab_id " + String(raw) };
+    seen.add(String(id));
+    ids.push(id);
+  }
+  return { ok: true, ids };
+}
+
+function validateGroupColor(color) {
+  if (color == null || color === "") return DEFAULT_GROUP_COLOR;
+  const value = String(color).toLowerCase();
+  return TAB_GROUP_COLORS.has(value) ? value : null;
+}
+
+async function freshTabsForIds(ids) {
+  const { tabs, groups } = await listTabsState();
+  const wanted = new Set(ids.map((id) => String(id)));
+  return {
+    tabs: tabs.filter((t) => wanted.has(t.tab_id)),
+    groups,
+  };
+}
+
+function tabsResult(state, extra = {}) {
+  return Object.assign({
+    ok: true,
+    tabs: state.tabs,
+    groups: state.groups,
+    source: "extension_tabs",
+    os_cursor_used: false,
+  }, extra);
+}
+
+async function groupTabs(params) {
+  const parsed = normalizeTabIds(params.tab_ids);
+  if (!parsed.ok) return parsed;
+  const title = params.title == null ? "" : String(params.title).trim();
+  if (!title) return { ok: false, error: "group title required" };
+  const color = validateGroupColor(params.color);
+  if (!color) return { ok: false, error: "invalid tab group color" };
+
+  const rawTabs = [];
+  try {
+    for (const id of parsed.ids) rawTabs.push(await chrome.tabs.get(id));
+  } catch (e) {
+    return { ok: false, error: "tabs.get: " + String(e) };
+  }
+  const windowId = rawTabs[0] && String(rawTabs[0].windowId);
+  if (rawTabs.some((t) => String(t.windowId) !== windowId)) {
+    return { ok: false, error: "all tabs must be in the same window" };
+  }
+  const invalid = rawTabs.find((t) => !/^https?:/i.test(t.url || "") || isRestrictedUrl(t.url));
+  if (invalid) return { ok: false, error: "tab_ids must contain only unrestricted http(s) tabs" };
+  const pinned = rawTabs.find((t) => t.pinned);
+  if (pinned) return { ok: false, error: "pinned tabs cannot be grouped" };
+
+  let groupId;
+  try {
+    groupId = await chrome.tabs.group({ tabIds: parsed.ids, createProperties: { windowId: Number(windowId) } });
+    await chrome.tabGroups.update(groupId, {
+      title,
+      color,
+      collapsed: params.collapsed == null ? false : !!params.collapsed,
+    });
+  } catch (e) {
+    return { ok: false, error: "group tabs: " + String(e) };
+  }
+  const state = await freshTabsForIds(parsed.ids);
+  const group = state.groups.find((g) => g.group_id === String(groupId)) || null;
+  return tabsResult(state, { group });
+}
+
+async function updateGroup(params) {
+  const id = groupIdNumber(params.group_id);
+  if (id === null) return { ok: false, error: "invalid group_id" };
+  const patch = {};
+  if (params.title !== undefined) patch.title = String(params.title);
+  if (params.color !== undefined) {
+    const color = validateGroupColor(params.color);
+    if (!color) return { ok: false, error: "invalid tab group color" };
+    patch.color = color;
+  }
+  if (params.collapsed !== undefined) patch.collapsed = !!params.collapsed;
+  if (!Object.keys(patch).length) return { ok: false, error: "group update requires title, color, or collapsed" };
+  try {
+    await chrome.tabGroups.update(id, patch);
+  } catch (e) {
+    return { ok: false, error: "tabGroups.update: " + String(e) };
+  }
+  const group = await findGroup(id);
+  return { ok: true, group, source: "extension_tabs", os_cursor_used: false };
+}
+
+async function ungroupTabs(params) {
+  const parsed = normalizeTabIds(params.tab_ids);
+  if (!parsed.ok) return parsed;
+  try {
+    await chrome.tabs.ungroup(parsed.ids);
+  } catch (e) {
+    return { ok: false, error: "ungroup tabs: " + String(e) };
+  }
+  const state = await freshTabsForIds(parsed.ids);
+  return tabsResult(state);
+}
+
+async function selectTab(params) {
+  const id = tabIdNumber(params.tab_id);
+  if (id === null) return { ok: false, error: "invalid tab_id" };
+  let tab;
+  try {
+    tab = await chrome.tabs.get(id);
+  } catch (e) {
+    return { ok: false, error: "tabs.get: " + String(e) };
+  }
+  if (!isInjectableHttpTab({ url: tab.url || "" })) {
+    return { ok: false, error: "select_tab requires an unrestricted http(s) tab" };
+  }
+  const groupId = Number(tab.groupId);
+  try {
+    if (Number.isInteger(groupId) && groupId >= 0) {
+      const group = await findGroup(groupId);
+      if (group && group.collapsed) await chrome.tabGroups.update(groupId, { collapsed: false });
+    }
+    await chrome.windows.update(tab.windowId, { focused: true });
+    await chrome.tabs.update(id, { active: true });
+  } catch (e) {
+    return { ok: false, error: "select tab: " + String(e) };
+  }
+  const state = await freshTabsForIds([id]);
+  const selected = state.tabs[0] || null;
+  const selectedGroup = selected && selected.group_id
+    ? state.groups.find((g) => g.group_id === selected.group_id) || selected.group || null
+    : null;
+  return tabsResult(state, Object.assign(tabActionState(selected), { group: selectedGroup }));
+}
+
+async function openTab(params) {
+  const url = params.url || "";
+  if (!url || !/^https?:/i.test(url)) return { ok: false, error: "http(s) url required" };
+  const hasSessionName = Object.prototype.hasOwnProperty.call(params, "session_name");
+  const hasGroupId = Object.prototype.hasOwnProperty.call(params, "group_id");
+  if (hasSessionName && hasGroupId) return { ok: false, error: "session_name and group_id are mutually exclusive" };
+  const sessionName = hasSessionName && params.session_name != null ? String(params.session_name).trim() : "";
+  if (hasSessionName && !sessionName) return { ok: false, error: "session_name must be nonempty" };
+  const active = params.active === undefined ? true : !!params.active;
+  const newWindow = params.new_window === true;
+  if (params.new_window !== undefined && typeof params.new_window !== "boolean") return { ok: false, error: "new_window must be boolean" };
+  if (newWindow && hasGroupId) return { ok: false, error: "new_window and group_id are mutually exclusive" };
+  let targetGroup = null;
+  let targetGroupId = null;
+  if (hasGroupId) {
+    if (params.group_id == null || String(params.group_id).trim() === "") return { ok: false, error: "invalid group_id" };
+    targetGroupId = groupIdNumber(params.group_id);
+    if (targetGroupId === null) return { ok: false, error: "invalid group_id" };
+    targetGroup = await findGroup(targetGroupId);
+    if (!targetGroup) return { ok: false, error: "group not found" };
+  }
+  const createInfo = { url, active };
+  if (targetGroup) createInfo.windowId = Number(targetGroup.window_id);
+  let tab;
+  try {
+    if (newWindow) {
+      const win = await chrome.windows.create({ url, type: "normal", focused: active });
+      tab = win.tabs?.[0] || (await chrome.tabs.query({ windowId: win.id }))[0];
+      if (!tab) return { ok: false, error: "new browser window has no tab", window_id: String(win.id) };
+    } else {
+      tab = await chrome.tabs.create(createInfo);
+    }
+    if (sessionName) {
+      const createdGroupId = await chrome.tabs.group({ tabIds: [tab.id], createProperties: { windowId: tab.windowId } });
+      await chrome.tabGroups.update(createdGroupId, {
+        title: sessionName,
+        color: DEFAULT_GROUP_COLOR,
+        collapsed: false,
+      });
+    } else if (targetGroupId !== null) {
+      await chrome.tabs.group({ tabIds: [tab.id], groupId: targetGroupId });
+      if (active && targetGroup.collapsed) await chrome.tabGroups.update(targetGroupId, { collapsed: false });
+    }
+    if (active) await chrome.windows.update(tab.windowId, { focused: true });
+  } catch (e) {
+    return { ok: false, error: "open tab: " + String(e) };
+  }
+  const state = await freshTabsForIds([tab.id]);
+  const opened = state.tabs[0] || null;
+  const group = opened && opened.group_id
+    ? state.groups.find((g) => g.group_id === opened.group_id) || opened.group || null
+    : null;
+  return tabsResult(state, Object.assign(tabActionState(opened), {
+    group,
+    url: opened ? (opened.url || url) : url,
+  }));
 }
 
 async function handleCommand(cmd) {
   try {
     switch (cmd.method) {
+      case "capture_tab": {
+        const resolved = await resolveHttpTabState(cmd.params?.tab_id);
+        if (!resolved || !resolved.tab.active) return { ok: false, error: "select the target tab before taking a viewport screenshot" };
+        const ready = await ensureContent(resolved.id, 1500, 500);
+        if (!ready.ok) return ready;
+        const before = await sendToTab(resolved.id, { type: "vcu_viewport" }, 700);
+        if (!before?.ok || !before.viewport) return { ok: false, error: "viewport metadata unavailable; refresh the page" };
+        const dataUrl = await captureVisiblePng(Number(resolved.tab.window_id));
+        const after = await sendToTab(resolved.id, { type: "vcu_viewport" }, 700);
+        const current = await chrome.tabs.get(resolved.id);
+        if (!after?.ok || !current.active || current.url !== before.viewport.url || JSON.stringify(before.viewport) !== JSON.stringify(after.viewport)) {
+          return { ok: false, error: "page changed during screenshot; capture again" };
+        }
+        if (!dataUrl?.startsWith("data:image/png;base64,")) return { ok: false, error: "browser did not return a PNG" };
+        return { ok: true, ...tabActionState(resolved.tab), viewport: after.viewport, png_base64: dataUrl.split(",")[1], source: "extension_viewport", os_cursor_used: false };
+      }
+      case "click_point": {
+        const resolved = await resolveHttpTabState(cmd.params?.tab_id);
+        // The screenshot pins an explicit tab/document. A user switching to
+        // another tab must neither retarget the action nor force focus back.
+        if (!resolved) return { ok: false, error: "screenshot target tab is no longer available; capture again" };
+        const result = await actionViaContent(resolved.id, {
+          type: "vcu_click_point", x: cmd.params.x, y: cmd.params.y,
+          expected_viewport: cmd.params.expected_viewport, dry_run: !!cmd.params.dry_run,
+        }, "point click", 1500, 1500, 500);
+        return Object.assign(tabActionState(resolved.tab), result);
+      }
       case "ensure_agent_window":
         return { ok: true, window_id: String(await ensureAgentWindow()) };
       case "ping":
@@ -343,16 +728,32 @@ async function handleCommand(cmd) {
           version: chrome.runtime.getManifest().version,
         };
       case "open_tab": {
-        const url = cmd.params.url || "";
-        if (!url || !/^https?:/i.test(url)) return { ok: false, error: "http(s) url required" };
-        const tab = await chrome.tabs.create({ url, active: true });
-        return { ok: true, tab_id: String(tab.id), url: tab.url || url, os_cursor_used: false };
+        return openTab(cmd.params || {});
+      }
+      case "close_tab": {
+        const id = tabIdNumber(cmd.params?.tab_id);
+        if (id === null) return { ok: false, error: "an explicit tab_id is required to close a tab" };
+        const tab = await chrome.tabs.get(id);
+        await chrome.tabs.remove(id);
+        const remaining = await chrome.tabs.query({});
+        if (remaining.some(t => t.id === id)) return { ok: false, error: "tab did not close", tab_id: String(id) };
+        return { ok: true, closed: true, tab_id: String(id), window_id: String(tab.windowId), source: "extension_tabs", os_cursor_used: false };
       }
       case "reload_self":
         setTimeout(() => chrome.runtime.reload(), 50);
         return { ok: true, reloading: true };
-      case "list_tabs":
-        return { ok: true, tabs: await listTabs() };
+      case "list_tabs": {
+        const state = await listTabsState();
+        return tabsResult(state);
+      }
+      case "select_tab":
+        return selectTab(cmd.params || {});
+      case "group_tabs":
+        return groupTabs(cmd.params || {});
+      case "update_group":
+        return updateGroup(cmd.params || {});
+      case "ungroup_tabs":
+        return ungroupTabs(cmd.params || {});
       case "navigate": {
         const tabId = Number(cmd.params.tab_id);
         try {
@@ -395,40 +796,34 @@ async function handleCommand(cmd) {
         return Object.assign({ ok: true }, result);
       }
       case "click": {
-        const tabs = await listTabs();
-        const tabId = await resolveHttpTab(cmd.params.tab_id);
-        if (!tabId) return { ok: false, error: "no injectable http tab" };
-        let selector = cmd.params.selector || null;
-        if (!selector && cmd.params.ref) selector = '[data-vcu-ref="' + cmd.params.ref + '"]';
+        const params = cmd.params || {};
+        const resolved = await resolveHttpTabState(params.tab_id);
+        if (!resolved) return { ok: false, error: "no injectable http tab" };
+        const tabId = resolved.id;
+        let selector = params.selector || null;
+        if (!selector && params.ref) selector = '[data-vcu-ref="' + params.ref + '"]';
         if (!selector) return { ok: false, error: "click requires selector or ref" };
-        const meta = tabs.find((t) => String(t.tab_id) === String(tabId)) || {};
-        const result = await clickViaContent(tabId, selector, !!cmd.params.dry_run);
-        return Object.assign({ tab_id: String(tabId), page_url: meta.url || "", focused: !!meta.focused }, result || { ok: false, error: "no result" });
+        const result = await clickViaContent(tabId, selector, !!params.dry_run);
+        return Object.assign(tabActionState(resolved.tab), result || { ok: false, error: "no result" });
       }
       case "hover": {
-        const [{ result }] = await chrome.scripting.executeScript({
-          target: { tabId: Number(cmd.params.tab_id) },
-          injectImmediately: true,
-          func: (ref) => {
-            const el = document.querySelector('[data-vcu-ref="' + ref + '"]');
-            if (!el) return { ok: false, error: "not found" };
-            const r = el.getBoundingClientRect();
-            let c = document.getElementById("vcu-virtual-cursor");
-            if (!c) {
-              c = document.createElement("div");
-              c.id = "vcu-virtual-cursor";
-              c.style.cssText = "position:fixed;z-index:2147483647;width:18px;height:18px;margin-left:-9px;margin-top:-9px;border:2px solid #4c8dff;border-radius:50%;background:rgba(76,141,255,.35);pointer-events:none;transition:left .12s linear,top .12s linear";
-              document.documentElement.appendChild(c);
-            }
-            c.style.left = (r.left + r.width / 2) + "px";
-            c.style.top = (r.top + r.height / 2) + "px";
-            el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-            el.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
-            return { ok: true, ref, input_path: "extension", os_cursor_used: false };
+        const params = cmd.params || {};
+        const tabId = tabIdNumber(params.tab_id);
+        if (tabId === null) return { ok: false, error: "invalid tab_id" };
+        const ref = params.ref == null ? null : String(params.ref);
+        return actionViaContent(
+          tabId,
+          {
+            type: "vcu_hover",
+            ref,
+            selector: params.selector || (ref ? '[data-vcu-ref="' + ref + '"]' : null),
+            dry_run: !!params.dry_run,
           },
-          args: [cmd.params.ref],
-        });
-        return result;
+          "hover",
+          400,
+          900,
+          400,
+        );
       }
       case "keypress": {
         const [{ result }] = await chrome.scripting.executeScript({
@@ -445,53 +840,30 @@ async function handleCommand(cmd) {
         return result;
       }
       case "type": {
-        const tabId = await resolveHttpTab(cmd.params.tab_id);
-        if (!tabId) return { ok: false, error: "no injectable http tab" };
-        let selector = cmd.params.selector || null;
-        if (!selector && cmd.params.ref) selector = '[data-vcu-ref="' + cmd.params.ref + '"]';
-        const result = await typeViaContent(tabId, selector, cmd.params.text || "", !!cmd.params.dry_run);
-        return Object.assign({ tab_id: String(tabId) }, result || { ok: false, error: "no result" });
+        const params = cmd.params || {};
+        const resolved = await resolveHttpTabState(params.tab_id);
+        if (!resolved) return { ok: false, error: "no injectable http tab" };
+        const tabId = resolved.id;
+        let selector = params.selector || null;
+        if (!selector && params.ref) selector = '[data-vcu-ref="' + params.ref + '"]';
+        const result = await typeViaContent(tabId, selector, params.text || "", !!params.dry_run);
+        return Object.assign(tabActionState(resolved.tab), result || { ok: false, error: "no result" });
       }
       case "extract": {
-        const tabs = await listTabs();
-        const http = tabs.filter((t) => (t.url || "").startsWith("http") && !isRestrictedUrl(t.url) && !t.agent_owned);
-        const prefer = cmd.params.tab_id != null ? String(cmd.params.tab_id) : "";
-        const score = (t) => {
-          const url = t.url || "";
-          if (prefer && String(t.tab_id) === prefer) return 0;
-          if (t.focused) return 1;
-          if (t.active) return 2;
-          if (/etherscan\.io/i.test(url)) return 3;
-          return 10;
-        };
-        const ordered = http.slice().sort((a, b) => score(a) - score(b));
-        let last = { ok: false, error: "no injectable http tab" };
-        for (const t of ordered.slice(0, 8)) {
-          const id = Number(t.tab_id);
-          const result = await extractViaContent(id, cmd.params.selector || "a");
-          if (result && result.ok) return Object.assign({ tab_id: String(id), page_url: t.url }, result);
-          last = Object.assign({ tab_id: String(id), page_url: t.url }, result || { ok: false });
-        }
-        return last;
+        const params = cmd.params || {};
+        const resolved = await resolveHttpTabState(params.tab_id);
+        if (!resolved) return { ok: false, error: "no injectable http tab" };
+        const result = await extractViaContent(resolved.id, params.selector || "a");
+        return Object.assign(tabActionState(resolved.tab), result || { ok: false, error: "no result" });
       }
       case "scroll": {
-        const tabId = await resolveHttpTab(cmd.params.tab_id);
-        if (!tabId) return { ok: false, error: "no injectable http tab" };
-        const dy = cmd.params.dy || 400;
-        let msg = await sendToTab(tabId, { type: "vcu_scroll", dy, dry_run: !!cmd.params.dry_run }, 1500);
-        if (msg && msg.ok) return Object.assign({ tab_id: String(tabId), via: "content_message" }, msg);
-        try {
-          await withTimeout(chrome.scripting.executeScript({
-            target: { tabId },
-            files: ["content.js"],
-            injectImmediately: true,
-          }), 2500, null);
-        } catch (e) {
-          return { ok: false, error: "inject content.js: " + String(e) };
-        }
-        msg = await sendToTab(tabId, { type: "vcu_scroll", dy, dry_run: !!cmd.params.dry_run }, 1500);
-        if (msg && msg.ok) return Object.assign({ tab_id: String(tabId), via: "content_inject" }, msg);
-        return { ok: false, error: "scroll content timeout", tab_id: String(tabId) };
+        const params = cmd.params || {};
+        const resolved = await resolveHttpTabState(params.tab_id);
+        if (!resolved) return { ok: false, error: "no injectable http tab" };
+        const tabId = resolved.id;
+        const dy = params.dy == null ? 400 : params.dy;
+        const result = await scrollViaContent(tabId, dy, !!params.dry_run);
+        return Object.assign(tabActionState(resolved.tab), result || { ok: false, error: "no result" });
       }
       case "wait": {
         const ms = Math.min(Math.max(Number(cmd.params.ms) || 100, 0), 15000);
@@ -499,7 +871,7 @@ async function handleCommand(cmd) {
         return { ok: true, waited_ms: ms, os_cursor_used: false };
       }
       case "screenshot": {
-        const dataUrl = await chrome.tabs.captureVisibleTab(agentWindowId, { format: "png" });
+        const dataUrl = await captureVisiblePng(agentWindowId);
         const png_base64 = (dataUrl || "").split(",")[1] || "";
         return { ok: true, png_base64, data_url: dataUrl };
       }

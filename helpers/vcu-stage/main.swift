@@ -8,7 +8,9 @@ import Foundation
 let hudTitle = "VCU 正在使用这台 Mac"
 let hudSub = "Esc 取消"
 let hudHeight: CGFloat = 28
-let guideSize: CGFloat = 40
+// Keep enough transparent margin for the halo while anchoring the arrow tip
+// itself to the requested AX point.
+let guideSize: CGFloat = 64
 
 struct ControlFile: Decodable {
     var stop: Bool?
@@ -62,16 +64,33 @@ final class HudRoot: NSView {
 }
 
 final class GuideView: NSView {
+    // NSView coordinates grow upward. This point is the arrow hotspot and is
+    // intentionally not the center of the guide window.
+    static let hotspot = NSPoint(x: 26, y: 38)
+
     override var isOpaque: Bool { false }
 
     override func draw(_ dirtyRect: NSRect) {
-        let ring = NSBezierPath(ovalIn: bounds.insetBy(dx: 3.5, dy: 3.5))
-        ring.lineWidth = 2
-        NSColor.controlAccentColor.withAlphaComponent(0.95).setStroke()
-        ring.stroke()
-        let inner = NSBezierPath(ovalIn: bounds.insetBy(dx: 14, dy: 14))
-        NSColor(calibratedRed: 1.0, green: 0.42, blue: 0.22, alpha: 0.95).setFill()
-        inner.fill()
+        let tip = Self.hotspot
+        // Same compact dart and soft, borderless blue-grey haze observed in
+        // the native Codex Computer Use screenshot (2026-09-19).
+        for radius in stride(from: CGFloat(23), through: CGFloat(7), by: CGFloat(-1)) {
+            let alpha = 0.011 + (23 - radius) * 0.0007
+            NSColor(calibratedRed: 0.65, green: 0.73, blue: 0.82, alpha: alpha).setFill()
+            NSBezierPath(ovalIn: NSRect(x: tip.x + 4 - radius, y: tip.y - 4 - radius, width: radius * 2, height: radius * 2)).fill()
+        }
+        let arrow = NSBezierPath()
+        arrow.move(to: tip)
+        arrow.line(to: NSPoint(x: tip.x + 18, y: tip.y - 10))
+        arrow.line(to: NSPoint(x: tip.x + 10, y: tip.y - 12))
+        arrow.line(to: NSPoint(x: tip.x + 4, y: tip.y - 20))
+        arrow.close()
+        NSColor(calibratedRed: 0.333, green: 0.361, blue: 0.396, alpha: 0.88).setFill()
+        arrow.fill()
+        arrow.lineWidth = 1.35
+        arrow.lineJoinStyle = .round
+        NSColor.white.withAlphaComponent(0.94).setStroke()
+        arrow.stroke()
     }
 }
 
@@ -194,6 +213,7 @@ final class StageController: NSObject {
         win.appearance = nil
         win.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)) + 1)
         win.hasShadow = false
+        win.acceptsMouseMovedEvents = false
         win.contentView = GuideView(frame: rect)
         win.orderOut(nil)
         guide = win
@@ -222,7 +242,13 @@ final class StageController: NSObject {
 
     func applyGuide(x: Double, y: Double, visible: Bool) {
         let center = cocoaCenter(axX: CGFloat(x), axY: CGFloat(y))
-        let origin = NSPoint(x: center.x - guideSize / 2, y: center.y - guideSize / 2)
+        // `center` is the target point, while the arrow hotspot is offset
+        // inside the transparent guide window. Centering the window here
+        // would place the arrow tip away from the requested point.
+        let origin = NSPoint(
+            x: center.x - GuideView.hotspot.x,
+            y: center.y - GuideView.hotspot.y
+        )
         guide.setFrameOrigin(origin)
         if hudEnabled {
             placeHud(on: screenContaining(cocoa: center))
@@ -298,6 +324,35 @@ func parseControlPath() -> String? {
         return args[1]
     }
     return nil
+}
+
+// Read-only native window lookup used by the browser screenshot path. Do not
+// initialize AppKit windows or a HUD for this command.
+if CommandLine.arguments.count == 7 && ["--window-id", "--window-info"].contains(CommandLine.arguments[1]) {
+    let args = CommandLine.arguments
+    guard let pid = Int(args[2]), let x = Double(args[3]), let y = Double(args[4]),
+          let w = Double(args[5]), let h = Double(args[6]),
+          let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else { exit(2) }
+    var candidates: [(Int, [Double])] = []
+    for win in windows {
+        guard (win[kCGWindowOwnerPID as String] as? Int) == pid,
+              (win[kCGWindowLayer as String] as? Int) == 0,
+              let bounds = win[kCGWindowBounds as String] as? [String: Double],
+              let wx = bounds["X"], let wy = bounds["Y"], let ww = bounds["Width"], let wh = bounds["Height"],
+              ww >= 200, wh >= 150,
+              let id = win[kCGWindowNumber as String] as? Int else { continue }
+        candidates.append((id, [wx, wy, ww, wh]))
+    }
+    let selected = candidates.first { _, frame in
+        abs(frame[0]-x) <= 2 && abs(frame[1]-y) <= 2 && abs(frame[2]-w) <= 2 && abs(frame[3]-h) <= 2
+    } ?? ((w < 200 || h < 150) ? candidates.first : nil)
+    guard let (id, frame) = selected else { exit(1) }
+    if args[1] == "--window-id" { print(id) }
+    else {
+        let data = try JSONSerialization.data(withJSONObject: ["window_id": id, "frame": frame])
+        print(String(data: data, encoding: .utf8)!)
+    }
+    exit(0)
 }
 
 guard let path = parseControlPath() else {

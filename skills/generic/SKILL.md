@@ -1,41 +1,40 @@
 ---
 name: vcu
-description: Versatile Computer Use — browser automation without hijacking the user OS cursor.
+description: USER Chrome/Edge computer use with named native tab groups, DOM actions and screenshot-bound clicks; does not move the OS cursor.
 ---
 
-# VCU skill
+# VCU browser skill
 
-Use the `vcu` CLI for browser computer-use that is model/host agnostic.
+Use VCU CLI or MCP on the user's logged-in Chrome/Edge through VCU Browser Bridge. This version is browser-only. Host vision is sufficient; do not require model configuration when the host can see images.
 
-## Rules
+## Workflow
 
-1. Run `vcu doctor --json` before the first session.
-2. Prefer `--backend mock` only for tests; for real Chrome/Edge use extension or CDP.
-3. Always keep a `session_id` from `vcu session start --json`.
-4. Never attempt OS cursor moves; if you see `OsCursorDenied`, use page refs.
-5. User tabs require `vcu tabs borrow` before click/type.
-6. If the main model has no vision and DOM is insufficient, ask the user to run `vcu init model` or call `vcu agent spawn-vision`.
-
-## Minimal flow
+1. `vcu browser ping --json` must pong; reload an outdated Bridge if needed.
+2. `vcu browser tabs --json`, choose the exact `tab_id`. `browser select --tab ID` explicitly selects and expands its group.
+3. For visual webpage actions, `browser screenshot --tab ID --json`. View the returned PNG before using coordinates.
+4. `browser click --space viewport --capture CAPTURE_ID --pixel-x X --pixel-y Y`. Use pixels from that exact PNG, which excludes browser chrome. Captures expire after 60 seconds and one real action consumes them.
+5. For DOM, use unique selectors and explicit `--tab`: click/type/extract/scroll. `source` must be `extension_dom`.
+6. Observe/extract after acting to verify the intended outcome. A dispatched click is not proof of business success.
 
 ```sh
-vcu init
-vcu daemon start
-SID=$(vcu session start --backend mock --json | jq -r .data.session_id)
-vcu navigate --session "$SID" --url https://example.com
-vcu snapshot --session "$SID" --mode a11y --json
-vcu click --session "$SID" --ref e3
-vcu session stop "$SID"
+vcu browser open --url https://example.com --session-name '🔎 Research'
+vcu browser tabs --json
+vcu browser screenshot --tab <id> --json
+# View screenshot_path, then:
+vcu browser click --space viewport --capture <capture_id> --pixel-x <x> --pixel-y <y>
+vcu browser type --tab <id> --selector 'input[name=q]' --text 'hello'
+vcu browser extract --tab <id> --selector '#result'
+vcu browser group-update --group <group_id> --collapsed true
 ```
 
+## Interaction rules
 
-## Desktop apps (macOS)
+- Explicit missing tabs fail; never substitute another page. Selectors must resolve uniquely and must not be hidden/disabled/occluded. Input only targets editable controls.
+- On changed layout/document/scroll or timeout, capture again and inspect before deciding whether another action is needed. Never blindly replay an uncertain mutation.
+- DOM events report `trusted=false`; iframe/canvas targets requiring native gestures are unsupported. Do not call this successful native input.
+- `browser observe` captures the whole native browser window. Its AX `window/webview` coordinates are distinct from extension `viewport` screenshot coordinates. Do not mix them.
+- Group only explicitly selected same-window tabs. `open --new-window` starts a separate USER-profile task window; `--background` preserves the current focus.
+- Do not require a desktop session/HUD. Mock sessions and borrow APIs are for the separate test/session path.
+- Never click debugging Allow, use CDP takeover, automate WeChat, move the OS cursor, or press blind Return. Do not modify the Codex CU installation.
 
-```sh
-vcu app windows --json
-vcu app snapshot 'proc:TextEdit:123' --json
-```
-
-- Default allowlist: TextEdit, Notes, Safari, Terminal, Ghostty, Finder
-- `app focus` / `app invoke` are **denied by default** (no focus steal / no OS cursor)
-- Full UI hierarchy needs macOS Accessibility permission for the terminal/daemon host
+Full protocol and examples: `playbooks/user-browser.md`.

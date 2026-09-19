@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>VCU · 布局与多窗口 POC</title>
+<style id="rules">
+  body { margin:32px; font:15px/1.5 system-ui; background:#f7f5fa; color:#28232f; }
+  h1 { font-size:25px; margin:0 0 8px; }
+  button,input { font:inherit; padding:8px 12px; border:1px solid #c8bed0; border-radius:7px; background:white; margin:6px; }
+  #moving { background:#9443b4; color:white; }
+  #target-row { height:60px; position:relative; }
+  #css-overlay { position:absolute; left:0; top:0; width:150px; height:55px; visibility:hidden; background:#eee9f4; z-index:5; }
+  #grid { display:grid; grid-template-columns:repeat(40,17px); gap:1px; margin-top:18px; }
+  #grid button { margin:0; padding:0; width:17px; height:18px; border-radius:2px; font-size:7px; }
+  output { display:block; margin:8px 0; }
+</style>
+<h1>布局变化与多窗口验证</h1>
+<p>只操作本地计数器；CSS 规则变化不会修改 DOM 属性。</p>
+<button id="move-css">通过 CSS 规则移动目标</button>
+<button id="cover-css">通过 CSS 遮挡目标</button><button id="uncover-css">移除遮挡</button>
+<input id="plain-input" aria-label="无页面回写的输入框" placeholder="输入仅触发 input 事件">
+<div id="target-row"><button id="moving">目标 +1</button><div id="css-overlay">CSS 遮挡层</div></div>
+<output id="count">clicks=0</output>
+<div id="grid"></div>
+<script>
+  const n = Math.min(1600, Math.max(0, Number(new URLSearchParams(location.search).get('nodes')) || 0));
+  document.title = `VCU · ${n} 节点布局 POC`;
+  for (let i=0;i<n;i++) {
+    const button=document.createElement('button'); button.textContent=String(i); button.id='grid-'+i;
+    document.querySelector('#grid').append(button);
+  }
+  let count=0;
+  document.querySelector('#moving').onclick=()=>{document.querySelector('#count').textContent='clicks='+ ++count;};
+  document.querySelector('#move-css').onclick=()=>{
+    document.querySelector('#rules').sheet.insertRule('#moving { transform:translateX(160px) }',0);
+  };
+  for (const [id,visibility] of [['cover-css','visible'],['uncover-css','hidden']]) {
+    document.querySelector('#'+id).onclick=()=>{
+      const sheet=document.querySelector('#rules').sheet;
+      sheet.insertRule(`#css-overlay {visibility:${visibility} !important}`,sheet.cssRules.length);
+    };
+  }
+</script>
+</html>

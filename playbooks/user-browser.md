@@ -1,127 +1,92 @@
-# User browser (login-state)
+# USER browser：选择网页、标签组与可靠点击
 
-登录态 = **用户自己的 Edge/Chrome 窗口**。空 Agent profile（`~/.vcu/edge-agent-profile`）没有 cookies。
+登录态来自用户自己的 Edge/Chrome 和 VCU Browser Bridge。宿主已有视觉即可使用截图，无需先配置模型。CDP、桌面会话和空 Agent profile 不属于本流程。
 
-宿主若已有视觉（Grok 等），直接读 Scene 截图，不必 `vcu init model`。
+## 选择与整理网页
 
-## 串行视觉闭环（强制）
-
-`vcu browser observe` / snapshot 返回 `vision_handoff.must_view`。MCP 工具结果带 PNG。同一轮看图再点。禁止只读 JSON 就结束本轮。
-
-## 默认路径（Codex 结构，无 HUD）
-
-宿主已有视觉时：
-
-1. `vcu browser observe --json` — 截用户 Edge，写入 `login-latest.png` + scale/frame。
-2. 读 PNG，用 `vcu browser click --pixel-x --pixel-y --space webview`（先 `--dry-run` 看 `ax_point`）。
-3. `vcu browser type --dry-run` 读地址栏；真写入才去掉 dry-run。
-4. `vcu browser wait --role AXWebArea`；`scroll --dry-run`；`key --key return --dry-run`（Return 默认拒绝）。
-5. 需要挡菜单栏的长任务才 `session start --surface desktop`（Esc 取消）。
-6. `vcu browser ping --json` 必须 `pong`。`unknown method ping` = 旧 SW，到 `edge://extensions` **Reload** VCU Browser Bridge（不要点 Allow）。
-7. DOM：`vcu browser extract --selector a --json`，`source` 必须是 `extension_dom`。AX chrome 不是 HTML DOM。DOM 点击/输入：`vcu browser click --selector 'a' --dry-run`、`vcu browser type --selector 'input' --text x --dry-run`。
-8. DOM / Etherscan 登录树：USER Edge Load unpacked `~/.vcu/lens-extension`（VCU Browser Bridge）。**CDP 已抛弃，禁止点 Allow。**
-
-不要把 `session start` 当登录态主路径。
-
-## 禁止
-
-- 把 Agent Edge 当成已登录浏览器
-- 微信 / 微信窗口盖住浏览器时仍点击（真点会 AppDenied）
-- `os_click` / HID / 光标 warp
-- 改 `~/.codex/computer-use/`
-- 把 `source=ax_scene_fallback` 当成 DOM extract 通过
-
-## 扩展在哪个 profile
-
-`vcu browser login-state` 的 `extension_profile`:
-
-- `user` — DOM lens 在已登录浏览器里（要的状态）
-- `agent` — 扩展挂在空 Agent Edge，**没有 cookies**
-- `none` — 未配对
-
-把 `~/.local/share/vcu/extension` load unpacked 到 **用户** Edge（`edge://extensions`）。不要把 Agent Edge 当成登录态。
-
-## 用户 Edge 扩展（DOM lens）
-
-```text
-vcu browser install-lens
+```sh
+vcu browser ping --json
+vcu browser tabs --json
+vcu browser select --tab <tab_id>
+vcu browser open --url 'https://example.com' --session-name '🎨 分享设计'
+vcu browser open --url 'https://example.org' --group <group_id> --background
+vcu browser group --tabs <tab_id>,<tab_id> --title '🎨 分享设计' --color purple
+vcu browser group-update --group <group_id> --collapsed true
+vcu browser group-update --group <group_id> --collapsed false
+vcu browser ungroup --tabs <tab_id>,<tab_id>
 ```
 
-只复制到 `~/.vcu/lens-extension`，**不点 UI**。在用户 Edge 的 `edge://extensions` 选 Load unpacked。完成后 `extension_profile` 应为 `user`。
+这些是浏览器原生标签组：名称、彩色顶部线条、点击组名折叠/展开，与参考截图对应。`select` 会展开目标所在组并聚焦其窗口。`tabs` 返回真实 `tab_id`、`window_id`、`focused`、`group_id` 及 groups 的 `collapsed`。
 
-## 一等入口
+扩展工具栏弹窗也可点击网页名称切换、勾选网页后分组、折叠/展开和移出组。原生组折叠时，弹窗仍保留组内网页入口，便于直接选择。
 
-MCP：`vcu_browser_login_state` / `vcu_browser_observe` / `vcu_browser_ping` / `vcu_browser_extract`（无 HUD）。
+新建具名任务只分组本次新标签；要把已有网页归组，必须显式列出 ID。同组标签须在同一窗口，不支持固定页或浏览器内部页。`--session-name` 与 `--group` 互斥。`--background` 不激活新网页。解除分组不会关闭网页。
 
-```text
-vcu browser login-state
+## 观察 → 操作 → 验证
+
+1. `vcu browser observe --json` 生成整窗 PNG 和坐标元数据。MCP observe 返回 `type=image`；同轮查看 `vision_handoff.must_view` 指定图片。
+2. 用 `tabs` 确认目标 ID，再用 `extract --tab ID --selector ...` 读取 DOM。默认只定位最后聚焦的用户 HTTP(S) 标签。
+3. 执行唯一 selector 的 click/type；尽量显式传 `--tab`。指定 ID 关闭或失效时直接失败，不换到其他网页。
+4. 再次 observe/extract 检查页面变化；DOM activation 的 `pressed=true` 仅说明动作已派发，不证明保存/导航等业务结果成功。
+
+```sh
+vcu browser extract --tab <id> --selector 'a'
+vcu browser click --tab <id> --selector '#continue' --dry-run
+vcu browser click --tab <id> --selector '#continue'
+vcu browser type --tab <id> --selector 'input[name=q]' --text 'hello'
+vcu browser scroll --tab <id> --dy 600
+```
+
+DOM 操作必须 `source=extension_dom`；标签管理为 `source=extension_tabs`。指针已依据Codex原生CU实测截图改为短斜三角、细白描边和蓝灰柔光。点击有短暂反馈，不移动物理鼠标、不拦截网页事件，结束自动消失。`dry-run` 不滚动、不聚焦、不修改页面。
+
+selector 多个匹配、隐藏、禁用或被遮挡时应修正目标；输入只接受可编辑节点。DOM 事件为非 trusted，无法替代网站要求的原生用户手势；不要靠重试伪造成功。超时可能发生在动作已经执行之后，应先重新观察，不盲目重复动作。
+
+## 网页截图坐标点击（Bridge 0.2.5）
+
+```sh
+vcu browser select --tab <id>
+vcu browser screenshot --tab <id> --json
+# 查看响应中的 screenshot_path 图片，再使用它的 capture_id 和图片像素：
+vcu browser click --space viewport --capture <capture_id> --pixel-x 1310 --pixel-y 422 --dry-run
+vcu browser click --space viewport --capture <capture_id> --pixel-x 1310 --pixel-y 422
+```
+
+viewport PNG 由扩展直接截取目标页面，返回 `source=extension_viewport`，MCP `vcu_browser_screenshot` 附带图片。图片不含浏览器标签栏，因此坐标起点就是网页左上角。按 PNG 尺寸与实际 CSS viewport 尺寸映射，支持 Retina 和网页缩放；不要拿整窗图片套用此模式。
+
+capture 绑定 tab、document、URL、尺寸、滚动、缩放和 DOM revision，60 秒过期。页面变化时必须重新截图；真实点击消费 capture，即使回执失败也不能盲重试。用户切换标签不会把动作重定向到新标签或抢回焦点，目标仍是截图绑定的原标签。
+
+坐标动作 `source=extension_dom`、`input_path=dom_point_click`、`trusted=false`；iframe/canvas/object 等需原生输入的点目标明确拒绝。成功后再 extract/observe 核验业务结果。
+
+## 浏览器整窗与 Guide（AX）
+
+`browser observe` 使用 macOS 窗口 ID 截图，避免被其它应用覆盖；观察失败直接返回错误，不复用旧图。此路径要求当前版本的 `vcu-stage` helper。
+
+```sh
 vcu browser observe --json
-vcu browser observe --selector github --json
+vcu browser click --pixel-x 100 --pixel-y 80 --space window --dry-run --guide
 ```
 
-自动选 **user** Edge，无 Stage HUD，带 `screenshot_scale` 与 `extract`。
+整窗像素映射 AX 点 = frame 原点 + pixel / screenshot_scale。Guide 不移动物理鼠标。截图必须属于同一浏览器，窗口移动/缩放后拒绝旧坐标。AXPress 非零错误码返回失败；网页按钮优先使用上面的 viewport/selector 路径。微信遮挡时整窗像素真点仍必须 AppDenied。
 
-登录态 Scene（**无 CDP / 不点 Allow**）还会带：
+## 地址栏、等待与按键
 
-- `page_title` — 窗口标题
-- `page_url` — 快路径 observe 可能为空；用 `vcu browser type --dry-run` 读地址栏
-- `tabs` — 标签名 + `selected`
-- `webview` — 命中 `AXWebArea` 时为 true（像素 `space=webview` 用这块 frame）
-- `ax_enhanced` — 已对 Chromium/Electron 设置 `AXEnhancedUserInterface`
-
-`login-latest.json` 同样写入 `page_url` / `page_title`。网页 DOM 树走用户 profile 扩展：`vcu browser extract --selector a`（无 HUD、不 navigate）。**不要 CDP / 不要 Allow**。
-
-## 无 HUD 抽取（推荐登录态观察）
-
-不升起 Stage，不抢焦点：
-
-```text
-vcu app snapshot proc:Microsoft_Edge:<pid> --selector "bilibili" --json
-vcu app snapshot proc:Microsoft_Edge:<pid> --pixels --selector "*" --json
-```
-
-`extract.hud=false`。宿主视觉读 `screenshot_path`（scale 常为 2）。
-
-## Scene extract（无 CDP）
-
-登录态窗口用 desktop Scene 抽 AX，不连 9222：
-
-```text
-vcu session start --surface desktop --browser edge
-vcu extract --session <id> --selector "*"
-vcu extract --session <id> --selector "bilibili"
-vcu session stop all
-```
-
-网页 DOM 树（Etherscan L3）走用户 Edge 里的扩展。AX 只能拿到标签/工具栏/WebArea 外壳。CDP 已抛弃。
-
-宿主视觉固定读：`~/.vcu/captures/login-latest.png`（`vcu browser observe` 写入）。
-
-## 无 HUD 像素点击（登录态）
-
-看完截图后，不要为了点一下去 `session start`（会升起 HUD）。映射或点击：
-
-```text
-vcu browser click --pixel-x 100 --pixel-y 80 --space webview --dry-run
-vcu browser click --pixel-x 100 --pixel-y 80 --space webview
-```
-
-`--dry-run` 只返回 `ax_point` / `hit_ref`，不 AXPress。真点击仍不搬 OS 光标、不点 Allow。`space=webview` 用 `webview_screenshot_frame`（页面裁帧）；默认 `window` 用整窗 `login-latest.png`。
-
-`--guide` 在映射点闪一下 Guide（无 HUD 胶囊），然后拆掉 overlay。
-
-```text
-vcu browser click --pixel-x 100 --pixel-y 80 --space webview --dry-run --guide
+```sh
 vcu browser type --dry-run
-vcu browser scroll --dry-run
-```
-
-```text
+vcu browser type --text 'https://example.com'
 vcu browser wait --role AXWebArea --ms 2000
-```
-
-```text
 vcu browser key --key return --dry-run
 ```
 
-Return 无 `confirm_send` + Send ref 会被拒绝（防飞书误发）。Esc 不注入。
+不带 selector 的 type 读写 AX 地址栏，不能与 `--tab` 混用。地址栏写入不会自动按 Return。Return 仍受 confirm_send + Send ref 策略约束；不要盲目按键。观察默认没有 HUD，也不需要 desktop session。
+
+## 扩展安装与健康
+
+`vcu browser install-lens` 复制到 `~/.vcu/lens-extension`，在 USER Edge/Chrome load unpacked。更新后 Reload 扩展，`vcu browser ping` 核实版本；本次新能力要求 Bridge 0.2.5。已打开的旧网页建议刷新后再测新内容脚本。
+
+`extension_profile=user` 才是登录态主线；`agent` 表示空 Agent profile，`none` 表示未配对。`unknown method` 表示后台旧版本，应 Reload，不是点击 Allow。DOM 扩展失败不改用 AX 冒充成功。
+
+MCP 对应 `vcu_browser_tabs/select/open/group/group_update/ungroup` 和 `observe/click/type/scroll/extract/ping`。
+
+禁止自动化微信、点击调试 Allow、OS cursor warp/HID，以及修改 `~/.codex/computer-use/`。
+
+当前0.2.5支持`browser open --new-window --background`与显式`browser close --tab`。真实多窗口POC：`python3 scripts/poc_browser_parity.py --live`（仅本地受控页面，默认不执行真实动作）。

@@ -28,8 +28,9 @@ vcu --user-dir "$USER_DIR" click --session "$SID" --ref e3 --json >/dev/null
 test -f "$USER_DIR/audit.jsonl"
 grep -q 'browser.click' "$USER_DIR/audit.jsonl"
 set +e
-vcu --user-dir "$USER_DIR" app invoke 'proc:TextEdit:1' --ref e1 --json >/tmp/vcu-app-inv.json
+printf '%s\n' '{"type":"os_cursor_move","target":{},"args":{}}' > "$USER_DIR/deny-os-cursor.json"
+vcu --user-dir "$USER_DIR" act --session "$SID" --action-json "$USER_DIR/deny-os-cursor.json" --json >/tmp/vcu-os-cursor-deny.json
 set -e
-jq -e '.ok == false and .error.code == "OsCursorDenied"' /tmp/vcu-app-inv.json >/dev/null
+jq -e '.ok == false and .error.code == "OsCursorDenied"' /tmp/vcu-os-cursor-deny.json >/dev/null
 vcu --user-dir "$USER_DIR" session stop "$SID" --json >/dev/null
 echo "EXTRA ACTIONS POC PASSED"

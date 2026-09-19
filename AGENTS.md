@@ -19,19 +19,23 @@ awr --project . intake inspect --json
 awr --project . context compile --work <ID> --goal 'goal#vcu' --budget 5000
 ```
 
-Authoritative sources:
+Authoritative sources (in order):
 
+- `docs/PLAN.md` — current version plan (browser-only)
 - `.awr/intake/GOALS.md`
 - `.awr/intake/work-ledger.yaml`
-- `docs/research/*` and `docs/design/*` (design authority for scope decisions)
+- `docs/HANDOFF.md` — session continuity (do not treat stacked snapshots as the plan)
+- `docs/testing/BROWSER_TEST_PLAN.md` / `BROWSER_TEST_CASES.md`
 
 ## Working rules
 
-- Current phase is **research + design only** until the design package is accepted.
-- Do not implement runtime/browser/extension product code before design acceptance is recorded in the ledger.
-- Prefer editing authoritative Markdown/YAML sources; reindex with `awr source reindex`.
+- **This version is browser-only Computer Use.** Feishu/Lark client, Finder, WeChat, CDP Allow, OS cursor warp are out of scope.
+- Login-state path: USER Edge/Chrome + VCU Browser Bridge (`~/.vcu/lens-extension`). Host vision (Grok) is enough; do not require `vcu init model`.
+- DOM extract/click/type/scroll must be `source=extension_dom` when using the extension. AX chrome is not HTML DOM.
+- Never click Edge Allow debugging. Never automate WeChat. Never warp the OS cursor.
+- Prefer editing authoritative Markdown/YAML; reindex with `awr source reindex`.
 - Preserve unrelated edits; keep commits focused.
 
 ## Session continuity
 
-On a new session (e.g. after terminal restart), read **`docs/HANDOFF.md` first** for full project context, install state, test results, and next tasks.
+On a new session, read **`docs/PLAN.md` then `docs/HANDOFF.md`**.

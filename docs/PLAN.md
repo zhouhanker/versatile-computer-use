@@ -1,90 +1,69 @@
-# VCU 当前总计划（浏览器版）
+# VCU 当前计划（浏览器版）
 
-> 写入：2026-09-19 CST  
-> 地位：**比 HANDOFF 叠快照更优先**。  
-> 作者：zhouhanker
+更新：2026-09-19。本文优先于HANDOFF历史快照；作者zhouhanker。
 
-**本版本范围：只做基于浏览器的 Computer Use。放弃所有桌面 App 操作（飞书客户端、Finder、Stage-for-app）。**
+## 当前节点
 
-宿主 Grok 有视觉，不必 `vcu init model`。
+**“多窗口与截图点击可靠性”节点已完成并通过验收。** Bridge **0.2.5**，runtime package **0.1.0**；Git HEAD仍`2c28009`，本轮代码和文档尚未提交/推送。
 
-硬约束：不点 Allow；不微信；不 OS 光标；不碰 `~/.codex/computer-use/`；desktop 会话若误开必须 `session stop all`。微信窗口盖住像素时真点必须 `AppDenied`。
+用户最新指令：完成当前节点后，先更新交接文档、计划、清单和后续安排。本轮到此收尾，不展开新功能；原始总体目标尚未宣布全部完成。
 
----
+额度规则：用户已重置总额度。旧“周额度不足10%”提示无效；今后按重置后的**总额度剩10%**要求写交接，不能把goal token计数当账户余额。
 
-## 0. 版本边界
+## 目标与范围
 
-| 做 | 不做（本版本） |
-| --- | --- |
-| 用户 Edge/Chrome 登录态 observe / click / type / scroll / wait / key / ping / extract | 飞书 / Lark **客户端** |
-| 像素点击（window/webview）+ Guide | 任意 macOS App AX 产品路径 |
-| CSS selector click/type（USER 扩展 DOM，`source=extension_dom`） | CDP TAKEOVER / 点 Allow |
-| mock 浏览器 session（navigate/snapshot/click/type/extract/borrow） | 以 App HUD 为验收 |
-| MCP：observe 带 PNG；`vcu_browser_ping` / `extract` / selector click/type | lark-cli / osascript 发消息 |
-| ping 探测 SW；stale 必须 Reload | AX chrome 冒充 HTML DOM |
+对比Codex Computer Use，改进浏览器操作与虚拟光标，采用参考图中的原生彩色可折叠标签组，持续修复问题，每阶段留下可复核记录。
 
-飞书 App（FEISHU-001）**停放**。
+- 主路径：USER Edge/Chrome + Browser Bridge，保留登录态。宿主已有视觉时不要求`vcu init model`。
+- 网页：明确tab、DOM selector、绑定截图的viewport坐标点击、输入/滚动、原生标签组。
+- 浏览器整窗：macOS窗口ID截图与Guide；AXPress失败必须诚实报错。
+- 不做：飞书等桌面App产品路径、微信自动化、CDP Allow、OS cursor warp。不得修改Codex CU安装。
 
----
+## 阶段清单
 
-## 1. 用户目标如何落在本版本
-
-1. 登录态浏览器 — **本版本主线**
-2. 打磨 CU — 只打磨浏览器路径（Guide×retina、无 HUD observe、Return 门禁、图像传递、DOM extract/click/type）
-3. 坐标精度 — 浏览器截图像素 → AX
-4. Stage HUD — 本版本不作为验收；误开必须拆掉
-5. Codex CU 结构 — 只借鉴浏览器 Scene/Actuator；不抄资源
-
----
-
-## 2. 执行顺序
-
-| 阶段 | ID | 状态 | 完成定义 |
+| ID | 阶段 | 当前状态 | 完成证据 / 剩余项 |
 | --- | --- | --- | --- |
-| P0 诚实门禁 | TEST-001 | done | 假绿拆除 |
-| P0.5 图像传递 | VISION-001 | 代码 done | `vision_handoff.must_view`；MCP `type=image` |
-| P-B 浏览器套件 | BROWSER-TEST-001 | done | 计划 + 用例 TC-B-001…056；cargo / poc-login / poc_mock |
-| P-B DOM 协议 | EXTRACT-001 | done | 无扩展失败；假扩展 `extension_dom`；超时不得 AX 假绿 |
-| P-B 真机 DOM | EXTRACT-002 | **done** | 真机 ping pong 0.1.5；extract `extension_dom` |
-| P-B 登录树 | ETH-001 | ready | `poc_etherscan_labels.sh` 无 CDP；成功须 extension_dom |
-| L5 真像素点击 | LOGIN-LIVE / TC-B-040 | 延期，不进 check | 无微信遮挡；`pressed=true`；`os_cursor_used=false` |
-| App / 飞书 | FEISHU-001 | **parked** | 本版本不执行 |
+| PARITY-001 | Codex比较与阶段设计 | 完成 | `docs/design/09-browser-interaction-parity.md` |
+| PARITY-002 | 精确tab与DOM动作 | 完成 | 失效ID不fallback、唯一/可编辑/无遮挡目标、无mutation重放；真机DOM通过 |
+| PARITY-003 | 原生标签组与网页选择 | 完成 | 命名、折叠/展开、选择自动展开、解除分组；CLI/MCP和真实窗口POC |
+| PARITY-004 | Codex光标外观对齐 | 已重绘，终验待继续 | 已用原生Codex CU取样，短斜三角+柔光、热点与缩放补偿；尚需同尺寸双端动态对照 |
+| PARITY-005 | 最终整体验收 | 当前节点通过，整体待收束 | 102 Rust +35 Node、32项真实POC；P4与跨浏览器终验/提交SHA绑定未结束 |
+| PARITY-006 | 绑定截图的网页坐标点击 | 完成 | capture绑定文档/布局、60秒过期、一次消费；真实点选counter0→1 |
+| PARITY-007 | 多窗口与面板约束 | **本节点完成** | 后台开窗不抢焦点、跨窗拒绝无副作用、组显式保留所属窗口；面板按窗口分区/跨窗禁选 |
+| PARITY-008 | 布局变化与截图可靠性 | **本节点完成** | CSSOM移动/遮挡、input事件、JSON排序往返、截图频率控制、大PNG回执；正向/反向测试均通过 |
 
----
+以前的TEST/EXTRACT/ETH阶段属于基线。ETH只是L1/L2/L3样本，不是全站抓取；FEISHU-001停放。旧MAC-NEXT深AX不是本版本下一步。TC-B-040通用AX网页像素真点仍不能当成已通过，当前已验证的是extension DOM viewport路线。
 
-## 3. 登录态浏览器操作（本版本要做好的面）
+## 本节点验收
 
-| 操作 | CLI | 门禁 |
-| --- | --- | --- |
-| 观察 | `vcu browser observe --json` | 无 HUD；PNG + `must_view` |
-| 像素点击 | `click --pixel-x --pixel-y --space webview [--dry-run] [--guide]` | 无 OS 光标；微信盖住 → AppDenied |
-| DOM 点击 | `click --selector 'a' [--dry-run]` | `source=extension_dom` |
-| 读/写地址栏 | `type --dry-run` / `type --text` | 默认 AX 地址栏 |
-| DOM 输入 | `type --selector 'input' --text x` | `source=extension_dom` |
-| 滚动 | `scroll [--dry-run]` | 扩展 polling 时 `source=extension_dom`；否则 AXWebArea |
-| 等待 | `wait --role AXWebArea` | 无 HUD |
-| Return | `key --key return --dry-run` | 无 confirm+Send ref 必须 blocked |
-| 扩展健康 | `ping --json` | 必须 pong；unknown method = Reload |
-| DOM 抽取 | `extract --selector a` | 必须 `extension_dom`，禁止 AX 假绿 |
+- `rtk proxy make check` exit **0**：**102 Rust +35 Node**；mock/extra/login-state、release打包、checksum/curl-install/MCP smoke全部通过。
+- `scripts/poc_browser_parity.py --live`：**32项通过**，测试页安全清理。包含稳定截图允许point dry-run，以及CSS/输入变化必须拒绝；不再只有负向测试。
+- 真实看图点选：PNG像素(120,318) → CSS(75,198.705)，counter **0→1**，只发生一次。
+- 布局JSON经过Rust重排键后仍可用；完整几何留在sidecar，模型只接收摘要。
+- 截图统一排队以满足浏览器每秒2次限制；只读截图可做一次限流恢复，点击/输入等mutation不自动重放。
+- AX先启用再枚举窗口，跳过小控制浮窗；截图失败不包装成成功，不使用被遮挡的屏幕区域冒充浏览器图像。
 
-MCP 同名：`vcu_browser_*`。
+完整结果：`docs/testing/BROWSER_PARITY_RESULTS.md`；机器可读索引：`docs/testing/BROWSER_PARITY_NODE_REPORT.json`。后者明确是dirty工作树验证，**不是已提交SHA或发布证明**。
 
----
+## 下一阶段（按优先级）
 
-## 4. 测试权威文件
+- [ ] **P1 / PARITY-004**：使用已有Codex原生截图，在同背景、同窗口尺度下对照DOM与Guide的静止/点击/移动状态，复核80%/100%/200%表观尺寸。不要再索要用户截图，不退回长箭尾/硬圆环，也不复制私有安装资源。
+- [ ] **P1 / PARITY-005**：补最终跨浏览器验收。Edge已真机验证；Chrome需实际运行后才算通过。补原生popup交互被用户打断的那段验证，保留用户已修改的1/3标签组。
+- [ ] **P2 / PARITY-005**：审阅当前大diff、API/错误行为与测试覆盖；区分本轮代码和原有AGENTS/文档编辑。按需要组织聚焦提交，再把AWR验收证据绑定到真实提交SHA。
+- [ ] **P2 后续体验**：根据真实反馈继续打磨旧页面扩展升级提示、复杂动态页与资源回收。没有新证据时不扩大重构，也不把未测试能力写成完成。
 
-- 计划：`docs/testing/BROWSER_TEST_PLAN.md`
-- 用例：`docs/testing/BROWSER_TEST_CASES.md`（TC-B-001 … 056）
-- 方法：`docs/testing/METHODOLOGY.md`
-- Playbook：`playbooks/user-browser.md`
-- 门禁：`make test` + `make poc` + `make poc-login`（**不含** poc-app / poc-feishu / poc-cdp）
-- 真机 DOM：`make poc-extract`（不进 check 直到 EXTRACT-002）
-- Etherscan：`scripts/poc_etherscan_labels.sh`（禁止 CDP）
+## 操作入口
 
-通过标准：`cargo test --workspace` 全绿；`poc_mock_flow.sh` PASS；`poc_login_state.sh` PASS 或 SKIP。
+```sh
+vcu browser ping --json
+vcu browser tabs --json
+vcu browser open --new-window --background --session-name '🔎 Task' --url https://example.com
+vcu browser select --tab <id>
+vcu browser screenshot --tab <id> --json
+# 查看返回PNG后：
+vcu browser click --space viewport --capture <id> --pixel-x <x> --pixel-y <y>
+vcu browser group-update --group <id> --collapsed true
+vcu browser close --tab <id>
+```
 
----
-
-## 5. 当前节点
-
-EXTRACT-002 真机 DOM 已绿。正在收口 **焦点标签 selector click**（必须回传 tab_id/page_url/focused，默认 last-focused http tab）。ETH-001 样本树次之。不做 App。
+`source=extension_dom`用于网页动作，`extension_tabs`用于标签管理，`extension_viewport`用于网页截图。DOM是synthetic事件，`trusted=false`；iframe/canvas等需要原生手势的点目标不假报成功。布局绑定上限1000个viewport可见交互目标、5000候选扫描，超限明确拒绝。细节见`playbooks/user-browser.md`。

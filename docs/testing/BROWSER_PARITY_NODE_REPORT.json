@@ -1,0 +1,47 @@
+{
+  "node": "PARITY-007 / PARITY-008: multi-window and screenshot click reliability",
+  "verified_at": "2026-09-19T12:41:19+08:00",
+  "bridge_version": "0.2.5",
+  "runtime_package_version": "0.1.0",
+  "git_head": "2c28009a2d5f3a61e0c32d1e3bbda04207197065",
+  "worktree_dirty": true,
+  "source_sha": null,
+  "validation": {
+    "make_check_exit_code": 0,
+    "rust_passed": 102,
+    "node_passed": 35,
+    "live_poc_steps": 32,
+    "live_poc_cleanup_ok": true,
+    "real_pixel_click_counter": "0 -> 1"
+  },
+  "evidence": [
+    ".local/browser-parity/make-check-final.log",
+    ".local/browser-parity/multi-window-poc-025-final.json",
+    ".local/browser-parity/positive-025-click.json",
+    ".local/browser-parity/popup-window-selection.txt",
+    ".local/browser-parity/popup-window-selection.jpg",
+    ".local/browser-parity/codex-native-reference.jpg",
+    ".local/browser-parity/cursor-matched.png"
+  ],
+  "remaining": [
+    "PARITY-004 native/DOM cursor dynamic and size comparison",
+    "PARITY-005 final cross-browser acceptance and source-SHA evidence binding"
+  ],
+  "not_claimed": [
+    "pixel-perfect replication of private Codex animation assets",
+    "native trusted DOM events",
+    "successful generic AX pixel click on every webpage",
+    "Git commit, push, or remote release"
+  ],
+  "source_tree_sha256": "a2b1358018da3d300615f18e4b9144d18481c0ab7d4df3beb2de214cdd50eaa9",
+  "source_tree_basis": "sorted relative path + SHA-256 of source/test files under crates, extension, helpers, scripts and skills/generic; not a Git commit SHA",
+  "evidence_sha256": {
+    ".local/browser-parity/make-check-final.log": "3f580fc0b7e0c47e3ab56cfdf43141222249f41556c4dae19bdcd9e910943565",
+    ".local/browser-parity/multi-window-poc-025-final.json": "edfbddd565e1cc48c1da8ab2907ed0a2f8acf83a4c9d6ad5e768c077434faf21",
+    ".local/browser-parity/positive-025-click.json": "147582ffcb788a127551d2a51ea4c47c6911b6cab02c568324f120f705a45d7e",
+    ".local/browser-parity/popup-window-selection.txt": "794b027a1f49c2e0198a06ad38c7b9c47d632404277553670ed0d8c5bc265e09",
+    ".local/browser-parity/popup-window-selection.jpg": "e25a0de79d64d904041240373c30e732c1aa23ae183eb93e2a5cbbf0949682a7",
+    ".local/browser-parity/codex-native-reference.jpg": "b75fb9fcb6dc41c2362507b9fa57b0b3887e7006dacc3e17be2e44ffb6675b50",
+    ".local/browser-parity/cursor-matched.png": "4d8a133d1eafea5366a1116792371b96598b0de58d3b1985cef16e0fbc361afe"
+  }
+}

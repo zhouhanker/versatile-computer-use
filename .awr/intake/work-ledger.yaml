@@ -7,6 +7,104 @@ milestones:
     acceptance: ["poc_install_curl", "mcp_stdio", "all pocs"]
 
 work_items:
+  - id: PARITY-007
+    title: Multi-window workflow and browser POC
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: true
+    priority: P1
+    summary: Isolated USER test windows, explicit new-window open and window-aware popup selection; preserve current user groups.
+    acceptance: ["background window open preserves focus", "cross-window grouping rejects without partial mutation", "popup makes window selection clear", "live controlled multi-window POC recorded"]
+    next_action: node verified; continue PARITY-004 and PARITY-005 per docs/PLAN.md
+    evidence: ["extension/background.js", "extension/popup.js", "docs/testing/BROWSER_PARITY_RESULTS.md"]
+    depends_on: ["PARITY-003"]
+  - id: PARITY-008
+    title: Detect layout and input changes before screenshot clicks
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: true
+    priority: P0
+    summary: MutationObserver alone misses CSS geometry and input property changes; add screenshot-state evidence without collecting input values.
+    acceptance: ["CSS-moved target invalidates old capture", "input event invalidates old capture", "stable page and cursor cleanup do not invalidate capture", "bounded work and tests documented"]
+    next_action: node verified; continue PARITY-004 and PARITY-005 per docs/PLAN.md
+    evidence: ["extension/content.js", "extension/tests/content.test.cjs", "docs/testing/BROWSER_PARITY_RESULTS.md"]
+    depends_on: ["PARITY-006"]
+
+  - id: PARITY-006
+    title: Screenshot-bound viewport pixel clicks and isolated window capture
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: true
+    priority: P0
+    summary: Live AXPress failed with -25201; screen-region capture showed overlapping Ghostty. Bind extension viewport PNGs to tab/document state and capture native window by CGWindowID.
+    acceptance: ["viewport screenshot/click exposed via CLI and MCP", "stale and consumed screenshot rejected", "live pixel click verified by page counter", "occluded browser window screenshot remains browser"]
+    next_action: verified in current worktree; see docs/testing/BROWSER_PARITY_RESULTS.md
+    evidence: ["crates/vcu-server/src/api.rs", "extension/background.js", "extension/content.js", "docs/testing/BROWSER_PARITY_RESULTS.md"]
+    depends_on: ["PARITY-001"]
+
+  - id: PARITY-001
+    title: Codex CU browser comparison and phased plan
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: true
+    priority: P0
+    summary: User screenshot reviewed; native groups, exact targeting, unified pointer and verification phases documented. Cursor pixel equivalence is not yet proven.
+    acceptance: ["reference screenshot and current code compared", "phased browser-only plan written"]
+    next_action: PARITY-002 and PARITY-003 implementation
+    evidence: ["docs/design/09-browser-interaction-parity.md", "docs/PLAN.md"]
+    depends_on: []
+  - id: PARITY-002
+    title: Exact tab targeting and reliable DOM actions
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: true
+    priority: P0
+    summary: Reject missing explicit tabs, wrong focus and unsafe editable targets; avoid replaying timed-out mutations.
+    acceptance: ["extension targeting and action regression tests pass", "HTTP tab propagation and failure tests pass", "controlled browser real click/type verified"]
+    next_action: verified in current worktree; see docs/testing/BROWSER_PARITY_RESULTS.md
+    evidence: ["extension/background.js", "extension/content.js", "crates/vcu-server/tests/browser_parity.rs"]
+    depends_on: ["PARITY-001"]
+  - id: PARITY-003
+    title: Native named tab groups, collapse and page selection
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: true
+    priority: P1
+    summary: Native tabGroups UX from user screenshot with CLI and MCP access.
+    acceptance: ["tabs/select/group/update/ungroup exposed through CLI and MCP", "group tests pass", "native group expanded and collapsed screenshots verified"]
+    next_action: verified in current worktree; see docs/testing/BROWSER_PARITY_RESULTS.md
+    evidence: ["extension/background.js", "crates/vcu-cli/src/main.rs", "crates/vcu-mcp/src/main.rs"]
+    depends_on: ["PARITY-001"]
+  - id: PARITY-004
+    title: Unified arrow and halo virtual cursor
+    status: in_progress
+    goal: goal#vcu
+    kind: delivery
+    required: true
+    priority: P1
+    summary: Native Codex CU was used on a controlled page; dart cursor and diffuse halo replaced the first approximation in Bridge 0.2.2. Static render verified; exact animation/size comparison remains iterative.
+    acceptance: ["DOM and Guide render unified arrow halo", "hotspot and click-through cleanup tests pass", "actual rendered cursor visually inspected"]
+    next_action: same-background native Codex versus DOM/Guide dynamic and zoom visual acceptance; preserve short dart and diffuse halo
+    evidence: ["extension/content.js", "helpers/vcu-stage/main.swift"]
+    depends_on: ["PARITY-001"]
+  - id: PARITY-005
+    title: Browser parity integrated verification and documentation
+    status: in_progress
+    goal: goal#vcu
+    kind: delivery
+    required: true
+    priority: P1
+    summary: Current node gate passed with 102 Rust and 35 Node tests, 32 live checks and real pixel click; final cursor/cross-browser acceptance and source-SHA binding remain.
+    acceptance: ["workspace and extension test gates pass", "live controlled browser workflow verified", "plan/playbook/handoff and results updated for every phase"]
+    next_action: finish PARITY-004, cross-browser acceptance, focused diff review and actual source-SHA evidence binding
+    evidence: ["docs/testing/BROWSER_PARITY_RESULTS.md", "docs/PLAN.md", "docs/HANDOFF.md"]
+    depends_on: ["PARITY-002", "PARITY-003", "PARITY-004"]
 
 
 
@@ -35,7 +133,7 @@ work_items:
       - "ping unknown method is stale Reload, never click Allow"
       - "live vcu browser ping pongs after Reload"
       - "live extract source=extension_dom"
-    next_action: focused-tab selector click polish; ETH-001 sample tree
+    next_action: none — live ping 0.1.5 + extract extension_dom
     evidence:
       - "crates/vcu-server/src/api.rs"
       - "crates/vcu-server/tests/browser_gates.rs"

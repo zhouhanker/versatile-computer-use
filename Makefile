@@ -11,6 +11,7 @@ pack:
 
 test:
 	cargo test --workspace
+	node --test extension/tests/*.test.cjs
 
 poc:
 	bash scripts/poc_mock_flow.sh
@@ -43,6 +44,7 @@ poc-feishu-scene:
 # poc-extract is L4.5 (EXTRACT-002) and not in check until live DOM is green.
 check:
 	cargo test --workspace
+	node --test extension/tests/*.test.cjs
 	bash scripts/poc_mock_flow.sh
 	bash scripts/poc_actions_extra.sh
 	bash scripts/poc_login_state.sh

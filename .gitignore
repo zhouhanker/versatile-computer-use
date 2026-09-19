@@ -41,3 +41,7 @@ lark-auth-*.txt
 lark-im-send-auth.png
 
 .awr/clients/
+
+# Python POC caches
+__pycache__/
+*.pyc

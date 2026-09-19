@@ -92,3 +92,28 @@ async fn call_timeout_without_result_is_error() {
     assert_eq!(err.code(), ErrorCode::ActionFailed);
     assert!(err.message().contains("timeout"), "{}", err.message());
 }
+
+#[tokio::test]
+async fn leased_mutation_is_never_replayed() {
+    for method in ["click", "type", "scroll", "open_tab", "group_tabs", "select_tab", "update_group", "ungroup_tabs"] {
+        let bridge = ExtensionBridge::with_lease_ms(10);
+        bridge.mark_hello(true).await;
+        let caller = bridge.clone();
+        let task = tokio::spawn(async move { caller.call_timeout(method, json!({}), 2).await });
+        let first = bridge.poll(500).await.expect("first delivery");
+        assert!(bridge.poll(100).await.is_none(), "replayed {method}");
+        bridge.submit_result(&first.id, json!({"ok":true})).await;
+        assert!(task.await.unwrap().is_ok());
+    }
+}
+
+#[tokio::test]
+async fn malformed_extension_reply_is_not_success() {
+    let bridge = ExtensionBridge::new();
+    bridge.mark_hello(true).await;
+    let caller = bridge.clone();
+    let task = tokio::spawn(async move { caller.call_timeout("click", json!({}), 2).await });
+    let cmd = bridge.poll(500).await.unwrap();
+    bridge.submit_result(&cmd.id, json!({"pressed":true})).await;
+    assert!(task.await.unwrap().is_err());
+}

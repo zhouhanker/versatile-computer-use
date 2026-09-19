@@ -18,6 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: extension tests
+        run: node --test extension/tests/*.test.cjs
       - name: test
         run: cargo test --workspace
       - name: mock poc (unix)

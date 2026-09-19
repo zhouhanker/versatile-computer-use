@@ -70,3 +70,35 @@
 | TC-A-* 飞书 Scene/发送 | 本版本放弃 App |
 | WeChat 自动化 | 硬禁止 |
 | CDP Allow 一次点击 | 已抛弃 |
+
+
+## 浏览器交互对齐迭代（PARITY-001…008）
+
+| 用例 | 行为 | 验证 |
+| --- | --- | --- |
+| TC-B-058 | 显式失效/受限 tab 拒绝，默认只焦点 USER HTTP 页 | extension background tests + HTTP parity tests |
+| TC-B-059 | 原生具名标签组创建、折叠、选择时展开、解除分组 | background tests + controlled live screenshots |
+| TC-B-060 | 不自动挪动其它窗口/固定/未选择的用户标签 | background tests |
+| TC-B-061 | 输入 selector 未命中/readonly/disabled/noneditable 不写入其它节点 | content tests + controlled live fixture |
+| TC-B-062 | 唯一 selector 点击；遮挡与隐藏拒绝；dry-run 无副作用 | content tests + controlled live fixture |
+| TC-B-063 | 失去动作回执不二次派发；DOM 失败不 AX fallback | extension_bridge + browser_parity tests |
+| TC-B-064 | 箭头热点、样式隔离、pointer-events:none、自动清理 | content tests + rendered visual inspection |
+| TC-B-065 | CLI/MCP 管理接口、显式 tab 透传 | browser_parity + MCP stdio + CLI help |
+| TC-B-066 | 扩展弹窗网页选择/分组/折叠，原生状态刷新 | rendered popup + controlled live workflow |
+
+| TC-B-067 | viewport截图绑定tab/document/layout；Retina/zoom按PNG尺寸映射 | browser_parity + viewport_coordinate_tests + content tests + live viewport-click-final.json |
+| TC-B-068 | 截图过期/已消费/页面变化拒绝，切换tab不重定向 | browser_parity + content tests |
+| TC-B-069 | 整窗截图使用CGWindowID，失败不包装成功 | observe_failure CLI regression + fresh native window screenshot |
+
+| TC-B-070 | 后台独立USER窗口不抢焦点，分组留在目标窗口 | background tests + live POC |
+| TC-B-071 | 跨窗口分组拒绝且原组不变；只清理测试tab | live POC与cleanup记录 |
+| TC-B-072 | popup按窗口分区，选中一个窗口后禁选其它窗口 | 生产HTML/JS浏览器预览 + AX截图 |
+| TC-B-073 | CSSOM位移/遮挡无DOM mutation时仍拒绝旧capture | content tests + live POC |
+| TC-B-074 | Rust JSON键顺序往返不误报stale；稳定capture正向可用 | content roundtrip test + live dry-run + real pixel click |
+| TC-B-075 | input/change事件使旧capture失效，不采集输入值 | content tests + live POC |
+| TC-B-076 | 光标逆缩放不改变点击热点 | content/background zoom tests |
+| TC-B-077 | 连续截图遵守每秒2次限制，不重放mutation | screenshot burst test + live POC |
+| TC-B-078 | AX启用先于内容窗枚举，忽略小控制浮窗 | native script ordering test + login-state gate |
+| TC-B-079 | 超过2MiB截图回执可传输，模型只收布局摘要 | HTTP transport + summary tests |
+
+详细执行证据记录在 `BROWSER_PARITY_RESULTS.md` 和 `BROWSER_PARITY_NODE_REPORT.json`。未完成的视觉/真机验证不能用模拟测试替代。

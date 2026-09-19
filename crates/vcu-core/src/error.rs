@@ -36,7 +36,7 @@ impl ErrorCode {
             Self::DaemonNotRunning => "Run `vcu daemon start` then retry.",
             Self::DaemonAlreadyRunning => "A vcu-daemon is already running. Use `vcu daemon status` or `vcu daemon stop`.",
             Self::DaemonAuthFailed => "Pairing token mismatch. Re-run `vcu init` or restart daemon.",
-            Self::ExtensionDisconnected => "Load the VCU extension in Chrome/Edge and complete pairing, or use --backend mock/cdp.",
+            Self::ExtensionDisconnected => "Load or Reload VCU Browser Bridge in USER Chrome/Edge, then verify `vcu browser ping`. Do not use CDP Allow.",
             Self::SessionNotFound => "Pass a valid --session id from `vcu session start --json`.",
             Self::SessionClosed => "Start a new session with `vcu session start`.",
             Self::BorrowRequired => "User tabs require explicit borrow: `vcu tabs borrow --session <id> --tab <tab_id>`.",
