@@ -110,7 +110,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 | CU-D-020 | AXPress 按 Scene ref；非零错误码如实返回 | **完成（单测）** `ax_ref_press_succeeded`；去掉 System Events `click el` 回退；非 `axpress:0` 失败 |
 | CU-D-021 | AXSetValue / 键盘；Return 仍要 confirm_send | **完成（单测）** `desktop_key_policy_gates_return_and_escape`；type 走 `ax_set_value` |
 | CU-D-022 | Guide 画在目标 AX 点；`os_cursor_used=false` | **完成（单测）** click/hover/pixel `guide.overlay=true` 且 `os_cursor_used=false` |
-| CU-D-023 | 受控真机：TextEdit 输入一行字，Notes 点按钮类控件 | **未做真机** |
+| CU-D-023 | 受控真机：TextEdit 输入一行字，Notes 点按钮类控件 | **未通过** 2026-09-20：session/snapshot 绿，type 回 ok，但文档文本未出现标记（ref 可能不是文本区）。脚本 `scripts/poc_desktop_textedit.py` |
 | CU-D-024 | 像素 click `space=window`：像素→AX，命中 WebArea 只报 WebArea | **完成（单测）** webview 像素 `hit_ref=e15` 且 `input_path != extension_dom` |
 
 ### 阶段 3 — 浏览器 + 桌面统一循环（约 1 周）
@@ -119,10 +119,10 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 
 | ID | 工作 | 验收 |
 | --- | --- | --- |
-| CU-D-030 | Observation 带 `surface`、`source`、`login_state` | MCP/CLI JSON 契约测试 |
-| CU-D-031 | 路由：HTTP(S) 页优先 extension_dom；原生控件走 AX | 错路由不得 AX 假绿 |
+| CU-D-030 | Observation 带 `surface`、`source`、`login_state` | **完成（单测）** snapshot `surface=desktop` `source=ax_scene` |
+| CU-D-031 | 路由：HTTP(S) 页优先 extension_dom；原生控件走 AX | **完成（单测）** USER Edge AXWebArea click 失败并要求 extension_dom |
 | CU-D-032 | 浏览器回归：ping / tabs / open 新标签 / screenshot click | 0.2.8 行为保持 |
-| CU-D-033 | playbook：`playbooks/desktop.md` 最短环 | 文档可被 MCP 当 AppInstructions 用（自写，不抄 Codex） |
+| CU-D-033 | playbook：`playbooks/desktop.md` 最短环 | **完成** `playbooks/desktop.md` |
 
 ### 阶段 4 — 允许名单 App 加宽（按优先级）
 

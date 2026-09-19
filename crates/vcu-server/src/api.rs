@@ -1916,6 +1916,14 @@ async fn snapshot(
         webview_screenshot_scale: snap.webview_screenshot_scale,
         login_state,
         browser_profile,
+        surface: slot.session.surface,
+        source: Some(if matches!(slot.session.surface, SurfaceKind::Desktop) {
+            "ax_scene".into()
+        } else if matches!(slot.session.backend, BackendKind::Extension) {
+            "extension_dom".into()
+        } else {
+            "mock".into()
+        }),
     };
     slot.blackboard.observation_id = Some(obs.observation_id.clone());
     slot.blackboard.dom_summary = snap.a11y_summary.clone();

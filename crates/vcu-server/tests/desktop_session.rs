@@ -71,6 +71,9 @@ async fn desktop_surface_scene_actuator_and_wechat_denied() {
         .unwrap();
     assert_eq!(snap["ok"], true);
     assert_eq!(snap["data"]["kind"], "desktop.scene");
+    assert_eq!(snap["data"]["surface"], "desktop");
+    assert_eq!(snap["data"]["source"], "ax_scene");
+    assert_ne!(snap["data"]["source"], "extension_dom");
     assert!(snap["data"]["dom_refs"].as_array().unwrap().len() >= 2);
     assert_eq!(snap["data"]["dom_refs"][0]["frame"], json!([20.0, 20.0, 80.0, 24.0]));
 

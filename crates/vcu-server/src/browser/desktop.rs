@@ -474,6 +474,19 @@ impl BrowserBackend for DesktopBackend {
     async fn click(&mut self, tab_id: &str, target_ref: &str) -> VcuResult<ActionResultDetail> {
         let frame = self.frame_for(tab_id, target_ref).await;
         let webview = self.ref_is_webview(tab_id, target_ref);
+        if webview {
+            let tabs = self.list_tabs().await.unwrap_or_default();
+            if tabs.iter().any(|t| {
+                t.tab_id == tab_id
+                    && t.browser_profile.as_deref() == Some("user")
+                    && t.login_state == Some(true)
+            }) {
+                return Err(VcuError::coded(
+                    ErrorCode::ActionFailed,
+                    "USER browser HTML must use extension_dom (vcu browser click); AXWebArea is not a DOM click",
+                ));
+            }
+        }
         if let Some(frame) = frame {
             let cx = frame[0] + frame[2] / 2.0;
             let cy = frame[1] + frame[3] / 2.0;
@@ -1047,6 +1060,13 @@ mod tests {
             .find(|t| t.browser_profile.as_deref() == Some("user"))
             .unwrap();
         assert_eq!(user_edge.login_state, Some(true));
+        let ax_as_dom = b
+            .click(&user_edge.tab_id, "e_web")
+            .await
+            .err()
+            .expect("USER Edge AXWebArea must not fake a DOM click");
+        assert_eq!(ax_as_dom.code(), ErrorCode::ActionFailed);
+        assert!(ax_as_dom.message().contains("extension_dom"));
         assert_eq!(
             crate::login_state::pick_login_tab(&tabs_login, "edge", None).as_deref(),
             Some("proc:Microsoft_Edge:10")

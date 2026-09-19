@@ -185,6 +185,12 @@ pub struct Observation {
     pub login_state: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub browser_profile: Option<String>,
+    /// desktop | browser_agent
+    #[serde(default)]
+    pub surface: SurfaceKind,
+    /// ax_scene | extension_dom | mock — never confuse AX chrome with HTML DOM
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

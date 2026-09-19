@@ -61,8 +61,8 @@
 - [x] **CU-D-011**：`vcu session abort` / HTTP abort 拆会话（单测）。未弹用户 HUD 做目视 Escape。
 - [x] **CU-D-012**：微信 denylist + 覆盖点拒绝（单测）。
 - [x] **CU-D-020/021/022/024**：AXPress 非零失败、Return 门禁、Guide overlay、像素命中不报 extension_dom（单测）。
-- [ ] **CU-D-023**：TextEdit/Notes 受控真机。
-- [ ] **阶段 3+**：CU-D-030… 见 ROADMAP-CU。
+- [ ] **CU-D-023**：TextEdit 真机 type 未把标记写入文档（脚本已留，需改 ref 选择后再跑）。
+- [x] **CU-D-030/031/033**：Observation surface/source；USER Edge AXWebArea 不得假绿；`playbooks/desktop.md`。
 
 
 ## 操作入口

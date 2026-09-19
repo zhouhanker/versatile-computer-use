@@ -123,6 +123,16 @@ impl AppBackend for MockAppBackend {
                     frame: Some([2218.0, 36.0, 1424.0, 1038.0]),
                 },
             ]
+        } else if target.browser_profile.as_deref() == Some("user") {
+            vec![
+                AppElement {
+                    r#ref: "e_web".into(),
+                    role: "AXWebArea".into(),
+                    name: "AXWebArea".into(),
+                    value: None,
+                    frame: Some([0.0, 80.0, 800.0, 520.0]),
+                },
+            ]
         } else {
             vec![
                 AppElement {
