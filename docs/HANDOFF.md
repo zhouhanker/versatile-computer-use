@@ -1,11 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-110 脚本已加，待 CI。
+更新：2026-09-20。CU-D-110 CI 已过。
 
 ## 本轮
 
-- 100 已过。110：`poc_cu_d_110.ps1` 经 `vcu screenshot` 截 Notepad（PrintWindow）。
+- CU-D-110 run `35466641180` @ `62487a7`：`SHOT_OK bytes=10984 width=768 height=519`；`CU-D-110 OK`
+- PrintWindow 经 `vcu screenshot`，无 CopyFromScreen / SendInput。
 
 ## 下一刀
 
-看 CI `SHOT_OK`。未绿不得宣称 110 完成。禁止 SendInput / CopyFromScreen。
+不要宣称完整 Codex CU。可开浏览器 P2（跨源仍拒绝）或更多 App。禁止微信 / HID。

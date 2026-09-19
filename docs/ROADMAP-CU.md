@@ -156,7 +156,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-080 | WindowsAppBackend set_value 回退 WM_SETTEXT | **完成（单测）** `ok:wm_settext` → `input_path=wm_settext` `os_cursor_used=false`。无 SendInput。未接 `vcu session` 真机。 |
 | CU-D-090 | 经 `vcu` 的 Windows Stage + Notepad type | **完成（CI 真机）** run `35465535542`：`STAGE_OK presenter=winforms`；`SNAP_OK source=uia_scene ref=e2`；`TYPE_OK path=wm_settext os_cursor_used=False`。无 SendInput。不是完整 Windows CU。 |
 | CU-D-100 | 经 `vcu click` 点抛弃型按钮 | **完成（CI 真机）** run `35466230837`：`INVOKE_OK path=bm_click`（非 InvokePattern；按钮是 ControlType.Pane）。无 SendInput。 |
-| CU-D-110 | 经 `vcu screenshot` 的 PrintWindow | **进行中** CI Notepad PNG 魔数 + 宽高；无 CopyFromScreen / SendInput。 |
+| CU-D-110 | 经 `vcu screenshot` 的 PrintWindow | **完成（CI 真机）** run `35466641180`：`SHOT_OK bytes=10984 width=768 height=519`。无 CopyFromScreen / SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
