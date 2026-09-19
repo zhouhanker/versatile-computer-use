@@ -121,7 +121,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 | --- | --- | --- |
 | CU-D-030 | Observation 带 `surface`、`source`、`login_state` | **完成（单测）** snapshot `surface=desktop` `source=ax_scene` |
 | CU-D-031 | 路由：HTTP(S) 页优先 extension_dom；原生控件走 AX | **完成（单测）** USER Edge AXWebArea click 失败并要求 extension_dom |
-| CU-D-032 | 浏览器回归：ping / tabs / open 新标签 / screenshot click | 0.2.8 行为保持 |
+| CU-D-032 | 浏览器回归：ping / tabs / open 新标签 / screenshot click | **完成（真机）** ping 0.2.8；`source=extension_tabs`；现有窗口新标签（window_id 不变，focused=false）；screenshot `extension_viewport` + capture dry-run `pressed=false`；throwaway DOM click `clicks=1`；组 1/3 未改。脚本 `scripts/poc_cu_d_032.py` |
 | CU-D-033 | playbook：`playbooks/desktop.md` 最短环 | **完成** `playbooks/desktop.md` |
 
 ### 阶段 4 — 允许名单 App 加宽（按优先级）
