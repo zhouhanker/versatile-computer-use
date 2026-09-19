@@ -4,9 +4,9 @@
 
 ## 本轮
 
-- CU-D-060：`uia_set_value_script`（ValuePattern，无 SendInput）。Windows 上 set_value 走 UIA；非 Windows 仍 NotImplemented。
-- `scripts/poc_desktop_windows.sh` 在 Darwin 上 SKIP（exit 0）。
+- CU-D-060：把 Windows 成功路径抽成 `snapshot_from_uia` / `invoke_from_uia_output` / `set_value_from_uia_output`，在 macOS 上也能单测（ok 与失败）。交叉编译缺 mingw gcc，未做 windows-gnu 链接。
+- 真机 UIA 仍需 Windows 主机。
 
 ## 下一刀
 
-Windows 主机跑 Notepad：list / UIA 树 / InvokePattern / ValuePattern / PrintWindow。不要在 macOS 上宣称 Windows CU 已可用。
+Windows 主机跑 Notepad 真机。不要宣称已有 Windows 桌面 CU。

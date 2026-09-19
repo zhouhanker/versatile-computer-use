@@ -332,6 +332,71 @@ impl Default for WindowsAppBackend {
     fn default() -> Self { Self::new() }
 }
 
+
+pub fn snapshot_from_uia(id: &str, name: &str, pid: Option<i32>, raw: &str, budget: u64) -> AppSnapshot {
+    let mut elements = parse_uia_element_lines(raw);
+    if budget > 0 && budget < 10 {
+        elements.clear();
+    }
+    let title = elements
+        .first()
+        .map(|e| e.name.clone())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| name.to_string());
+    AppSnapshot {
+        target: AppTarget {
+            id: id.to_string(),
+            title: title.clone(),
+            bundle_or_exe: name.to_string(),
+            pid,
+            allowed: true,
+            browser_profile: None,
+        },
+        summary: format!("process=\"{name}\" elements={} note=uia_tree", elements.len()),
+        elements,
+        truncated: true,
+        window_frame: None,
+        webview: false,
+        webview_ref: None,
+        page_title: None,
+        page_url: None,
+        tabs: vec![],
+        ax_enhanced: false,
+    }
+}
+
+pub fn invoke_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuResult<serde_json::Value> {
+    if out.contains("ok:uia_invoke") {
+        Ok(serde_json::json!({
+            "ok": true,
+            "process": name,
+            "ref": element_ref,
+            "result": out,
+            "input_path": "uia_invoke",
+            "os_cursor_used": false,
+            "hid_injected": false
+        }))
+    } else {
+        Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia invoke failed", out))
+    }
+}
+
+pub fn set_value_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuResult<serde_json::Value> {
+    if out.contains("ok:uia_set_value") {
+        Ok(serde_json::json!({
+            "ok": true,
+            "process": name,
+            "ref": element_ref,
+            "result": out,
+            "input_path": "uia_set_value",
+            "os_cursor_used": false,
+            "hid_injected": false
+        }))
+    } else {
+        Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia set_value failed", out))
+    }
+}
+
 #[async_trait]
 impl AppBackend for WindowsAppBackend {
     fn platform(&self) -> &str { "windows" }
@@ -373,26 +438,7 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
             }
             let pid = pid_from_win_id(id).unwrap_or(0);
             let raw = Self::run_powershell(&uia_tree_script(pid, 80)).unwrap_or_default();
-            let mut elements = parse_uia_element_lines(&raw);
-            if budget > 0 && budget < 10 { elements.clear(); }
-            let title = elements
-                .first()
-                .map(|e| e.name.clone())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| name.clone());
-            Ok(AppSnapshot {
-                target: AppTarget { id: id.to_string(), title: title.clone(), bundle_or_exe: name.clone(), pid: pid_from_win_id(id), allowed: true, browser_profile: None },
-                summary: format!("process=\"{name}\" elements={} note=uia_tree", elements.len()),
-                elements,
-                truncated: true,
-                window_frame: None,
-                webview: false,
-                webview_ref: None,
-                page_title: None,
-                page_url: None,
-                tabs: vec![],
-                ax_enhanced: false,
-            })
+            Ok(snapshot_from_uia(id, &name, pid_from_win_id(id), &raw, budget))
         }
     }
 
@@ -419,19 +465,7 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
                 VcuError::coded(ErrorCode::InvalidInput, "Windows invoke requires win:name:pid")
             })?;
             let out = Self::run_powershell(&uia_invoke_script(pid, element_ref))?;
-            if out.contains("ok:uia_invoke") {
-                Ok(serde_json::json!({
-                    "ok": true,
-                    "process": name,
-                    "ref": element_ref,
-                    "result": out,
-                    "input_path": "uia_invoke",
-                    "os_cursor_used": false,
-                    "hid_injected": false
-                }))
-            } else {
-                Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia invoke failed", out))
-            }
+            invoke_from_uia_output(&name, element_ref, &out)
         }
     }
 
@@ -458,19 +492,7 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
                 VcuError::coded(ErrorCode::InvalidInput, "Windows set_value requires win:name:pid")
             })?;
             let out = Self::run_powershell(&uia_set_value_script(pid, element_ref, value))?;
-            if out.contains("ok:uia_set_value") {
-                Ok(serde_json::json!({
-                    "ok": true,
-                    "process": name,
-                    "ref": element_ref,
-                    "result": out,
-                    "input_path": "uia_set_value",
-                    "os_cursor_used": false,
-                    "hid_injected": false
-                }))
-            } else {
-                Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia set_value failed", out))
-            }
+            set_value_from_uia_output(&name, element_ref, &out)
         }
     }
 
@@ -560,6 +582,23 @@ mod tests {
         assert!(!inv.to_ascii_lowercase().contains("sendinput"));
         assert!(!inv.to_ascii_lowercase().contains("mouse_event"));
         assert_eq!(pid_from_win_id("win:notepad:4242"), Some(4242));
+        let snap = snapshot_from_uia(
+            "win:notepad:4242",
+            "notepad",
+            Some(4242),
+            "e1|ControlType.Window|Notepad|0,0,800,600\ne2|ControlType.Edit||10,40,780,540\n",
+            80,
+        );
+        assert_eq!(snap.elements.len(), 2);
+        assert!(snap.summary.contains("note=uia_tree"));
+        assert_eq!(snap.target.pid, Some(4242));
+        let ok = invoke_from_uia_output("notepad", "e2", "ok:uia_invoke").unwrap();
+        assert_eq!(ok["input_path"], "uia_invoke");
+        assert_eq!(ok["os_cursor_used"], false);
+        assert!(invoke_from_uia_output("notepad", "e2", "not-found").is_err());
+        let typed = set_value_from_uia_output("notepad", "e2", "ok:uia_set_value").unwrap();
+        assert_eq!(typed["input_path"], "uia_set_value");
+        assert!(set_value_from_uia_output("notepad", "e2", "error:no-value-pattern").is_err());
         let cap_script = uia_capture_script(4242);
         assert!(cap_script.contains("PrintWindow"));
         assert!(cap_script.contains("GetWindowRect"));
