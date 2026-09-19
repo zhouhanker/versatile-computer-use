@@ -133,7 +133,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 | CU-D-040 | Finder | 列目录窗、选图标、回车打开 | **完成（真机，诚实路径）** Scene `role=CGWindow` 列出脚本自建窗；`act reveal`=`nsworkspace_reveal`；`act open_path`=`nsworkspace_open`；`os_cursor_used=false`。**不是** AXPress 图标，**不是** Return（仍 Send 门禁）。禁止批量删除。脚本 `scripts/poc_desktop_finder.py` |
 | CU-D-041 | Terminal / Ghostty | 聚焦、输入、禁盲目 Return | **完成（真机 Terminal.app）** Scene `CGWindow`；`type` 走 `ax_menu_paste`（无换行）；换行与 Return 均为 `FocusPolicyViolation`。未碰 Ghostty。禁止执行命令。脚本 `scripts/poc_desktop_terminal.py` |
 | CU-D-042 | 飞书 / Lark **客户端** | 打开已有会话、读可见消息 | **完成（观察+禁发送）** 已打开的客户端窗 Scene `CGWindow` 标题「飞书」；AX 无聊天气泡（Electron）；点「发送」拒绝；Return 门禁。未自动发送。脚本 `scripts/poc_desktop_feishu.py` |
-| CU-D-043 | 系统设置 | 只读观察；辅助功能 repair 只给 hint | 自动改权限 |
+| CU-D-043 | 系统设置 | 只读观察；辅助功能 repair 只给 hint | **完成** Scene 可观察；click/type 拒绝（observe-only）；doctor/AccessibilityDenied hint 指向系统设置且不含 tccutil。未改 TCC。脚本 `scripts/poc_desktop_settings.py` |
 
 微信：**永不进入允许名单。**
 

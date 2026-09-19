@@ -45,6 +45,14 @@ impl Default for MockAppBackend {
                     browser_profile: None,
                 },
                 AppTarget {
+                    id: "proc:System_Settings:5".into(),
+                    title: "System Settings".into(),
+                    bundle_or_exe: "System Settings".into(),
+                    pid: Some(5),
+                    allowed: true,
+                    browser_profile: None,
+                },
+                AppTarget {
                     id: "proc:Microsoft_Edge:10".into(),
                     title: "Microsoft Edge".into(),
                     bundle_or_exe: "Microsoft Edge".into(),
@@ -342,7 +350,7 @@ mod tests {
     async fn mock_app_list_and_snapshot() {
         let mut b = MockAppBackend::default();
         let wins = b.list_windows().await.unwrap();
-        assert_eq!(wins.len(), 6);
+        assert_eq!(wins.len(), 7);
         let snap = b.snapshot(&wins[0].id, 1000).await.unwrap();
         assert_eq!(snap.elements.len(), 2);
         assert_eq!(snap.elements[0].frame, Some([20.0, 20.0, 80.0, 24.0]));

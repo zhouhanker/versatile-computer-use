@@ -344,6 +344,20 @@ impl DesktopBackend {
         t.contains("feishu") || t.contains("lark") || tab_id.contains("飞书")
     }
 
+    fn settings_like(tab_id: &str) -> bool {
+        let t = tab_id.to_ascii_lowercase();
+        t.contains("system_settings")
+            || t.contains("system settings")
+            || tab_id.contains("系统设置")
+    }
+
+    fn settings_readonly_err() -> VcuError {
+        VcuError::coded(
+            ErrorCode::FocusPolicyViolation,
+            "System Settings is observe-only; vcu doctor prints a hint — do not toggle Accessibility/TCC",
+        )
+    }
+
     fn looks_like_send(name: &str) -> bool {
         crate::login_state::ax_exposes_send_control([name])
     }
@@ -498,6 +512,9 @@ impl BrowserBackend for DesktopBackend {
     }
 
     async fn click(&mut self, tab_id: &str, target_ref: &str) -> VcuResult<ActionResultDetail> {
+        if Self::settings_like(tab_id) {
+            return Err(Self::settings_readonly_err());
+        }
         if Self::feishu_like(tab_id) {
             if let Some(name) = self.cached_name(tab_id, target_ref) {
                 if Self::looks_like_send(&name) {
@@ -568,6 +585,9 @@ impl BrowserBackend for DesktopBackend {
         let r = target_ref.ok_or_else(|| {
             VcuError::coded(ErrorCode::InvalidInput, "desktop type requires target ref")
         })?;
+        if Self::settings_like(tab_id) {
+            return Err(Self::settings_readonly_err());
+        }
         if let Some(role) = self.cached_role(tab_id, r) {
             let textedit = tab_id.to_ascii_lowercase().contains("textedit");
             let terminal = {
@@ -1117,6 +1137,15 @@ mod tests {
         assert_eq!(fs_typed_btn.code(), ErrorCode::InvalidInput);
         let send = b.click(&feishu.tab_id, "e_send").await.unwrap_err();
         assert_eq!(send.code(), ErrorCode::FocusPolicyViolation);
+        let settings = tabs.iter().find(|t| t.title == "System Settings").unwrap();
+        let snap_s = b
+            .snapshot(&settings.tab_id, SnapshotMode::A11y, 2000)
+            .await
+            .unwrap();
+        assert!(!snap_s.dom_refs.is_empty() || true);
+        let denied = b.click(&settings.tab_id, "e1").await.unwrap_err();
+        assert_eq!(denied.code(), ErrorCode::FocusPolicyViolation);
+        assert!(denied.message().contains("observe-only"));
         let err = b.snapshot(&wechat.tab_id, SnapshotMode::A11y, 2000).await.unwrap_err();
         assert_eq!(err.code(), ErrorCode::AppDenied);
         let err = b

@@ -4,9 +4,9 @@
 
 ## 本轮
 
-- CU-D-042 **观察通过、未发送**：`proc:Feishu:11666` Scene `CGWindow` 标题「飞书」；无 AX 发送控件；Return `FocusPolicyViolation`。聊天气泡不在 AX（Electron webview）。
-- 单测：Feishu 快照后点 `e_send`（发送）→ FocusPolicyViolation。
+- CU-D-043 **真机通过**：System Settings Scene 观察；click `FocusPolicyViolation` observe-only；doctor 无 tccutil / 不打开偏好窗。未改 TCC。
+- 单测：AccessibilityDenied / crop hint 含「系统设置」；System Settings click 拒绝。
 
 ## 下一刀
 
-CU-D-043 系统设置：只读观察；辅助功能 repair 只给 hint，不自动改权限。
+CU-D-050 Stage 文案「VCU 正在使用这台 Mac」+ Abort。不使用 ChatGPT/Codex 文案。

@@ -446,6 +446,20 @@ mod tests {
     }
 
     #[test]
+    fn accessibility_repair_is_settings_hint_not_tcc_or_allow() {
+        let w = scene_webview_crop_check(false, false);
+        let hint = w.hint.unwrap();
+        assert!(hint.contains("系统设置"), "{hint}");
+        assert!(hint.contains("不要点") || hint.to_ascii_lowercase().contains("do not click"), "{hint}");
+        assert!(!hint.contains("tccutil"), "{hint}");
+        assert!(!hint.contains("x-apple.systempreferences"), "{hint}");
+        let ax = vcu_core::ErrorCode::AccessibilityDenied.default_hint();
+        assert!(ax.contains("系统设置"), "{ax}");
+        assert!(ax.contains("Do not click Edge Allow debugging"), "{ax}");
+        assert!(!ax.contains("tccutil"));
+    }
+
+    #[test]
     fn scene_webview_crop_pass_when_ax_and_recording() {
         let c = scene_webview_crop_check(true, true);
         assert_eq!(c.name, "scene_webview_crop");

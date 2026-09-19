@@ -44,3 +44,5 @@ vcu type --session <sid> --tab proc:Terminal:<pid> --ref w1 --text 'echo-not-run
 换行或 `act type=key return` 无 `confirm_send` → FocusPolicyViolation。
 
 飞书客户端（CU-D-042）：只观察已打开的窗。消息在 Electron webview，AX 列不出气泡。禁止点发送 / 盲目 Return。
+
+系统设置（CU-D-043）：只观察。缺辅助功能时看 `vcu doctor` 的 hint（系统设置 → 隐私与安全），不要让 agent 去勾选。

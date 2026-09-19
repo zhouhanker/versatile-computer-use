@@ -112,6 +112,13 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-045 | 已运行的 Feishu 窗出现在 Scene | **通过** CGWindow「飞书」；`scripts/poc_desktop_feishu.py` |
 | TC-D-046 | 不自动发送 | **通过** 无 发送点击；Return 门禁；mock `e_send` 拒绝 |
 
+## 7.4 系统设置（CU-D-043）
+
+| ID | 标题 | 期望 |
+| --- | --- | --- |
+| TC-D-047 | 只读观察 System Settings | **通过** `scripts/poc_desktop_settings.py` |
+| TC-D-048 | 不自动改 TCC | **通过** click 拒绝；doctor 无 tccutil |
+
 ## 8. 未通过不得宣称完成
 
 - TC-B-040 通用 AX 网页像素真点（浏览器计划已延期）  

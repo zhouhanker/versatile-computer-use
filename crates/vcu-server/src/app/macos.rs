@@ -33,6 +33,8 @@ impl MacosAppBackend {
             "Feishu".into(),
             "Lark".into(),
             "飞书".into(),
+            "System Settings".into(),
+            "系统设置".into(),
         ];
         if let Some(extra) = extra {
             for e in extra {
@@ -342,6 +344,8 @@ fn ax_wants_enhanced(process: &str) -> bool {
         || p.contains("feishu")
         || p.contains("lark")
         || process.contains("飞书")
+        || p.contains("system settings")
+        || process.contains("系统设置")
 }
 
 fn ax_prefer_text_kids(process: &str) -> bool {
@@ -360,6 +364,8 @@ fn uses_cg_windows(process: &str) -> bool {
         || p.contains("feishu")
         || p.contains("lark")
         || process.contains("飞书")
+        || p.contains("system settings")
+        || process.contains("系统设置")
 }
 
 fn uses_menu_paste(process: &str) -> bool {
@@ -1679,6 +1685,8 @@ mod tests {
         assert!(b.allowed("Feishu"));
         assert!(b.allowed("Lark"));
         assert!(b.allowed("TextEdit"));
+        assert!(b.allowed("System Settings"));
+        assert!(b.allowed("系统设置"));
         assert!(b.ensure_operable("WeChat").is_err());
         assert_eq!(b.ensure_operable("WeChat").unwrap_err().code(), ErrorCode::AppDenied);
     }
@@ -1773,6 +1781,7 @@ mod tests {
         assert!(uses_cg_windows("Terminal"));
         assert!(uses_cg_windows("Feishu"));
         assert!(uses_cg_windows("Lark"));
+        assert!(uses_cg_windows("System Settings"));
         assert!(uses_menu_paste("Terminal"));
         assert!(!uses_menu_paste("TextEdit"));
         let paste = ax_terminal_paste_script("Terminal", "hello");
