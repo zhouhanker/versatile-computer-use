@@ -739,6 +739,9 @@ impl BrowserBackend for DesktopBackend {
                 self.type_text(tab_id, text, r).await
             }
             "scroll" => {
+                if Self::settings_like(tab_id) {
+                    return Err(Self::settings_readonly_err());
+                }
                 let dy = action
                     .args
                     .get("dy")

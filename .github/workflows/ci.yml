@@ -92,6 +92,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_170.ps1
+      - name: windows vcu desktop notepad scroll (CU-D-180)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_180.ps1
 
   package-macos:
     needs: test

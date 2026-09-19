@@ -667,6 +667,82 @@ pub fn set_value_from_uia_output(
 }
 
 /// PowerShell: open a directory in Explorer. No SendInput.
+pub fn uia_scroll_script(pid: i32, eref: &str, dy: i32) -> String {
+    let n = eref.trim_start_matches('e').parse::<i32>().unwrap_or(0);
+    let mut s = hwnd_resolve_ps().to_string();
+    s.push_str(&format!(
+        r#"
+Add-Type -AssemblyName UIAutomationClient | Out-Null
+$targetPid = {pid}
+$want = {n}
+$dy = {dy}
+$hwnd = Wait-VcuHwnd $targetPid
+if ($hwnd -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
+$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
+if ($null -eq $win) {{ 'not-found'; exit 0 }}
+function Scroll-VcuEl($el, $delta, $mainHwnd) {{
+  try {{
+    $sp = $el.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+    $vert = if ($delta -ge 0) {{ [System.Windows.Automation.ScrollAmount]::LargeIncrement }} else {{ [System.Windows.Automation.ScrollAmount]::LargeDecrement }}
+    $sp.Scroll([System.Windows.Automation.ScrollAmount]::NoAmount, $vert)
+    'ok:uia_scroll'
+    exit 0
+  }} catch {{}}
+  $nh = [int64]$el.Current.NativeWindowHandle
+  if ($nh -eq 0) {{ $nh = [int64]$mainHwnd }}
+  if ($nh -ne 0) {{
+    if (-not ("Vcu.VcuScroll180" -as [type])) {{
+      $sig = @'
+[DllImport("user32.dll")]
+public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+'@
+      Add-Type -MemberDefinition $sig -Name VcuScroll180 -Namespace Vcu | Out-Null
+    }}
+    $sb = if ($delta -ge 0) {{ 3 }} else {{ 2 }}
+    [void][Vcu.VcuScroll180]::SendMessage([IntPtr]$nh, 0x0115, [IntPtr]$sb, [IntPtr]::Zero)
+    'ok:wm_vscroll'
+    exit 0
+  }}
+}}
+if ($want -le 0) {{ Scroll-VcuEl $win $dy $hwnd }}
+$q = New-Object System.Collections.Queue
+$q.Enqueue($win)
+$i = 0
+while ($q.Count -gt 0) {{
+  $el = $q.Dequeue()
+  $i++
+  if ($i -eq $want) {{ Scroll-VcuEl $el $dy $hwnd }}
+  $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($k in $kids) {{ $q.Enqueue($k) }}
+}}
+Scroll-VcuEl $win $dy $hwnd
+'not-found'
+"#,
+        pid = pid,
+        n = n,
+        dy = dy
+    ));
+    s
+}
+
+pub fn scroll_from_uia_output(name: &str, out: &str) -> VcuResult<serde_json::Value> {
+    let path = if out.contains("ok:uia_scroll") {
+        "uia_scroll"
+    } else if out.contains("ok:wm_vscroll") {
+        "wm_vscroll"
+    } else {
+        return Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia scroll failed", out));
+    };
+    Ok(serde_json::json!({
+        "ok": true,
+        "process": name,
+        "result": out,
+        "input_path": path,
+        "os_cursor_used": false,
+        "hid_injected": false
+    }))
+}
+
 pub fn explorer_open_script(path: &str) -> String {
     let p = path.replace('\'', "''");
     format!(
@@ -964,6 +1040,48 @@ Get-Process | Where-Object {
         }
     }
 
+    async fn scroll(
+        &mut self,
+        id: &str,
+        element_ref: Option<&str>,
+        dy: i32,
+    ) -> VcuResult<serde_json::Value> {
+        let name = id
+            .strip_prefix("win:")
+            .and_then(|rest| rest.split(':').next())
+            .map(|s| s.replace('_', " "))
+            .unwrap_or_else(|| id.to_string());
+        if is_denied_app(&name) {
+            return Err(VcuError::coded(
+                ErrorCode::AppDenied,
+                format!("app '{name}' is denied by VCU policy"),
+            ));
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (element_ref, dy);
+            Err(VcuError::coded(
+                ErrorCode::NotImplemented,
+                "Windows scroll only runs on Windows hosts",
+            ))
+        }
+        #[cfg(windows)]
+        {
+            if !self.allowed(&name) {
+                return Err(VcuError::coded(
+                    ErrorCode::FocusPolicyViolation,
+                    format!("process '{name}' not in app allowlist"),
+                ));
+            }
+            let pid = pid_from_win_id(id).ok_or_else(|| {
+                VcuError::coded(ErrorCode::InvalidInput, "Windows scroll requires win:name:pid")
+            })?;
+            let eref = element_ref.unwrap_or("");
+            let out = Self::run_powershell(&uia_scroll_script(pid, eref, dy))?;
+            scroll_from_uia_output(&name, &out)
+        }
+    }
+
     async fn capture_window(&self, id: &str) -> VcuResult<Option<super::AppCapture>> {
         #[cfg(not(windows))]
         {
@@ -1058,6 +1176,11 @@ mod tests {
         let err = b.set_value("win:notepad:1", "e1", "hi").await.unwrap_err();
         #[cfg(not(windows))]
         assert_eq!(err.code(), ErrorCode::NotImplemented);
+        let err = b.scroll("win:notepad:1", None, 600).await.unwrap_err();
+        #[cfg(not(windows))]
+        assert_eq!(err.code(), ErrorCode::NotImplemented);
+        let denied = b.scroll("win:WeChat:2", None, 600).await.unwrap_err();
+        assert_eq!(denied.code(), ErrorCode::AppDenied);
         #[cfg(windows)]
         assert_eq!(err.code(), ErrorCode::ActionFailed);
         let nl = b
@@ -1160,6 +1283,18 @@ mod tests {
         assert!(!cmdv.contains("ok:wm_settext"));
         assert!(!cmdv.to_ascii_lowercase().contains("sendinput("));
         assert!(set_value_from_uia_output("notepad", "e2", "error:no-value-pattern").is_err());
+        let scr = uia_scroll_script(4242, "e1", 600);
+        assert!(scr.contains("ScrollPattern"));
+        assert!(scr.contains("0x0115"));
+        assert!(scr.contains("ok:uia_scroll"));
+        assert!(scr.contains("ok:wm_vscroll"));
+        assert!(!scr.to_ascii_lowercase().contains("sendinput("));
+        assert!(!scr.to_ascii_lowercase().contains("mouse_event"));
+        let ok_s = scroll_from_uia_output("notepad", "ok:uia_scroll").unwrap();
+        assert_eq!(ok_s["input_path"], "uia_scroll");
+        let ok_w = scroll_from_uia_output("notepad", "ok:wm_vscroll").unwrap();
+        assert_eq!(ok_w["input_path"], "wm_vscroll");
+        assert_eq!(ok_w["os_cursor_used"], false);
         let cap_script = uia_capture_script(4242);
         assert!(cap_script.contains("PrintWindow"));
         assert!(cap_script.contains("GetWindowRect"));
@@ -1237,6 +1372,12 @@ mod tests {
         let l160 = s160.to_ascii_lowercase();
         assert!(!l160.contains("sendinput("));
         assert!(!l160.contains("[system.windows.forms.sendkeys"));
+        let p180 = root.join("scripts/poc_cu_d_180.ps1");
+        let s180 = std::fs::read_to_string(&p180).unwrap_or_default();
+        assert!(s180.contains("SCROLL_OK"), "{}", p180.display());
+        let l180 = s180.to_ascii_lowercase();
+        assert!(!l180.contains("sendinput("));
+        assert!(!l180.contains("mouse_event"));
         let p170 = root.join("scripts/poc_cu_d_170.ps1");
         let s170 = std::fs::read_to_string(&p170).unwrap_or_default();
         assert!(s170.contains("CLICK_DENIED"), "{}", p170.display());

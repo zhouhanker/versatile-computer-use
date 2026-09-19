@@ -1,12 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-170 CI 绿。
+更新：2026-09-20。CU-D-180 Notepad 滚动脚本已加，待 CI。
 
 ## 本轮
 
-- run `35471043411`：`SNAP_OK ref=e1 count=1`；`CLICK_DENIED`；`TYPE_DENIED`；`CU-D-170 OK`。
-- tab `win:SystemSettings:1472`。无 SendInput；未改设置。
+- Windows scroll：UIA ScrollPattern，否则 WM_VSCROLL。无 mouse_event / SendInput。
+- Settings 仍 observe-only（含 scroll 门禁）。
 
 ## 下一刀
 
-不是完整 Windows 产品 CU。不要假绿双浏览器 / 跨源 iframe。
+看 CI `SCROLL_OK`。未绿不得宣称 180 完成。
