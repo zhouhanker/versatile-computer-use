@@ -1237,7 +1237,7 @@ async fn browser_login_state(
         }
     }
     report.next_action = crate::login_state::login_next_action(
-        report.user_browsers.is_empty(),
+        report.user_browsers.is_empty() && report.extension_profile != "user",
         report.lens_copied,
         report.extension_profile,
         false,
