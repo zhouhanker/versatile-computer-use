@@ -443,6 +443,14 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
     }
 
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value> {
+        let name = id
+            .strip_prefix("win:")
+            .and_then(|rest| rest.split(':').next())
+            .map(|s| s.replace('_', " "))
+            .unwrap_or_else(|| id.to_string());
+        if is_denied_app(&name) {
+            return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+        }
         #[cfg(not(windows))]
         {
             let _ = (id, element_ref);
@@ -450,14 +458,6 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
         }
         #[cfg(windows)]
         {
-            let name = id
-                .strip_prefix("win:")
-                .and_then(|rest| rest.split(':').next())
-                .map(|s| s.replace('_', " "))
-                .unwrap_or_else(|| id.to_string());
-            if is_denied_app(&name) {
-                return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
-            }
             if !self.allowed(&name) {
                 return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
             }
@@ -537,8 +537,17 @@ mod tests {
         let err = b.focus_window("win:x:1", false).await.unwrap_err();
         assert_eq!(err.code(), ErrorCode::FocusPolicyViolation);
         let err = b.invoke("win:x:1", "e1").await.unwrap_err();
-        assert_eq!(err.code(), ErrorCode::OsCursorDenied);
-        assert!(err.message().to_ascii_lowercase().contains("sendinput") || err.message().to_ascii_lowercase().contains("cursor"));
+        #[cfg(not(windows))]
+        {
+            assert_eq!(err.code(), ErrorCode::OsCursorDenied);
+            assert!(err.message().to_ascii_lowercase().contains("sendinput") || err.message().to_ascii_lowercase().contains("cursor"));
+        }
+        #[cfg(windows)]
+        {
+            assert_eq!(err.code(), ErrorCode::FocusPolicyViolation);
+        }
+        let denied = b.invoke("win:WeChat:2", "e1").await.unwrap_err();
+        assert_eq!(denied.code(), ErrorCode::AppDenied);
         let err = b.set_value("win:notepad:1", "e1", "hi").await.unwrap_err();
         assert_eq!(err.code(), ErrorCode::NotImplemented);
         let setv = uia_set_value_script(4242, "e2", "hello");
