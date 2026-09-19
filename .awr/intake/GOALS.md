@@ -4,7 +4,7 @@
 
 首期聚焦 **Chrome/Edge 浏览器**：独立 Agent 工作面、不抢系统光标、可附着已打开浏览器、显式借用用户标签、页面观察与抓取；通过 CLI/MCP/Skill 快速接入；支持 `vcu init model` 配置视觉模型，使无多模态主 Agent 仍可完成需要“看见”的步骤。后续再扩展 macOS/Windows 桌面 App。
 
-**当前版本（2026-09-19）：只做基于浏览器的操作；放弃飞书等桌面 App。主线已推送 `2c28009`。真机 DOM extract 已绿；飞书 App parked。**
+**当前版本（2026-09-19）：只做基于浏览器的操作；放弃飞书等桌面 App。Bridge 0.2.5 定版提交 `d8ee9ad`。真机 DOM extract 已绿；飞书 App parked。**
 
 Success criteria:
 
@@ -18,4 +18,4 @@ Provenance: 2026-09-17 用户强制初始化需求（RTK/AWR、可插拔 CU、�
 
 当前迭代目标（2026-09-19 用户明确）：对比 Codex Computer Use，统一虚拟指针视觉与浏览器网页选择，实现参考图中的原生可折叠命名标签组；分阶段修复、验证并记录文档。执行 PARITY-001…005，保持浏览器版边界。
 
-当前收尾（2026-09-19）：Bridge0.2.5多窗口/截图可靠性节点已通过102 Rust、35 Node、32项真实POC和正向pixel验证；所有迭代改动尚未提交/推送。用户要求先更新交接、PLAN和清单；下一阶段继续PARITY-004光标视觉终验与PARITY-005整体验收。用户已重置总额度，旧不足10%提示无效。
+当前收尾（2026-09-19）：Bridge 0.2.5 定版已提交 `d8ee9ad`（README 已更新）。节点门禁 102 Rust、35 Node、32 项真实 POC 和正向 pixel 验证。下一阶段继续 PARITY-004 光标视觉终验与 PARITY-005 Chrome/popup 验收。用户已重置总额度，旧不足10%提示无效。

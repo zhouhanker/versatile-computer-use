@@ -2,7 +2,7 @@
 
 更新时间：2026-09-19 12:45 CST。作者zhouhanker。
 
-**先读 [当前计划](PLAN.md)，再读本文。当前“多窗口与截图点击可靠性”节点已经收尾；按用户最新要求先完成交接和计划更新，不在本轮展开新功能。总体目标未宣布全部完成。**
+**先读 [当前计划](PLAN.md)，再读本文。当前“多窗口与截图点击可靠性”节点已经收尾；用户要求更新 README 并做 GitHub 定版。定版 SHA `d8ee9ad`。总体目标未宣布全部完成。**
 
 ## 1. 用户意图与约束
 
@@ -20,7 +20,7 @@
 
 | 项目 | 状态 |
 | --- | --- |
-| Git | main，HEAD `2c28009`；本轮全部改动未提交、未推送 |
+| Git | main，定版 `d8ee9ad`（`d8ee9adc0da12d2b23ef3aff436a0956e10ee6f2`）；已提交，待推送 origin/main |
 | Bridge | **0.2.5**，本机ping已验证 |
 | runtime package | **0.1.0**，包版本与扩展版本独立 |
 | 本机安装 | `~/.local/bin/vcu`、`vcu-daemon`、`vcu-mcp`、`vcu-stage`已更新为本轮验证的release构建 |
@@ -73,7 +73,7 @@
 
 注意：0.2.3/0.2.4的负向截图检查曾掩盖JSON字段顺序误报，**最终以0.2.5正向+反向证据为准**。popup新禁选逻辑在生产HTML/JS的浏览器预览验证；原生popup交互曾被用户接管，那次点击不算自动通过。用户自行将旧测试页分为1/3组，保留这些变化。
 
-报告是dirty工作树证据，`source_sha=null`并记录source tree摘要；未伪造提交SHA或发布证明。
+节点门禁在定版前提交工作树验证；定版提交 `d8ee9ad` 绑定为 source SHA。本地 `.local/browser-parity` 证据未进仓库。
 
 ## 6. 复现命令
 
@@ -100,7 +100,7 @@ rtk proxy python3 -m http.server 18474 --bind 127.0.0.1 --directory extension
 
 1. **PARITY-004**：同背景/同窗口尺度的Codex原生、DOM、Guide静止/点击/移动对照；补80%/100%/200%表观尺寸。保留短三角/柔光，别回到被否定的第一版。
 2. **PARITY-005**：最终跨浏览器和原生popup验收。Edge已实测；Chrome须实际验证，不能从Edge推定通过。
-3. **PARITY-005**：审阅大diff及既有编辑边界，按需要组织聚焦提交，然后将AWR证据绑定真实源码SHA；未获指令不要远端发布或发送消息。
+3. **PARITY-005**：定版已提交 `d8ee9ad`。未完成项是 Chrome 真机、原生 popup 补验，以及推送后的远端核对。未获指令不发消息、不打 GitHub Release。
 
 DOM事件仍`trusted=false`，iframe/canvas等需要原生手势的点目标明确拒绝；通用AX网页真点击不是本节点通过能力。几何扫描上限1000个viewport可见交互目标、5000候选，超限不假通过。
 
@@ -108,6 +108,6 @@ DOM事件仍`trusted=false`，iframe/canvas等需要原生手势的点目标明�
 
 已重索引GOALS/ledger；PARITY-007/008节点在源台账记为完成，PARITY-004/005保留未完成。历史FEISHU/MAC-NEXT即使出现在ready列表，也不能越过PLAN的浏览器范围执行。
 
-本轮AWR session：`01M2TTNAASJ0FM3RD37R30TNXJ`；checkpoint：`01M2VZKCZCZS83FZ9F8C25QERZ`。节点摘要、验证数量、next_action已保存；会话已结束，claim已释放（AWR r118）。下一轮新建/恢复会话，先编译PARITY-004上下文。AWR的正式源码SHA完成证明仍待后续提交绑定。
+本轮AWR session：`01M2TTNAASJ0FM3RD37R30TNXJ`；checkpoint：`01M2VZKCZCZS83FZ9F8C25QERZ`。节点摘要、验证数量、next_action已保存；会话已结束，claim已释放（AWR r118）。下一轮新建/恢复会话，先编译PARITY-004上下文。定版源码 SHA 为 `d8ee9ad`；AWR 证据按该提交绑定。推送后以 origin/main 为准。
 
 本次只是按用户要求完成节点交接，没有将原始总体goal标成complete或paused。
