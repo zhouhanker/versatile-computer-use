@@ -1,12 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-160 Calculator 点击已加脚本，待 CI。
+更新：2026-09-20。CU-D-160 CI 绿。
 
 ## 本轮
 
-- allowlist 增加 calc/calculator。
-- POC：`scripts/poc_cu_d_160.ps1` 点数字按钮，无 SendInput。
+- run `35470610934`：`SNAP_OK ref=e14`；`INVOKE_OK path=bm_click os_cursor_used=False`；`CU-D-160 OK`。
+- 进程 `win32calc`；数字 1 = LegacyIAccessible 131。无 SendInput。
 
 ## 下一刀
 
-看 CI `INVOKE_OK`。未绿不得宣称 160 完成。不要写成产品 Windows CU。
+不是完整 Windows 产品 CU。不要假绿双浏览器 / 跨源 iframe。可再加 allowlist App，或停在诚实边界。

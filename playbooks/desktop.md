@@ -64,3 +64,5 @@ vcu type --session <sid> --tab win:cmd:<pid> --ref e1 --text echo-not-run --json
 ```
 
 换行或 Return 无 `confirm_send` → FocusPolicyViolation。不要把这段写成已执行命令，也不要写成完整 Windows 产品 CU。
+
+Calculator（CU-D-160，CI）：Server 上是 `win32calc`，数字键是 Pane + LegacyIAccessible 130–139（131=1），点击走 `bm_click`。不是 UWP `num1Button`。无 SendInput。
