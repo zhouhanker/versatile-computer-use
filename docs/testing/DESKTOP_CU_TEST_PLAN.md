@@ -151,6 +151,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-230 | PowerShell type without Return | **通过** run `35473547564` `TYPE_OK path=clipboard_paste`；`NEWLINE_DENIED`；无 SendInput |
 | TC-D-240 | Windows abort tears down HUD | **通过** run `35473997888` `ABORT_OK hud=false` / `HUD_GONE`；`SessionNotFound`；无 SendInput |
 | TC-D-250 | Windows Guide hover overlay | **通过** run `35474340766` `HOVER_OK path=guide_hover` / `GUIDE_FILE_OK`；无 SendInput |
+| TC-D-260 | hover then click still bm_click | **未过** `HOVER_OK` then `INVOKE_OK path=bm_click`；无 SendInput |
 
 ## 8. 未通过不得宣称完成
 

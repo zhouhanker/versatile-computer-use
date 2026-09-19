@@ -171,6 +171,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-230 | PowerShell 无换行输入 | **完成（CI 真机）** run `35473547564` @ `5f9ead0`：`TYPE_OK path=clipboard_paste os_cursor_used=False`；`NEWLINE_DENIED`；tab `win:powershell:6700`。无 SendInput；未执行命令。 |
 | CU-D-240 | Windows Abort 拆 HUD | **完成（CI 真机）** run `35473997888` @ `ae96695`：`HUD_UP count=1`；`ABORT_OK hud=false`；`LIST_EMPTY`；`ACT_DENIED`；`HUD_GONE`；`STAGE_OK2`；`CU-D-240 OK`。无 SendInput。 |
 | CU-D-250 | Windows Guide hover | **完成（CI 真机）** run `35474340766` @ `cf4a803`：`HOVER_OK path=guide_hover overlay=True os_cursor_used=False`；`GUIDE_FILE_OK x=462 y=347.5`；`CU-D-250 OK`。无 SendInput。 |
+| CU-D-260 | hover 后 click 仍 bm_click | **进行中** Guide hover 后 `vcu click` 仍 `bm_click`；按钮副作用发生；`os_cursor_used=false`。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -205,6 +206,7 @@ CU-D-000 文档
     → CU-D-230 vcu Windows powershell type
     → CU-D-240 vcu Windows session abort HUD
     → CU-D-250 vcu Windows guide hover
+    → CU-D-260 vcu Windows hover then bm_click
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。
