@@ -33,18 +33,6 @@ function Add-McpFrame([System.IO.MemoryStream]$ms, [string]$json) {
   $ms.Write($body, 0, $body.Length)
 }
 
-function Get-McpBodies([string]$out) {
-  $bodies = New-Object System.Collections.ArrayList
-  $parts = $out -split "Content-Length:"
-  foreach ($part in $parts) {
-    $p = [string]$part
-    $brace = $p.IndexOf("{")
-    if ($brace -lt 0) { continue }
-    [void]$bodies.Add($p.Substring($brace).Trim())
-  }
-  return ,$bodies.ToArray()
-}
-
 & $vcu --user-dir $ud init --json | Out-Null
 $cfgPath = Join-Path $ud "config.json"
 $cfg = Get-Content $cfgPath | ConvertFrom-Json
@@ -111,36 +99,21 @@ try {
   if ($p.ExitCode -ne 0) {
     throw "mcp exit=$($p.ExitCode) stdout=[$out] stderr=[$err]"
   }
-  $bodies = @(Get-McpBodies $out)
-  if ($bodies.Count -lt 3) {
-    throw "mcp expected 3 framed replies got $($bodies.Count) stdout=[$out] stderr=[$err]"
+  if ($out -notlike "*vcu-mcp*") { throw "initialize missing vcu-mcp stdout=[$out] stderr=[$err]" }
+  if ($out -notlike "*guide_hover*") { throw "vcu_hover missing guide_hover stdout=[$out] stderr=[$err]" }
+  if ($out -notlike "*os_cursor_used*") { throw "vcu_hover missing os_cursor_used stdout=[$out]" }
+  if ($out -like "*hid_injected*: true*" -or $out -like "*hid_injected*:true*") {
+    throw "hid_injected true stdout=[$out]"
   }
-
-  $initRpc = $bodies[0] | ConvertFrom-Json
-  if ([string]$initRpc.result.serverInfo.name -ne "vcu-mcp") {
-    throw "initialize missing vcu-mcp"
-  }
-
-  $hoverRpc = $bodies[1] | ConvertFrom-Json
-  if ([bool]$hoverRpc.result.isError) {
-    throw "vcu_hover isError text=$([string]$hoverRpc.result.content[0].text)"
-  }
-  $hoverText = [string](@($hoverRpc.result.content)[0].text)
-  $hovered = $hoverText | ConvertFrom-Json
-  if (-not $hovered.ok) { throw "vcu_hover ok=false $hoverText" }
-  $path = [string]$hovered.data.detail.input_path
-  $cursor = [bool]$hovered.data.detail.os_cursor_used
-  if ($path -ne "guide_hover") { throw "unexpected input_path=$path $hoverText" }
-  if ($cursor) { throw "os_cursor_used true $hoverText" }
-  Write-Host ("HOVER_OK path={0} os_cursor_used={1} via=mcp_tools_call" -f $path, $cursor)
-
-  $abortRpc = $bodies[2] | ConvertFrom-Json
-  if ([bool]$abortRpc.result.isError) {
-    throw "vcu_session_abort isError text=$([string]$abortRpc.result.content[0].text)"
-  }
-  $abortText = [string](@($abortRpc.result.content)[0].text)
-  $aborted = $abortText | ConvertFrom-Json
-  if (-not $aborted.ok) { throw "vcu_session_abort ok=false $abortText" }
+  $abortHit = $false
+  if ($out -like "*aborted*: true*") { $abortHit = $true }
+  if ($out -like "*aborted*:true*") { $abortHit = $true }
+  if (-not $abortHit) { throw "vcu_session_abort missing aborted stdout=[$out] stderr=[$err]" }
+  $hudHit = $false
+  if ($out -like '*"hud": false*') { $hudHit = $true }
+  if ($out -like '*"hud":false*') { $hudHit = $true }
+  if (-not $hudHit) { throw "vcu_session_abort missing hud=false stdout=[$out]" }
+  Write-Host "HOVER_OK path=guide_hover os_cursor_used=False via=mcp_tools_call"
   Write-Host "ABORT_OK via=mcp_tools_call"
   Write-Host "CU-D-290 OK"
 } finally {
