@@ -73,18 +73,13 @@ try {
     foreach ($r in @($snap.data.dom_refs)) {
       $nm = [string]$r.name
       $role = [string]$r.role
-      if ($nm -eq "One" -or $nm -eq "1" -or $nm -eq "num1Button") {
+      if ($nm -eq "One" -or $nm -eq "1" -or $nm -eq "num1Button" -or $nm -like "*num1Button*") {
         $ref = [string]$r.ref
         break
       }
-      if (-not $ref -and $role -like "*Button*" -and ($nm -eq "One" -or $nm -eq "1")) {
+      if (-not $ref -and $role -like "*Button*" -and $nm -ne "" -and $nm -ne "Calculator") {
         $ref = [string]$r.ref
         break
-      }
-    }
-    if (-not $ref) {
-      foreach ($r in @($snap.data.dom_refs)) {
-        if ([string]$r.role -like "*Button*") { $ref = [string]$r.ref; break }
       }
     }
     if ($ref) { break }

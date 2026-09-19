@@ -232,6 +232,13 @@ while ($q.Count -gt 0 -and $n -lt $max) {{
   $n++
   $ct = $el.Current.ControlType.ProgrammaticName
   $nm = ($el.Current.Name -replace '[\r\n\|]', ' ')
+  if ([string]::IsNullOrWhiteSpace($nm)) {{ $nm = ($el.Current.AutomationId -replace '[\r\n\|]', ' ') }}
+  if ([string]::IsNullOrWhiteSpace($nm)) {{
+    try {{
+      $leg = $el.GetCurrentPattern([System.Windows.Automation.LegacyIAccessiblePattern]::Pattern)
+      $nm = ($leg.Current.Name -replace '[\r\n\|]', ' ')
+    }} catch {{}}
+  }}
   $cls = ($el.Current.ClassName -replace '[\r\n\|]', ' ')
   $r = $el.Current.BoundingRectangle
   '{{0}}|{{1}}|{{2}}|{{3}},{{4}},{{5}},{{6}}|{{7}}' -f ("e$n"), $ct, $nm, [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height, $cls
@@ -1101,6 +1108,8 @@ mod tests {
         assert!(tree.contains("ClassName"));
         assert!(tree.contains("AttachConsole"));
         assert!(tree.contains("VcuHwndResolve"));
+        assert!(tree.contains("AutomationId"));
+        assert!(tree.contains("LegacyIAccessiblePattern"));
         assert!(!tree.to_ascii_lowercase().contains("sendinput"));
         let inv = uia_invoke_script(4242, "e2");
         assert!(inv.contains("InvokePattern"));
