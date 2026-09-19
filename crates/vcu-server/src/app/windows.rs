@@ -1436,6 +1436,16 @@ mod tests {
         let l240 = s240.to_ascii_lowercase();
         assert!(!l240.contains("sendinput("));
         assert!(!l240.contains("[system.windows.forms.sendkeys"));
+        let p250 = root.join("scripts/poc_cu_d_250.ps1");
+        let s250 = std::fs::read_to_string(&p250).unwrap_or_default();
+        assert!(s250.contains("HOVER_OK"), "{}", p250.display());
+        assert!(s250.contains("GUIDE_FILE_OK"));
+        assert!(s250.contains("guide_hover"));
+        assert!(s250.contains("CU-D-250 OK"));
+        let l250 = s250.to_ascii_lowercase();
+        assert!(!l250.contains("sendinput("));
+        assert!(!l250.contains("[system.windows.forms.sendkeys"));
+        assert!(!l250.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());

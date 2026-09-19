@@ -24,6 +24,8 @@ Abort：`vcu session abort <sid>`（与 Stage 上 Escape 同一路径）。不�
 
 Windows abort（CU-D-240，CI）：`data.aborted=true` `data.hud=false`；之后 snapshot 为 `SessionNotFound`；WinForms `vcu-stage-*.ps1` 被 teardown。无 SendInput。
 
+Windows hover（CU-D-250，CI）：`vcu act` type=hover → `input_path=guide_hover` `os_cursor_used=false`；Guide overlay 不搬物理鼠标。无 SendInput。
+
 真机脚本：`scripts/poc_desktop_textedit.sh`（CU-D-023，文档必须出现标记才算过）。
 
 Finder（CU-D-040）：AX 不暴露文件夹图标。列窗用 Scene `CGWindow`；选中/打开用 Launch Services：
