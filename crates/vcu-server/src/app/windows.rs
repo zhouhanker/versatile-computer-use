@@ -1,9 +1,7 @@
 //! Windows app adapter (PowerShell list on Windows hosts).
 use async_trait::async_trait;
 use vcu_core::{ErrorCode, VcuError, VcuResult};
-use super::{is_denied_app, AppBackend, AppSnapshot, AppTarget};
-#[cfg(windows)]
-use super::AppElement;
+use super::{is_denied_app, AppBackend, AppCapture, AppElement, AppSnapshot, AppTarget};
 
 pub struct WindowsAppBackend {
     pub allowlist: Vec<String>,
@@ -84,6 +82,122 @@ pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Ve
     out
 }
 
+
+/// PowerShell: UIA tree walk. No SendInput / mouse_event.
+fn pid_from_win_id(id: &str) -> Option<i32> {
+    id.rsplit(':').next()?.parse().ok()
+}
+
+pub fn uia_tree_script(pid: i32, max_nodes: i32) -> String {
+    format!(
+        r#"
+Add-Type -AssemblyName UIAutomationClient | Out-Null
+$pid = {pid}
+$max = {max}
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $pid)
+$win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+if ($null -eq $win) {{ 'MISSING'; exit 0 }}
+$q = New-Object System.Collections.Queue
+$q.Enqueue($win)
+$n = 0
+while ($q.Count -gt 0 -and $n -lt $max) {{
+  $el = $q.Dequeue()
+  $n++
+  $ct = $el.Current.ControlType.ProgrammaticName
+  $nm = ($el.Current.Name -replace '[\r\n\|]', ' ')
+  $r = $el.Current.BoundingRectangle
+  '{{0}}|{{1}}|{{2}}|{{3}},{{4}},{{5}},{{6}}' -f ("e$n"), $ct, $nm, [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height
+  if ($n -ge $max) {{ break }}
+  $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($k in $kids) {{ $q.Enqueue($k) }}
+}}
+"#,
+        pid = pid,
+        max = max_nodes
+    )
+}
+
+/// PowerShell: InvokePattern on the Nth UIA node (eN). No SendInput.
+pub fn uia_invoke_script(pid: i32, eref: &str) -> String {
+    let n = eref.trim_start_matches('e').parse::<i32>().unwrap_or(0);
+    format!(
+        r#"
+Add-Type -AssemblyName UIAutomationClient | Out-Null
+$pid = {pid}
+$want = {n}
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $pid)
+$win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+if ($null -eq $win) {{ 'not-found'; exit 0 }}
+$q = New-Object System.Collections.Queue
+$q.Enqueue($win)
+$i = 0
+while ($q.Count -gt 0) {{
+  $el = $q.Dequeue()
+  $i++
+  if ($i -eq $want) {{
+    $pat = [System.Windows.Automation.InvokePattern]::Pattern
+    try {{
+      $inv = $el.GetCurrentPattern($pat)
+      $inv.Invoke()
+      'ok:uia_invoke'
+    }} catch {{
+      'error:no-invoke-pattern'
+    }}
+    exit 0
+  }}
+  $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($k in $kids) {{ $q.Enqueue($k) }}
+}}
+'not-found'
+"#,
+        pid = pid,
+        n = n
+    )
+}
+
+pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
+    let mut out = Vec::new();
+    for line in raw.lines() {
+        let line = line.trim();
+        if line.is_empty() || line == "MISSING" {
+            continue;
+        }
+        let mut sp = line.splitn(4, '|');
+        let eref = sp.next().unwrap_or("").trim();
+        let role = sp.next().unwrap_or("").trim();
+        let name = sp.next().unwrap_or("").trim();
+        let fr = sp.next().unwrap_or("").trim();
+        if eref.is_empty() {
+            continue;
+        }
+        let frame = {
+            let p: Vec<&str> = fr.split(',').collect();
+            if p.len() == 4 {
+                let nums: Option<Vec<f64>> = p.iter().map(|x| x.trim().parse().ok()).collect();
+                nums.and_then(|n| {
+                    if n.iter().all(|v| *v == 0.0) {
+                        None
+                    } else {
+                        Some([n[0], n[1], n[2], n[3]])
+                    }
+                })
+            } else {
+                None
+            }
+        };
+        out.push(AppElement {
+            r#ref: eref.to_string(),
+            role: role.to_string(),
+            name: name.to_string(),
+            value: None,
+            frame,
+        });
+    }
+    out
+}
+
 impl Default for WindowsAppBackend {
     fn default() -> Self { Self::new() }
 }
@@ -127,22 +241,18 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
             if !self.allowed(&name) {
                 return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
             }
-            let script = format!(
-                "$p = Get-Process -Name '{name}' -ErrorAction SilentlyContinue | Where-Object {{ $_.MainWindowTitle -ne '' }} | Select-Object -First 1; if ($null -eq $p) {{ 'MISSING' }} else {{ $p.MainWindowTitle }}",
-                name = name.replace('\'', "")
-            );
-            let title = Self::run_powershell(&script).unwrap_or_default();
-            let mut elements = vec![AppElement {
-                r#ref: "e1".into(),
-                role: "window".into(),
-                name: if title.is_empty() || title == "MISSING" { name.clone() } else { title },
-                value: None,
-                frame: None,
-            }];
+            let pid = pid_from_win_id(id).unwrap_or(0);
+            let raw = Self::run_powershell(&uia_tree_script(pid, 80)).unwrap_or_default();
+            let mut elements = parse_uia_element_lines(&raw);
             if budget > 0 && budget < 10 { elements.clear(); }
+            let title = elements
+                .first()
+                .map(|e| e.name.clone())
+                .filter(|n| !n.is_empty())
+                .unwrap_or_else(|| name.clone());
             Ok(AppSnapshot {
-                target: AppTarget { id: id.to_string(), title: elements.first().map(|e| e.name.clone()).unwrap_or_else(|| name.clone()), bundle_or_exe: name.clone(), pid: None, allowed: true, browser_profile: None },
-                summary: format!("process=\"{name}\" elements={} note=uia_tree_mvp_title_only", elements.len()),
+                target: AppTarget { id: id.to_string(), title: title.clone(), bundle_or_exe: name.clone(), pid: pid_from_win_id(id), allowed: true, browser_profile: None },
+                summary: format!("process=\"{name}\" elements={} note=uia_tree", elements.len()),
                 elements,
                 truncated: true,
                 window_frame: None,
@@ -157,8 +267,42 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
     }
 
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value> {
-        let _ = (id, element_ref);
-        Err(VcuError::coded(ErrorCode::OsCursorDenied, "Windows app invoke is denied by default safety policy (no SendInput / no cursor)"))
+        #[cfg(not(windows))]
+        {
+            let _ = (id, element_ref);
+            Err(VcuError::coded(ErrorCode::OsCursorDenied, "Windows app invoke is denied by default safety policy (no SendInput / no cursor)"))
+        }
+        #[cfg(windows)]
+        {
+            let name = id
+                .strip_prefix("win:")
+                .and_then(|rest| rest.split(':').next())
+                .map(|s| s.replace('_', " "))
+                .unwrap_or_else(|| id.to_string());
+            if is_denied_app(&name) {
+                return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+            }
+            if !self.allowed(&name) {
+                return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
+            }
+            let pid = pid_from_win_id(id).ok_or_else(|| {
+                VcuError::coded(ErrorCode::InvalidInput, "Windows invoke requires win:name:pid")
+            })?;
+            let out = Self::run_powershell(&uia_invoke_script(pid, element_ref))?;
+            if out.contains("ok:uia_invoke") {
+                Ok(serde_json::json!({
+                    "ok": true,
+                    "process": name,
+                    "ref": element_ref,
+                    "result": out,
+                    "input_path": "uia_invoke",
+                    "os_cursor_used": false,
+                    "hid_injected": false
+                }))
+            } else {
+                Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia invoke failed", out))
+            }
+        }
     }
 
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
@@ -201,6 +345,27 @@ mod tests {
         assert!(names.contains(&"msedge"));
         assert!(!names.iter().any(|n| n.to_lowercase().contains("wechat")));
         assert!(wins.iter().any(|w| w.id.starts_with("win:notepad:")));
+    }
+
+    #[test]
+    fn parse_uia_tree_and_scripts_are_pattern_not_hid() {
+        let els = parse_uia_element_lines(
+            "e1|ControlType.Window|Notepad|10,10,800,600\ne2|ControlType.Button|Save|20,40,80,24\nMISSING\n",
+        );
+        assert_eq!(els.len(), 2);
+        assert_eq!(els[0].r#ref, "e1");
+        assert_eq!(els[1].name, "Save");
+        assert_eq!(els[1].frame, Some([20.0, 40.0, 80.0, 24.0]));
+        let tree = uia_tree_script(4242, 80);
+        assert!(tree.contains("UIAutomationClient"));
+        assert!(tree.contains("ProcessIdProperty"));
+        assert!(!tree.to_ascii_lowercase().contains("sendinput"));
+        let inv = uia_invoke_script(4242, "e2");
+        assert!(inv.contains("InvokePattern"));
+        assert!(inv.contains("ok:uia_invoke"));
+        assert!(!inv.to_ascii_lowercase().contains("sendinput"));
+        assert!(!inv.to_ascii_lowercase().contains("mouse_event"));
+        assert_eq!(pid_from_win_id("win:notepad:4242"), Some(4242));
     }
 
     #[cfg(not(windows))]

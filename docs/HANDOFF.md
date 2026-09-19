@@ -1,12 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。macOS 桌面第一版门禁已齐。Windows 真机未跑。
+更新：2026-09-20。macOS 第一版门禁已齐。Windows 真机仍未跑。
 
 ## 本轮
 
-- CU-D-060 **契约+单测**：`parse_process_list_lines` 保留 notepad/explorer/msedge、丢掉微信；Invoke `OsCursorDenied`（无 SendInput）；非 Windows 上 list/snapshot `NotImplemented`。
-- **不得宣称** 已有 Windows 桌面 CU / 真机 UIA。
+- CU-D-060 补了 `uia_tree_script` / `uia_invoke_script` / `parse_uia_element_lines`。Invoke 在 Windows 上走 InvokePattern，非 HID。单测锁脚本不含 SendInput。
+- 截图仍未实现。真机 UIA 需要 Windows 主机。
 
 ## 下一刀
 
-Windows 真机 UIA（需要 Windows 主机）。或收口史诗文档。不要碰 Edge 组 1/3。
+Windows 主机：Notepad 列树 + InvokePattern。或接 PrintWindow 截图。不要在 macOS 上宣称 Windows CU 已可用。
