@@ -68,3 +68,5 @@ vcu type --session <sid> --tab win:cmd:<pid> --ref e1 --text echo-not-run --json
 Calculator（CU-D-160，CI）：Server 上是 `win32calc`，数字键是 Pane + LegacyIAccessible 130–139（131=1），点击走 `bm_click`。不是 UWP `num1Button`。无 SendInput。
 
 Windows Settings（CU-D-170，CI）：只观察。`click`/`type` → FocusPolicyViolation。不要改系统设置。
+
+Windows scroll（CU-D-180，CI）：Notepad `wm_vscroll`（非 ScrollPattern）。无 mouse_event / SendInput。

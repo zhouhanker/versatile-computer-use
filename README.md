@@ -16,7 +16,7 @@
 | --- | --- |
 | Browser Bridge | **0.2.8** |
 | Runtime package | **0.1.0** |
-| 范围 | 浏览器 Bridge **0.2.8 冻结**。macOS 桌面：可见 Stage HUD、Abort、TextEdit 输入、Finder Launch Services 打开自建文件夹、Terminal 粘贴输入（无 Return）、飞书/系统设置只读观察。Windows **CI 真机切片**（不是产品会话）：WinForms Stage、Notepad `wm_settext`、按钮 `bm_click`、PrintWindow 截图、Explorer open/reveal、cmd `clipboard_paste`（无换行）、Calculator `bm_click`（win32calc）、Settings 只读（click/type 拒绝）。**不是**完整 Codex CU（无微信、无 HID、飞书不自动发送、无官方动画）。 |
+| 范围 | 浏览器 Bridge **0.2.8 冻结**。macOS 桌面：可见 Stage HUD、Abort、TextEdit 输入、Finder Launch Services 打开自建文件夹、Terminal 粘贴输入（无 Return）、飞书/系统设置只读观察。Windows **CI 真机切片**（不是产品会话）：WinForms Stage、Notepad `wm_settext`、按钮 `bm_click`、PrintWindow 截图、Explorer open/reveal、cmd `clipboard_paste`（无换行）、Calculator `bm_click`（win32calc）、Settings 只读（click/type 拒绝）、Notepad `wm_vscroll`。**不是**完整 Codex CU（无微信、无 HID、飞书不自动发送、无官方动画）。 |
 
 VCU 是独立的登录态浏览器操作层，**不是** Codex 官方桌面 Computer Use，也不是通用 OS 键鼠。桌面路径见 [`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md)。
 

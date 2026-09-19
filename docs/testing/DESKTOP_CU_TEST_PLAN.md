@@ -143,7 +143,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-150 | Windows playbook names clipboard_paste | **通过** `playbooks/desktop.md` 含 `clipboard_paste` / `win:cmd:`；无 SendInput |
 | TC-D-160 | Calculator click without HID | **通过** run `35470610934` `INVOKE_OK path=bm_click`；win32calc e14；无 SendInput |
 | TC-D-170 | Windows Settings observe-only | **通过** run `35471043411` `CLICK_DENIED` / `TYPE_DENIED`；SystemSettings |
-| TC-D-180 | Notepad scroll without HID | **未过** `SCROLL_OK` uia_scroll 或 wm_vscroll；无 SendInput |
+| TC-D-180 | Notepad scroll without HID | **通过** run `35471497693` `SCROLL_OK path=wm_vscroll`；无 SendInput |
 
 ## 8. 未通过不得宣称完成
 
