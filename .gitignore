@@ -45,3 +45,6 @@ lark-im-send-auth.png
 # Python POC caches
 __pycache__/
 *.pyc
+
+# Local Codex CU reference copy — never upload
+/reference/
