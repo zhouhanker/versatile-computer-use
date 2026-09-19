@@ -37,10 +37,27 @@ impl WindowsAppBackend {
     #[cfg(windows)]
     fn run_powershell(script: &str) -> VcuResult<String> {
         use std::process::Command;
+        let path = std::env::temp_dir().join(format!("vcu-ps-{}.ps1", ulid::Ulid::new()));
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(script.as_bytes());
+        std::fs::write(&path, &bytes).map_err(|e| {
+            VcuError::with_detail(ErrorCode::Internal, "write powershell script", e.to_string())
+        })?;
         let output = Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", script])
-            .output()
-            .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "powershell spawn failed", e.to_string()))?;
+            .args([
+                "-NoProfile",
+                "-STA",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                path.to_string_lossy().as_ref(),
+            ])
+            .output();
+        let _ = std::fs::remove_file(&path);
+        let output = output.map_err(|e| {
+            VcuError::with_detail(ErrorCode::Internal, "powershell spawn failed", e.to_string())
+        })?;
         if !output.status.success() {
             let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
             return Err(VcuError::with_detail(ErrorCode::ActionFailed, "powershell failed", err));
@@ -462,9 +479,11 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
             if !self.allowed(&name) {
                 return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
             }
-            let pid = pid_from_win_id(id).unwrap_or(0);
-            let raw = Self::run_powershell(&uia_tree_script(pid, 80)).unwrap_or_default();
-            Ok(snapshot_from_uia(id, &name, pid_from_win_id(id), &raw, budget))
+            let pid = pid_from_win_id(id).ok_or_else(|| {
+                VcuError::coded(ErrorCode::InvalidInput, "Windows snapshot requires win:name:pid")
+            })?;
+            let raw = Self::run_powershell(&uia_tree_script(pid, 80))?;
+            Ok(snapshot_from_uia(id, &name, Some(pid), &raw, budget))
         }
     }
 
