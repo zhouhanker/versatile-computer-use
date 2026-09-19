@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PARITY-004 same-background cursor compare</title>
+  <style>
+    html, body {
+      margin: 0;
+      background: #f7f7f9;
+      color: #222;
+      font: 18px/1.45 system-ui, -apple-system, sans-serif;
+    }
+    body { padding: 60px; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    p { margin: 0 0 22px; color: #444; max-width: 720px; }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 28px; align-items: center; }
+    button, input {
+      font: inherit;
+      margin: 0;
+      padding: 18px;
+      border: 1px solid #aaa;
+      border-radius: 12px;
+      background: #fff;
+    }
+    #status {
+      white-space: pre-wrap;
+      background: #fff;
+      border: 1px solid #ddd;
+      padding: 16px;
+      max-width: 920px;
+    }
+  </style>
+</head>
+<body>
+  <h1>PARITY-004 same-background cursor compare</h1>
+  <p>Light page matches the Codex native reference. Cursor is the production content.js renderer.</p>
+  <div class="row">
+    <button id="target" type="button">Click reference target</button>
+    <input id="type-target" placeholder="Type reference text">
+  </div>
+  <div class="row">
+    <button id="idle" type="button">Hold idle</button>
+    <button id="click" type="button">Hold click pulse</button>
+    <button id="move" type="button">Hold move</button>
+    <button id="zoom-80" data-zoom="0.8" class="zoom">80%</button>
+    <button id="zoom-100" data-zoom="1" class="zoom">100%</button>
+    <button id="zoom-200" data-zoom="2" class="zoom">200%</button>
+  </div>
+  <pre id="status">Loading…</pre>
+  <script>
+    (async () => {
+      const status = document.querySelector("#status");
+      const listeners = [];
+      window.chrome = { runtime: { onMessage: { addListener: (fn) => listeners.push(fn) } } };
+      const source = await (await fetch("../../content.js", { cache: "no-store" })).text();
+      (0, eval)(source);
+      const bridge = listeners[0];
+      function send(type, extra = {}) {
+        return new Promise((resolve) => bridge({ type, ...extra }, null, resolve));
+      }
+      let mode = "idle";
+      let zoom = 1;
+      async function tick() {
+        bridge({ type: "cursor_zoom", cursor_zoom: zoom }, null, () => {});
+        document.documentElement.style.zoom = String(zoom);
+        if (mode === "click") {
+          const result = await send("vcu_click", { selector: "#target" });
+          status.textContent = JSON.stringify({ mode, zoom, result }, null, 2);
+          return;
+        }
+        const selector = mode === "move" ? "#move" : "#target";
+        const result = await send("vcu_hover", { selector });
+        status.textContent = JSON.stringify({ mode, zoom, result }, null, 2);
+      }
+      setInterval(() => { tick().catch((e) => { status.textContent = String(e); }); }, 220);
+      document.querySelector("#idle").onclick = () => { mode = "idle"; };
+      document.querySelector("#click").onclick = () => { mode = "click"; };
+      document.querySelector("#move").onclick = () => { mode = "move"; };
+      for (const button of document.querySelectorAll(".zoom")) {
+        button.onclick = () => { zoom = Number(button.dataset.zoom); };
+      }
+      await tick();
+    })().catch((error) => {
+      document.querySelector("#status").textContent = "Fixture failed: " + error;
+    });
+  </script>
+</body>
+</html>

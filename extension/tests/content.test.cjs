@@ -287,7 +287,7 @@ test("repeated content-script execution is versioned and listener-idempotent", (
   assert.equal(context.__vcuContent.document_id, firstDocumentId, "same document keeps its identity");
   let response;
   listeners[0]({ type: "vcu_ping_page" }, null, (value) => { response = value; });
-  assert.equal(response.version, "0.2.5");
+  assert.equal(response.version, "0.2.6");
 
   const legacyListeners = [];
   const legacyContext = {
@@ -639,7 +639,7 @@ test("hover uses the same isolated, pointer-transparent arrow and halo", () => {
   const host = document.getElementById(constants.VCU_CURSOR_ID);
   assert.ok(host);
   assert.match(host.style.cssText, /pointer-events:none/);
-  assert.match(host.shadowRoot.html, /fill: #555c65/);
+  assert.match(host.shadowRoot.html, /fill: #5a6068/);
   assert.match(host.shadowRoot.html, /vcu-halo/);
 });
 

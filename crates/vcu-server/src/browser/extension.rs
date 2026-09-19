@@ -43,6 +43,7 @@ struct PendingCmd {
     method: String,
     params: serde_json::Value,
     leased_until: Option<u64>,
+    retries: u8,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -136,7 +137,17 @@ impl ExtensionBridge {
     }
 
     pub async fn submit_result(&self, id: &str, result: serde_json::Value) {
+        let retryable = result.get("retryable").and_then(|x| x.as_bool()) == Some(true);
         let mut g = self.inner.lock().await;
+        if retryable {
+            if let Some(cmd) = g.pending.iter_mut().find(|c| c.id == id) {
+                if cmd.retries < 8 {
+                    cmd.retries = cmd.retries.saturating_add(1);
+                    cmd.leased_until = None;
+                    return;
+                }
+            }
+        }
         g.pending.retain(|c| c.id != id);
         if let Some(tx) = g.waiters.remove(id) {
             let _ = tx.send(result);
@@ -164,6 +175,7 @@ impl ExtensionBridge {
                 method: method.to_string(),
                 params,
                 leased_until: None,
+                retries: 0,
             });
         }
         match tokio::time::timeout(Duration::from_secs(timeout_secs.max(1)), rx).await {

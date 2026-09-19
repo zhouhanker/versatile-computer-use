@@ -117,3 +117,28 @@ async fn malformed_extension_reply_is_not_success() {
     bridge.submit_result(&cmd.id, json!({"pressed":true})).await;
     assert!(task.await.unwrap().is_err());
 }
+
+#[tokio::test]
+async fn retryable_wrong_browser_is_handed_to_next_poller() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge.mark_hello(true).await;
+    let b2 = bridge.clone();
+    let worker = tokio::spawn(async move {
+        let first = b2.poll(1000).await.expect("edge poller");
+        b2.submit_result(
+            &first.id,
+            json!({"ok": false, "error": "wrong_extension_browser", "retryable": true}),
+        )
+        .await;
+        let second = b2.poll(1000).await.expect("chrome poller");
+        assert_eq!(second.id, first.id);
+        b2.submit_result(&second.id, json!({"ok": true, "source": "extension_dom"}))
+            .await;
+    });
+    let result = bridge
+        .call_timeout("extract", json!({"tab_id": "chrome-tab", "selector": "#result"}), 3)
+        .await
+        .unwrap();
+    assert_eq!(result["ok"], true);
+    worker.await.unwrap();
+}

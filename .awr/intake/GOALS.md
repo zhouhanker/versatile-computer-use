@@ -18,4 +18,4 @@ Provenance: 2026-09-17 用户强制初始化需求（RTK/AWR、可插拔 CU、�
 
 当前迭代目标（2026-09-19 用户明确）：对比 Codex Computer Use，统一虚拟指针视觉与浏览器网页选择，实现参考图中的原生可折叠命名标签组；分阶段修复、验证并记录文档。执行 PARITY-001…005，保持浏览器版边界。
 
-当前收尾（2026-09-19）：Bridge 0.2.5 定版已提交 `d8ee9ad`（README 已更新）。节点门禁 102 Rust、35 Node、32 项真实 POC 和正向 pixel 验证。下一阶段继续 PARITY-004 光标视觉终验与 PARITY-005 Chrome/popup 验收。用户已重置总额度，旧不足10%提示无效。
+当前收尾（2026-09-19）：Bridge 0.2.5 定版已提交 `d8ee9ad`（README 已更新）。节点门禁 102 Rust、35 Node、32 项真实 POC 和正向 pixel 验证。PARITY-004 与 PARITY-005（Chrome 真机 + 原生 popup）已做。保留 1/3 标签组。用户已重置总额度，旧不足10%提示无效。

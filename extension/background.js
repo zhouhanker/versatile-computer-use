@@ -305,11 +305,27 @@ async function resolveHttpTab(preferredId) {
 }
 
 async function resolveHttpTabState(preferredId) {
-  const tabId = await resolveHttpTab(preferredId);
-  if (!tabId) return null;
   const { tabs } = await listTabsState();
-  const tab = tabs.find((t) => String(t.tab_id) === String(tabId));
-  return tab ? { id: tabId, tab } : null;
+  const hasPreferred = preferredId !== undefined && preferredId !== null && String(preferredId) !== "";
+  if (hasPreferred) {
+    const hit = tabs.find((t) => t.tab_id === String(preferredId));
+    if (!hit) return { mismatch: true };
+    if (!isInjectableHttpTab(hit)) return null;
+    const id = tabIdNumber(hit.tab_id);
+    return id ? { id, tab: hit } : null;
+  }
+  const focused = tabs.find((t) => t.focused && !t.agent_owned && isInjectableHttpTab(t));
+  if (!focused) return null;
+  const id = tabIdNumber(focused.tab_id);
+  return id ? { id, tab: focused } : null;
+}
+
+function wrongBrowserOrMissing(resolved) {
+  if (resolved && resolved.mismatch) {
+    return { ok: false, error: "wrong_extension_browser", retryable: true };
+  }
+  if (!resolved) return { ok: false, error: "no injectable http tab" };
+  return null;
 }
 
 async function fetchJson(url, opts = {}, timeoutMs = 10000) {
@@ -693,6 +709,7 @@ async function handleCommand(cmd) {
     switch (cmd.method) {
       case "capture_tab": {
         const resolved = await resolveHttpTabState(cmd.params?.tab_id);
+        if (resolved && resolved.mismatch) return { ok: false, error: "wrong_extension_browser", retryable: true };
         if (!resolved || !resolved.tab.active) return { ok: false, error: "select the target tab before taking a viewport screenshot" };
         const ready = await ensureContent(resolved.id, 1500, 500);
         if (!ready.ok) return ready;
@@ -711,6 +728,7 @@ async function handleCommand(cmd) {
         const resolved = await resolveHttpTabState(cmd.params?.tab_id);
         // The screenshot pins an explicit tab/document. A user switching to
         // another tab must neither retarget the action nor force focus back.
+        if (resolved && resolved.mismatch) return { ok: false, error: "wrong_extension_browser", retryable: true };
         if (!resolved) return { ok: false, error: "screenshot target tab is no longer available; capture again" };
         const result = await actionViaContent(resolved.id, {
           type: "vcu_click_point", x: cmd.params.x, y: cmd.params.y,
@@ -798,7 +816,8 @@ async function handleCommand(cmd) {
       case "click": {
         const params = cmd.params || {};
         const resolved = await resolveHttpTabState(params.tab_id);
-        if (!resolved) return { ok: false, error: "no injectable http tab" };
+        const mismatch = wrongBrowserOrMissing(resolved);
+        if (mismatch) return mismatch;
         const tabId = resolved.id;
         let selector = params.selector || null;
         if (!selector && params.ref) selector = '[data-vcu-ref="' + params.ref + '"]';
@@ -842,7 +861,8 @@ async function handleCommand(cmd) {
       case "type": {
         const params = cmd.params || {};
         const resolved = await resolveHttpTabState(params.tab_id);
-        if (!resolved) return { ok: false, error: "no injectable http tab" };
+        const mismatch = wrongBrowserOrMissing(resolved);
+        if (mismatch) return mismatch;
         const tabId = resolved.id;
         let selector = params.selector || null;
         if (!selector && params.ref) selector = '[data-vcu-ref="' + params.ref + '"]';
@@ -852,14 +872,16 @@ async function handleCommand(cmd) {
       case "extract": {
         const params = cmd.params || {};
         const resolved = await resolveHttpTabState(params.tab_id);
-        if (!resolved) return { ok: false, error: "no injectable http tab" };
+        const mismatch = wrongBrowserOrMissing(resolved);
+        if (mismatch) return mismatch;
         const result = await extractViaContent(resolved.id, params.selector || "a");
         return Object.assign(tabActionState(resolved.tab), result || { ok: false, error: "no result" });
       }
       case "scroll": {
         const params = cmd.params || {};
         const resolved = await resolveHttpTabState(params.tab_id);
-        if (!resolved) return { ok: false, error: "no injectable http tab" };
+        const mismatch = wrongBrowserOrMissing(resolved);
+        if (mismatch) return mismatch;
         const tabId = resolved.id;
         const dy = params.dy == null ? 400 : params.dy;
         const result = await scrollViaContent(tabId, dy, !!params.dry_run);

@@ -10,30 +10,55 @@
 
 | 项 | 值 |
 | --- | --- |
-| Browser Bridge | **0.2.5** |
+| Browser Bridge | **0.2.6** |
 | Runtime package | **0.1.0** |
-| 范围 | 仅浏览器（USER Edge/Chrome + 扩展） |
+| 范围 | 仅浏览器（USER Edge/Chrome + Browser Bridge） |
 | 仓库 | https://github.com/zhouhanker/versatile-computer-use |
 
-本定版已完成：精确 tab / DOM 动作、原生标签组、绑定截图的网页点击、多窗口与面板约束、布局变化后的截图失效。光标已按 Codex 原生取样改成短斜三角 + 柔光；同尺度动态对照和 Chrome 真机终验仍待继续，不在本定版宣称完成。
+0.2.6 在 0.2.5 门禁之上补完：光标同背景对照并加大柔光、Chrome 真机 DOM、原生 popup 跨窗禁选、双扩展错路由 retry。不宣称总体 Computer Use 产品已全部完成。
 
-## 能做什么
+## 能力边界（当前 Computer Use 是什么）
 
-- 使用用户已登录的 Edge/Chrome，不另开空 Agent profile
-- 明确 tab：列出、选择、打开、关闭；后台新窗口不抢焦点
+VCU 这一版是 **登录态浏览器操作层**，不是 Codex 官方桌面 Computer Use，也不是通用 OS 键鼠。
+
+**在边界内**
+
+- USER Edge / Chrome + `~/.vcu/lens-extension`，保留登录态
+- 标签：列出、选择、打开、关闭；后台新窗口不抢焦点
 - 原生标签组：名称、颜色、折叠/展开；选择组内网页时自动展开
 - DOM selector 点击 / 输入 / 滚动：唯一目标、可编辑、无遮挡；失效 ID 不 fallback
-- 网页 viewport 截图绑定页面状态后，按 PNG 像素点击（60 秒过期，一次消费）
-- 跨窗口分组拒绝且无副作用；扩展弹窗按窗口分区
-- macOS 整窗用 CGWindowID 截图 + Guide overlay；AXPress 失败如实报错
+- viewport PNG 绑定页面状态后按像素点击（60 秒过期，一次消费）
+- 跨窗口分组拒绝且无副作用；扩展弹窗按窗口分区、跨窗禁选
+- macOS 整窗 CGWindowID 截图 + Guide overlay；AXPress 失败如实报错
+- DOM 合成事件：`source=extension_dom`，`trusted=false`，`os_cursor_used=false`
 
-## 不做
+**明确不在边界内**
 
-- 飞书等桌面 App、微信自动化
-- CDP / 点击 Edge「允许调试」
-- OS cursor warp / HID
-- 修改 `~/.codex/computer-use/`
-- 把 DOM 合成事件当成原生 trusted 手势（`trusted=false`）
+- 飞书 / Lark 客户端、Finder、微信自动化
+- CDP、点击 Edge「允许调试」
+- OS cursor warp / HID / 伪造 trusted 手势
+- 修改 `~/.codex/computer-use/` 或复制其私有资源
+- iframe / canvas / object 等需要原生用户手势的点目标（明确拒绝，不假成功）
+- 通用 AX 网页像素真点（TC-B-040 未通过；网页真点走 extension viewport）
+- 把 `browser tabs` 当成同时枚举 Edge+Chrome：同一 daemon 上两个扩展会抢 poll，列表通常只反映当前抢到的那一边
+
+## 已知剩余问题
+
+这些是测过、有证据、但未当完成的项：
+
+- 光标：短斜三角 + ~66px 圆雾已对齐原生静态外观；**不宣称**逐像素动画、移动朝向旋转、官方资源复刻
+- viewport 截图会先摘掉虚拟光标（避免污染 layout signature），不能用 `browser screenshot` 当光标外观证据
+- Edge 与 Chrome 同时装 lens 时，无 tab_id 的命令仍可能打到另一边；有显式 tab_id 时错误浏览器会 `retryable`
+- CLI 无独立 `browser hover`
+- 复杂动态站、旧页面 content script 升级、资源回收：无新证据不扩大重构
+- 布局扫描上限：1000 个 viewport 可见交互目标 / 5000 候选，超限拒绝
+
+## 能做什么（已验证）
+
+- 使用用户已登录的 Edge/Chrome，不另开空 Agent profile
+- Chrome 真机：extract / click / type，`source=extension_dom`，计数 0→1
+- 更多场景 22 项：dry-run 无副作用、readonly/disabled/遮挡/缺失/歧义/无效 tab 拒绝、滚动后点页底、Return dry-run 阻断、viewport 像素点选、已消费 capture 拒绝
+- 原生 popup：按窗口分区；勾选一窗后其它窗复选框禁用
 
 ## 安装
 
@@ -51,7 +76,7 @@ VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 vcu daemon start
-vcu browser install-lens    # 然后在 USER Edge/Chrome Load unpacked ~/.vcu/lens-extension
+vcu browser install-lens    # 然后在 USER Edge 和 Chrome 都 Load unpacked ~/.vcu/lens-extension
 vcu browser ping --json     # 必须 pong；unknown method = Reload 扩展
 ```
 
@@ -93,9 +118,10 @@ MCP：`vcu_browser_tabs` / `select` / `open` / `group` / `group_update` / `ungro
 ## 验证
 
 ```bash
-make check                                          # 本定版：102 Rust + 35 Node
+make check                                          # 工作区门禁：Rust workspace + Node 扩展测试 + POC/pack
 python3 scripts/poc_browser_parity.py               # 默认不执行真实动作
-python3 scripts/poc_browser_parity.py --live        # 仅 127.0.0.1 受控页；32 项真机检查
+python3 scripts/poc_browser_parity.py --live        # 仅 127.0.0.1 受控页
+python3 scripts/poc_browser_more_scenarios.py       # 更多真机场景（独立窗口，不碰用户组）
 ```
 
 `--live` 只关闭自己创建且未被用户接管的标签。不要操作旧 tab ID。
@@ -119,14 +145,6 @@ macOS Stage helper：`vcu-stage`。Guide overlay 不移动物理鼠标。当前�
 - 当前计划：[`docs/PLAN.md`](docs/PLAN.md)
 - 交接：[`docs/HANDOFF.md`](docs/HANDOFF.md)
 - 浏览器操作：[`playbooks/user-browser.md`](playbooks/user-browser.md)
-- 本定版验收：[`docs/testing/BROWSER_PARITY_RESULTS.md`](docs/testing/BROWSER_PARITY_RESULTS.md)
+- 验收记录：[`docs/testing/BROWSER_PARITY_RESULTS.md`](docs/testing/BROWSER_PARITY_RESULTS.md)
 - 阶段设计：[`docs/design/09-browser-interaction-parity.md`](docs/design/09-browser-interaction-parity.md)
 - 安装：[`docs/INSTALL.md`](docs/INSTALL.md)
-
-## 本定版之后
-
-仍待继续，不在 0.2.5 完成声明内：
-
-- 光标与 Codex 原生在同背景、同窗口尺度下的动态 / 缩放对照
-- Chrome 真机验收（Edge 已测，不能从 Edge 推定 Chrome）
-- 原生扩展弹窗被打断的那段交互补验

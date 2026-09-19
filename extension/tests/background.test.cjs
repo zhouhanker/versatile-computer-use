@@ -27,7 +27,7 @@ function makeHarness(options = {}) {
     nextTabId: options.nextTabId || 100,
     nextGroupId: options.nextGroupId || 10,
     storage: Object.assign({}, options.storage),
-    sendMessage: options.sendMessage || (() => Promise.resolve({ ok: true, pong: true, version: "0.2.5" })),
+    sendMessage: options.sendMessage || (() => Promise.resolve({ ok: true, pong: true, version: "0.2.6" })),
     executeScript: options.executeScript || (() => Promise.resolve([{}])),
   };
   if (!state.tabs.some((tab) => tab.active && tab.windowId === state.focusedWindowId)) {
@@ -59,7 +59,7 @@ function makeHarness(options = {}) {
       onInstalled: { addListener() {} },
       onStartup: { addListener() {} },
       onMessage: { addListener: (listener) => state.listeners.push(listener) },
-      getManifest: () => ({ version: "0.2.5" }),
+      getManifest: () => ({ version: "0.2.6" }),
       getURL: (file) => "chrome-extension://vcu-extension-id/" + file,
       getContexts: async () => [],
       reload() {},
@@ -289,7 +289,7 @@ test("mutation action does not replay an existing ok:false response", async () =
   const { api, state } = makeHarness({
     tabs: [{ id: 1, windowId: 1, url: "https://user.example/", active: true }],
     sendMessage: async (_id, payload) => {
-      if (payload.type === "vcu_ping_page") return { ok: true, pong: true, version: "0.2.5" };
+      if (payload.type === "vcu_ping_page") return { ok: true, pong: true, version: "0.2.6" };
       if (payload.type === "vcu_click") {
         actionCalls += 1;
         return { ok: false, error: "page rejected click", detail: "preserve me" };
@@ -321,7 +321,7 @@ test("send timeout injects then sends the mutation once", async () => {
   const { api, state } = makeHarness({
     tabs: [{ id: 1, windowId: 1, url: "https://user.example/", active: true }],
     sendMessage: async (_id, payload) => {
-      if (payload.type === "vcu_ping_page") return ++pingCalls > 1 ? { ok: true, pong: true, version: "0.2.5" } : null;
+      if (payload.type === "vcu_ping_page") return ++pingCalls > 1 ? { ok: true, pong: true, version: "0.2.6" } : null;
       if (payload.type === "vcu_type") {
         actionCalls += 1;
         return { ok: true, typed: true };
@@ -380,7 +380,7 @@ test("viewport screenshot binds the active tab and rejects changes during captur
   const viewport = {document_id:"doc-1",url:"https://example.com/",width:100,height:80,revision:1};
   let calls = 0;
   const h = makeHarness({tabs:[{id:1,windowId:4,url:viewport.url,active:true}], sendMessage: async (_id,msg) => {
-    if (msg.type === "vcu_ping_page") return {ok:true,version:"0.2.5"};
+    if (msg.type === "vcu_ping_page") return {ok:true,version:"0.2.6"};
     if (msg.type === "vcu_viewport") { calls++; return {ok:true,viewport:{...viewport,revision:calls <= 2 ? 1 : calls}}; }
     return {ok:true,pressed:true};
   }});
@@ -436,7 +436,7 @@ test("drawing zoom travels with the exact tab without changing action coordinate
 
 test("screenshot bursts respect the browser capture quota", async () => {
   const viewport={document_id:"doc-rate",url:"https://example.com/",width:100,height:80,revision:0};
-  const h=makeHarness({tabs:[{id:1,windowId:4,url:viewport.url,active:true}],sendMessage:async (_id,msg)=>msg.type==='vcu_ping_page'?{ok:true,version:'0.2.5'}:{ok:true,viewport}});
+  const h=makeHarness({tabs:[{id:1,windowId:4,url:viewport.url,active:true}],sendMessage:async (_id,msg)=>msg.type==='vcu_ping_page'?{ok:true,version:'0.2.6'}:{ok:true,viewport}});
   for(let i=0;i<3;i++) {
     const result=await h.api.handleCommand({method:'capture_tab',params:{tab_id:'1'}});
     assert.equal(result.ok,true,result.error);
@@ -445,4 +445,12 @@ test("screenshot bursts respect the browser capture quota", async () => {
   assert.equal(shots.length,3);
   assert.ok(shots[1].at-shots[0].at>=500);
   assert.ok(shots[2].at-shots[1].at>=500);
+});
+
+test("explicit tab owned by another browser is retryable instead of a hard miss", async () => {
+  const h = makeHarness({tabs:[{id:1,windowId:4,url:"https://example.com/",active:true}]});
+  const result = await h.api.handleCommand({method:"extract",params:{tab_id:"99",selector:"#result"}});
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "wrong_extension_browser");
+  assert.equal(result.retryable, true);
 });

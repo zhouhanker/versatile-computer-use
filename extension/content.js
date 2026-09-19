@@ -4,7 +4,7 @@
 (() => {
 
 const VCU_CURSOR_ID = "vcu-virtual-cursor";
-const VCU_CONTENT_VERSION = "0.2.5";
+const VCU_CONTENT_VERSION = "0.2.6";
 const VCU_CURSOR_HIDE_MS = 520;
 const VCU_HALO_MS = 240;
 const VCU_LAYOUT_MAX_NODES = 1000;
@@ -986,31 +986,31 @@ function ensureVirtualCursor() {
         margin: 0; padding: 0; pointer-events: none; overflow: visible;
         transform: none; transform-origin: 0 0; isolation: isolate;
       }
-      /* Measured from the native Codex CU reference: compact dart, frosted
-         blue-grey glow, no circular outline and no long arrow stem. */
+      /* Same-background PARITY-004: native Codex CU crop + public fog metrics
+         (~66px circular haze, compact dart). No hard ring, no long stem. */
       .vcu-halo {
-        position: absolute; left: -18px; top: -18px; width: 46px; height: 46px;
-        pointer-events: none; border: 0; border-radius: 47% 53% 57% 43%;
-        background: radial-gradient(ellipse at 58% 40%, rgba(155,185,211,.45), rgba(181,197,213,.24) 38%, rgba(223,220,229,.12) 58%, transparent 74%);
-        filter: blur(4px); opacity: .9;
+        position: absolute; left: -24px; top: -22px; width: 66px; height: 66px;
+        pointer-events: none; border: 0; border-radius: 50%;
+        background: radial-gradient(circle at 48% 44%, rgba(148,168,188,.50) 0%, rgba(170,184,200,.26) 36%, rgba(206,212,222,.11) 60%, transparent 78%);
+        filter: blur(6px); opacity: .98;
       }
       .vcu-halo::after {
-        content: ""; position: absolute; inset: 7px 2px 1px 9px;
-        border-radius: 52% 48% 39% 61%;
-        background: radial-gradient(ellipse, rgba(171,187,205,.2), transparent 70%);
+        content: ""; position: absolute; inset: 16px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(180,192,206,.16), transparent 72%);
       }
       .vcu-halo.pulse { animation: vcu-halo-pulse 240ms ease-out both; }
       .vcu-arrow {
         position: absolute; left: 0; top: 0; width: 20px; height: 22px;
         overflow: visible; pointer-events: none; display: block;
-        filter: drop-shadow(0 1px 1px rgba(44,56,70,.16));
+        filter: drop-shadow(0 1px 1px rgba(44,56,70,.14));
       }
-      .vcu-arrow polygon { fill: #555c65; fill-opacity: .88; stroke: #fff; stroke-opacity: .94; stroke-width: 1.35;
+      .vcu-arrow polygon { fill: #5a6068; fill-opacity: .96; stroke: #fff; stroke-opacity: .92; stroke-width: 1.5;
         stroke-linejoin: round; }
       @keyframes vcu-halo-pulse {
-        0% { opacity: .95; transform: scale(.9); }
-        55% { opacity: 1; transform: scale(1.08); }
-        100% { opacity: .72; transform: scale(1); }
+        0% { opacity: .95; transform: scale(.92); }
+        55% { opacity: 1; transform: scale(1.12); }
+        100% { opacity: .86; transform: scale(1); }
       }
       @media (prefers-reduced-motion: reduce) {
         .vcu-halo.pulse { animation: none; opacity: .72; }

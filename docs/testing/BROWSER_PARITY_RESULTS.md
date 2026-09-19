@@ -75,3 +75,40 @@ P7/P8修复后真实POC：`python3 scripts/poc_browser_parity.py --live --output
 已修复并复验截图调用频率限制（MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND）、Rust JSON排序误报、CSS遮挡命中变化、AX关闭后恢复顺序。光标保持原生参考的短三角与柔光，并有页面zoom逆缩放；双端动态/精细尺寸终验仍在下阶段，不宣称逐像素原始动画复刻。
 
 验收索引`BROWSER_PARITY_NODE_REPORT.json`包含工作树摘要、证据摘要与sha256。没有提交SHA，没有提交/推送/远端发布。当前节点关闭，下一步按PLAN的PARITY-004/005推进。
+
+
+## PARITY-004 同背景终验（2026-09-19）
+
+同浅色参考页对照已有 Codex 原生截图、DOM 虚拟光标与 Guide 离屏渲染。viewport 截图会先 `hideVirtualCursor`，故外观证据使用窗口 observe 与 Guide PNG。
+
+发现 mismatch：原 46px 淡蓝晕在浅色背景上明显小于原生约 66px 圆雾，Guide 叠圆透明度过低。已按原生裁图和公开 Cursor Motion fog 尺寸加大圆雾、提高填色不透明度；保持短斜三角、无硬圆环、无长箭尾。未复制官方 PNG 或 `~/.codex/computer-use/`。
+
+- Node：35 passed，含热点、透传、清理、80/100/200 zoom 补偿。
+- 真机 DOM：idle 在目标钮上、move 移到 Hold move、click pulse 仍为短促缩放。证据 `.local/browser-parity/parity-004/`。
+- Guide：`guide-idle-100.png` 与 DOM 同浅底。Guide 是屏幕像素，不随页面 zoom 变大。
+- 不宣称：逐像素动画、移动朝向旋转、官方 252 资源复刻。
+
+
+
+## PARITY-005 原生 popup（2026-09-19）
+
+Edge 工具栏打开真实 `chrome-extension://…/popup.html`：按窗口分区（当前窗口 / 窗口 2 / 3 / 4），组名「1」「3」仍在。勾选当前窗口一条后，其它窗口复选框全部 disabled，文案「已选 1 个网页 · 同一窗口」。随后取消勾选，未点分组/折叠。用户 1/3 组仍在。证据 `.local/browser-parity/parity-005/native-popup.json`。
+
+Chrome：受控页已打开；扩展菜单无 VCU。不能从 Edge 推定 Chrome 通过。
+
+
+## PARITY-005 Chrome 真机（2026-09-19）
+
+USER Chrome 已加载 VCU lens。受控页 `interaction.html?chrome=parity-005`：
+
+- `extract` `source=extension_dom`，clicks=0
+- `click #counter` pressed，trusted=false，os_cursor_used=false，随后 clicks=1
+- `type #entry` chrome-live
+- 遮挡按钮诚实拒绝 `target is occluded by div`
+
+证据 `.local/browser-parity/parity-005/chrome-live.json`。双浏览器同时轮询时，另一边的扩展对未知 tab_id 返回 `wrong_extension_browser`/`retryable`，daemon 交给下一个 poller。
+
+
+## 更多真机场景（2026-09-19）
+
+`scripts/poc_browser_more_scenarios.py` 在独立窗口跑 22 项，全部通过。覆盖：dry-run 无副作用、真实点击计数、输入、readonly/disabled/遮挡/缺失/歧义/无效 tab 拒绝、滚动后点页底、wait、Return dry-run 阻断、viewport 截图像素点选、已消费 capture 拒绝、只关闭自己的测试页。用户 1/3 组保留。证据 `.local/browser-parity/parity-005/more-scenarios.json`。

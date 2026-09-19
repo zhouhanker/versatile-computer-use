@@ -10,7 +10,7 @@ let hudSub = "Esc 取消"
 let hudHeight: CGFloat = 28
 // Keep enough transparent margin for the halo while anchoring the arrow tip
 // itself to the requested AX point.
-let guideSize: CGFloat = 64
+let guideSize: CGFloat = 84
 
 struct ControlFile: Decodable {
     var stop: Bool?
@@ -66,18 +66,46 @@ final class HudRoot: NSView {
 final class GuideView: NSView {
     // NSView coordinates grow upward. This point is the arrow hotspot and is
     // intentionally not the center of the guide window.
-    static let hotspot = NSPoint(x: 26, y: 38)
+    static let hotspot = NSPoint(x: 32, y: 50)
 
     override var isOpaque: Bool { false }
 
     override func draw(_ dirtyRect: NSRect) {
         let tip = Self.hotspot
-        // Same compact dart and soft, borderless blue-grey haze observed in
-        // the native Codex Computer Use screenshot (2026-09-19).
-        for radius in stride(from: CGFloat(23), through: CGFloat(7), by: CGFloat(-1)) {
-            let alpha = 0.011 + (23 - radius) * 0.0007
-            NSColor(calibratedRed: 0.65, green: 0.73, blue: 0.82, alpha: alpha).setFill()
-            NSBezierPath(ovalIn: NSRect(x: tip.x + 4 - radius, y: tip.y - 4 - radius, width: radius * 2, height: radius * 2)).fill()
+        // PARITY-004: match native Codex CU crop and public ~66px circular fog.
+        // Compact dart, no hard ring, no long stem.
+        let fogCenter = NSPoint(x: tip.x + 6, y: tip.y - 6)
+        NSGraphicsContext.saveGraphicsState()
+        let fogShadow = NSShadow()
+        fogShadow.shadowBlurRadius = 16
+        fogShadow.shadowOffset = .zero
+        fogShadow.shadowColor = NSColor(calibratedRed: 0.62, green: 0.70, blue: 0.78, alpha: 0.55)
+        fogShadow.set()
+        NSColor(calibratedRed: 0.70, green: 0.76, blue: 0.82, alpha: 0.22).setFill()
+        NSBezierPath(ovalIn: NSRect(x: fogCenter.x - 22, y: fogCenter.y - 22, width: 44, height: 44)).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        if let ctx = NSGraphicsContext.current?.cgContext {
+            let colors = [
+                NSColor(calibratedRed: 0.58, green: 0.66, blue: 0.74, alpha: 0.42).cgColor,
+                NSColor(calibratedRed: 0.67, green: 0.72, blue: 0.78, alpha: 0.24).cgColor,
+                NSColor(calibratedRed: 0.81, green: 0.83, blue: 0.87, alpha: 0.10).cgColor,
+                NSColor(calibratedWhite: 0.90, alpha: 0).cgColor,
+            ] as CFArray
+            let locations: [CGFloat] = [0, 0.40, 0.68, 1]
+            if let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: colors,
+                locations: locations
+            ) {
+                ctx.drawRadialGradient(
+                    gradient,
+                    startCenter: CGPoint(x: fogCenter.x, y: fogCenter.y),
+                    startRadius: 0,
+                    endCenter: CGPoint(x: fogCenter.x, y: fogCenter.y),
+                    endRadius: 36,
+                    options: [.drawsAfterEndLocation]
+                )
+            }
         }
         let arrow = NSBezierPath()
         arrow.move(to: tip)
@@ -85,11 +113,11 @@ final class GuideView: NSView {
         arrow.line(to: NSPoint(x: tip.x + 10, y: tip.y - 12))
         arrow.line(to: NSPoint(x: tip.x + 4, y: tip.y - 20))
         arrow.close()
-        NSColor(calibratedRed: 0.333, green: 0.361, blue: 0.396, alpha: 0.88).setFill()
+        NSColor(calibratedRed: 0.353, green: 0.376, blue: 0.408, alpha: 0.96).setFill()
         arrow.fill()
-        arrow.lineWidth = 1.35
+        arrow.lineWidth = 1.5
         arrow.lineJoinStyle = .round
-        NSColor.white.withAlphaComponent(0.94).setStroke()
+        NSColor.white.withAlphaComponent(0.92).setStroke()
         arrow.stroke()
     }
 }

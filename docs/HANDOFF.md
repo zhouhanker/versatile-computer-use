@@ -52,7 +52,7 @@
 - 原生参考：`.local/browser-parity/codex-native-reference.jpg`
 - 对照实现：`.local/browser-parity/cursor-matched.png`
 - 后续仍须完成同背景/同尺度的DOM与Guide动态对照。已有证据支持静态样式修订，**不等于逐像素原始动画复刻**。
-- 不复制或读取Codex私有安装资源。取样、查看公开工具返回的截图即可。
+- PARITY-004 约束：不要再向用户索要截图；不要退回长箭尾/硬圆环；仅在对照发现 mismatch 时改代码。允许参考 Codex 开源实现与公开技术资料；不得修改 `~/.codex/computer-use/`，也不把私有安装资源提交进仓库。
 
 ## 5. 最终验证与证据
 
@@ -98,8 +98,8 @@ rtk proxy python3 -m http.server 18474 --bind 127.0.0.1 --directory extension
 
 ## 7. 下一阶段优先级
 
-1. **PARITY-004**：同背景/同窗口尺度的Codex原生、DOM、Guide静止/点击/移动对照；补80%/100%/200%表观尺寸。保留短三角/柔光，别回到被否定的第一版。
-2. **PARITY-005**：最终跨浏览器和原生popup验收。Edge已实测；Chrome须实际验证，不能从Edge推定通过。
+1. **PARITY-004**：同背景终验已做。halo 过小已修；短三角/柔光保留。证据 `.local/browser-parity/parity-004/`。
+2. **PARITY-005**：Chrome 真机与原生 popup 均已过。保留 1/3 组。
 3. **PARITY-005**：定版已提交 `d8ee9ad`。未完成项是 Chrome 真机、原生 popup 补验，以及推送后的远端核对。未获指令不发消息、不打 GitHub Release。
 
 DOM事件仍`trusted=false`，iframe/canvas等需要原生手势的点目标明确拒绝；通用AX网页真点击不是本节点通过能力。几何扫描上限1000个viewport可见交互目标、5000候选，超限不假通过。

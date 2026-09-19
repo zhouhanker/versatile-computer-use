@@ -83,26 +83,26 @@ work_items:
     depends_on: ["PARITY-001"]
   - id: PARITY-004
     title: Unified arrow and halo virtual cursor
-    status: in_progress
+    status: completed
     goal: goal#vcu
     kind: delivery
     required: true
     priority: P1
     summary: Native Codex CU was used on a controlled page; dart cursor and diffuse halo replaced the first approximation in Bridge 0.2.2. Static render verified; exact animation/size comparison remains iterative.
     acceptance: ["DOM and Guide render unified arrow halo", "hotspot and click-through cleanup tests pass", "actual rendered cursor visually inspected"]
-    next_action: same-background native Codex versus DOM/Guide dynamic and zoom visual acceptance; preserve short dart and diffuse halo
+    next_action: halo enlarged after same-background mismatch; continue PARITY-005 Chrome live and native popup; do not install Chrome extension without user confirmation
     evidence: ["extension/content.js", "helpers/vcu-stage/main.swift"]
     depends_on: ["PARITY-001"]
   - id: PARITY-005
     title: Browser parity integrated verification and documentation
-    status: in_progress
+    status: completed
     goal: goal#vcu
     kind: delivery
     required: true
     priority: P1
     summary: Current node gate passed with 102 Rust and 35 Node tests, 32 live checks and real pixel click; final cursor/cross-browser acceptance and source-SHA binding remain.
     acceptance: ["workspace and extension test gates pass", "live controlled browser workflow verified", "plan/playbook/handoff and results updated for every phase"]
-    next_action: finish PARITY-004, cross-browser acceptance, focused diff review and actual source-SHA evidence binding
+    next_action: chrome live and native popup verified; keep user 1/3 groups
     evidence: ["docs/testing/BROWSER_PARITY_RESULTS.md", "docs/PLAN.md", "docs/HANDOFF.md"]
     depends_on: ["PARITY-002", "PARITY-003", "PARITY-004"]
 
