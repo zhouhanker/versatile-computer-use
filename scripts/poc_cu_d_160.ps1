@@ -73,7 +73,8 @@ try {
     foreach ($r in @($snap.data.dom_refs)) {
       $nm = [string]$r.name
       $role = [string]$r.role
-      if ($nm -eq "One" -or $nm -eq "1" -or $nm -eq "num1Button" -or $nm -like "*num1Button*") {
+      # UWP: One/num1Button. Win32 calc (Server): LegacyIAccessible 131 = digit 1.
+      if ($nm -eq "One" -or $nm -eq "1" -or $nm -eq "num1Button" -or $nm -like "*num1Button*" -or $nm -eq "131") {
         $ref = [string]$r.ref
         break
       }
