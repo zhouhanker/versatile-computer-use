@@ -1016,4 +1016,26 @@ mod desktop_host_tools_tests {
         let hover = tools.iter().find(|t| t["name"] == "vcu_hover").unwrap();
         assert!(hover["description"].as_str().unwrap().contains("Never OS cursor"));
     }
+
+    #[test]
+    fn mcp_tools_list_frame_uses_content_length() {
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": { "tools": super::tool_defs() }
+        })
+        .to_string();
+        let mut buf = Vec::new();
+        super::write_message(&mut buf, &body).unwrap();
+        let framed = String::from_utf8(buf).unwrap();
+        assert!(
+            framed.starts_with("Content-Length: "),
+            "{}",
+            &framed[..framed.len().min(80)]
+        );
+        assert!(framed.contains("\r\n\r\n"), "missing header break");
+        assert!(framed.contains("vcu_hover"));
+        assert!(framed.contains("vcu_session_abort"));
+        assert!(framed.contains("vcu_wait"));
+    }
 }
