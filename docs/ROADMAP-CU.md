@@ -168,7 +168,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-200 | wait 直到 Scene value 出现 | **完成（CI 真机）** run `35472199783` @ `0d77f27`：`WAIT_OK path=scene_wait found_ref=e2 os_cursor_used=False`；`CU-D-200 OK`。无 SendInput。 |
 | CU-D-210 | wait miss 诚实超时 | **完成（CI 真机）** run `35472851832` @ `cd371d4`：`WAIT_MISS_OK`；`WAIT_REF_MISS_OK`；`ActionFailed` `wait timed out after 800ms` 含 `value=Some("VCU-D-210-MISS")` / `ref=Some("e999")`。无 SendInput。 |
 | CU-D-220 | Notepad Return/key 拒绝 | **完成（CI 真机）** run `35473210457` @ `e47cf24`：`KEY_DENIED`；`FocusPolicyViolation` `Return/Enter is gated`；`CU-D-220 OK`。无 SendInput。 |
-| CU-D-230 | PowerShell 无换行输入 | **进行中** type 无换行；换行 `NEWLINE_DENIED`；无 SendInput；不执行命令。 |
+| CU-D-230 | PowerShell 无换行输入 | **完成（CI 真机）** run `35473547564` @ `5f9ead0`：`TYPE_OK path=clipboard_paste os_cursor_used=False`；`NEWLINE_DENIED`；tab `win:powershell:6700`。无 SendInput；未执行命令。 |
 
 ## 4. 建议执行顺序（编排）
 

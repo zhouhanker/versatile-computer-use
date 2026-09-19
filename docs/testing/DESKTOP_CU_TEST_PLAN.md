@@ -148,7 +148,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-200 | wait until Notepad value | **通过** run `35472199783` `WAIT_OK path=scene_wait found_ref=e2`；无 SendInput |
 | TC-D-210 | wait miss times out honestly | **通过** run `35472851832` `WAIT_MISS_OK` / `WAIT_REF_MISS_OK`；`ActionFailed`；无 SendInput |
 | TC-D-220 | Notepad key return denied | **通过** run `35473210457` `KEY_DENIED` FocusPolicyViolation；无 SendInput |
-| TC-D-230 | PowerShell type without Return | **未过** `TYPE_OK` / `NEWLINE_DENIED`；无 SendInput |
+| TC-D-230 | PowerShell type without Return | **通过** run `35473547564` `TYPE_OK path=clipboard_paste`；`NEWLINE_DENIED`；无 SendInput |
 
 ## 8. 未通过不得宣称完成
 

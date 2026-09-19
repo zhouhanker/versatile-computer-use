@@ -6,7 +6,7 @@
 
 **已发布：浏览器版 Bridge 0.2.8。** 浏览器门禁仍有效。
 
-**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 已过。CU-D-060 CI 真机列窗+PrintWindow 已过（run `35462329205`）。CU-D-070 CI `SETVALUE_OK path=wm_settext`（非 ValuePattern）。CU-D-080 单测已过。CU-D-090 CI 已过。CU-D-100 CI 已过。CU-D-110 CI 已过。CU-D-120 CI 已过。CU-D-130 CI 已过。CU-D-140 CI 已过（`TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED`）。未宣称完整 Windows 产品 CU。CU-D-140/150/160/170/180/190/200/210/220 已过。CU-D-220 CI `KEY_DENIED` run `35473210457`。下一刀 **CU-D-230** PowerShell 无换行输入。未宣称完整 Windows 产品 CU / 完整 Codex CU。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
+**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 已过。CU-D-060 CI 真机列窗+PrintWindow 已过（run `35462329205`）。CU-D-070 CI `SETVALUE_OK path=wm_settext`（非 ValuePattern）。CU-D-080 单测已过。CU-D-090 CI 已过。CU-D-100 CI 已过。CU-D-110 CI 已过。CU-D-120 CI 已过。CU-D-130 CI 已过。CU-D-140 CI 已过（`TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED`）。未宣称完整 Windows 产品 CU。CU-D-140/150/160/170/180/190/200/210/220/230 已过。CU-D-230 CI `TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED` run `35473547564`。下一刀 **CU-D-240** 先写入 ROADMAP 再开发。未宣称完整 Windows 产品 CU / 完整 Codex CU。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
 
 本地对照实现在 gitignore 的 `/reference/computer-use/`：可反编译作结构参考，笔记进 `docs/research/`，自有代码进仓库；`.app` / 反编译源码 / 官方素材不上传。
 
@@ -88,7 +88,7 @@
 - [x] **CU-D-200**：CI `WAIT_OK path=scene_wait found_ref=e2 os_cursor_used=False` / `CU-D-200 OK` run `35472199783`。无 SendInput。
 - [x] **CU-D-210**：CI `WAIT_MISS_OK` / `WAIT_REF_MISS_OK` / `CU-D-210 OK` run `35472851832`。`ActionFailed` timed out 含 value/ref。无 SendInput。
 - [x] **CU-D-220**：CI `KEY_DENIED` / `CU-D-220 OK` run `35473210457`。`FocusPolicyViolation` Return gated。无 SendInput。
-- [ ] **CU-D-230**：PowerShell 无换行 type；换行拒绝（待 CI）。
+- [x] **CU-D-230**：CI `TYPE_OK path=clipboard_paste` / `NEWLINE_DENIED` / `CU-D-230 OK` run `35473547564` tab `win:powershell:6700`。无 SendInput；未执行命令。
 
 
 ## 操作入口
