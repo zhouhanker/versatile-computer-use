@@ -28,6 +28,8 @@ Windows hover（CU-D-250，CI）：`vcu act` type=hover → `input_path=guide_ho
 
 Windows hover then click（CU-D-260，CI）：先 hover 再 `vcu click`，仍是 `bm_click`，按钮副作用发生。Guide 不是 HID。无 SendInput。
 
+Windows doctor（CU-D-270）：`vcu doctor` 的 `windows_desktop_scope` 为 warn，写明 CI 切片不是产品 Windows CU；`app_backend` 写 wm_settext/bm_click，不是 AXPress。
+
 真机脚本：`scripts/poc_desktop_textedit.sh`（CU-D-023，文档必须出现标记才算过）。
 
 Finder（CU-D-040）：AX 不暴露文件夹图标。列窗用 Scene `CGWindow`；选中/打开用 Launch Services：

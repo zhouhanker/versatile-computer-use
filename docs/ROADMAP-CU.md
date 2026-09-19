@@ -172,6 +172,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-240 | Windows Abort 拆 HUD | **完成（CI 真机）** run `35473997888` @ `ae96695`：`HUD_UP count=1`；`ABORT_OK hud=false`；`LIST_EMPTY`；`ACT_DENIED`；`HUD_GONE`；`STAGE_OK2`；`CU-D-240 OK`。无 SendInput。 |
 | CU-D-250 | Windows Guide hover | **完成（CI 真机）** run `35474340766` @ `cf4a803`：`HOVER_OK path=guide_hover overlay=True os_cursor_used=False`；`GUIDE_FILE_OK x=462 y=347.5`；`CU-D-250 OK`。无 SendInput。 |
 | CU-D-260 | hover 后 click 仍 bm_click | **完成（CI 真机）** run `35474689948` @ `5348d75`：`HOVER_OK path=guide_hover os_cursor_used=False`；`INVOKE_OK path=bm_click os_cursor_used=False`；`CU-D-260 OK`。无 SendInput。 |
+| CU-D-270 | doctor 诚实 Windows 范围 | **进行中** `windows_desktop_scope` warn：CI 切片不是产品会话；`app_backend` 写 wm_settext/bm_click 不是 AXPress；WinForms HUD。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -207,6 +208,7 @@ CU-D-000 文档
     → CU-D-240 vcu Windows session abort HUD
     → CU-D-250 vcu Windows guide hover
     → CU-D-260 vcu Windows hover then bm_click
+    → CU-D-270 vcu doctor windows scope
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

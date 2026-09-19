@@ -1456,6 +1456,14 @@ mod tests {
         assert!(!l260.contains("sendinput("));
         assert!(!l260.contains("[system.windows.forms.sendkeys"));
         assert!(!l260.contains("mouse_event"));
+        let p270 = root.join("scripts/poc_cu_d_270.ps1");
+        let s270 = std::fs::read_to_string(&p270).unwrap_or_default();
+        assert!(s270.contains("SCOPE_OK"), "{}", p270.display());
+        assert!(s270.contains("BACKEND_OK"));
+        assert!(s270.contains("windows_desktop_scope"));
+        assert!(s270.contains("CU-D-270 OK"));
+        let l270 = s270.to_ascii_lowercase();
+        assert!(!l270.contains("sendinput("));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());

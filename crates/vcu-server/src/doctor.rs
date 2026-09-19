@@ -252,12 +252,10 @@ pub async fn build_report(paths: &VcuPaths, live: Option<&AppState>) -> DoctorRe
         checks.push(stage_helper_check(found.as_deref(), std::env::consts::OS));
     }
 
-    checks.push(DoctorCheck {
-        name: "app_backend".into(),
-        status: "pass".into(),
-        detail: format!("platform adapter present ({})", std::env::consts::OS),
-        hint: Some("desktop surface uses AXPress/AXSetValue; WeChat is denied; OS cursor still denied".into()),
-    });
+    checks.push(app_backend_check(std::env::consts::OS));
+    if let Some(scope) = windows_desktop_scope_check(std::env::consts::OS) {
+        checks.push(scope);
+    }
 
     // OS cursor policy invariant documentation check
     checks.push(DoctorCheck {
@@ -437,12 +435,55 @@ fn dual_browser_lens_check(
     }
 }
 
+fn app_backend_check(os: &str) -> DoctorCheck {
+    if os == "windows" {
+        return DoctorCheck {
+            name: "app_backend".into(),
+            status: "pass".into(),
+            detail: "Windows adapter present; honest paths wm_settext / bm_click / clipboard_paste / wm_vscroll / guide_hover".into(),
+            hint: Some(
+                "CI live slices only. Not product Windows CU. Not complete Codex CU. WeChat denied. No SendInput / OS cursor."
+                    .into(),
+            ),
+        };
+    }
+    DoctorCheck {
+        name: "app_backend".into(),
+        status: "pass".into(),
+        detail: format!("platform adapter present ({os})"),
+        hint: Some(
+            "desktop surface uses AXPress/AXSetValue; WeChat is denied; OS cursor still denied"
+                .into(),
+        ),
+    }
+}
+
+fn windows_desktop_scope_check(os: &str) -> Option<DoctorCheck> {
+    if os != "windows" {
+        return None;
+    }
+    Some(DoctorCheck {
+        name: "windows_desktop_scope".into(),
+        status: "warn".into(),
+        detail: "CI slices: Notepad/Explorer/cmd/PowerShell/Calculator/Settings-observe/Guide/Abort. Not a product Windows Computer Use session.".into(),
+        hint: Some("Do not claim complete Codex CU. WeChat denied. OS cursor denied.".into()),
+    })
+}
+
 fn stage_helper_check(found: Option<&std::path::Path>, os: &str) -> DoctorCheck {
+    if os == "windows" {
+        return DoctorCheck {
+            name: "stage_helper".into(),
+            status: "pass".into(),
+            detail: "WinForms Stage HUD (not vcu-stage); abort tears down; Guide overlay; no OS cursor".into(),
+            hint: None,
+        };
+    }
     if os != "macos" {
         return DoctorCheck {
             name: "stage_helper".into(),
             status: "pass".into(),
-            detail: "vcu-stage is macOS-only; Windows/Linux omit the helper".into(),
+            detail: "vcu-stage is macOS-only; Linux omits the helper".into(),
             hint: None,
         };
     }
@@ -467,7 +508,10 @@ fn stage_helper_check(found: Option<&std::path::Path>, os: &str) -> DoctorCheck 
 
 #[cfg(test)]
 mod tests {
-    use super::{dual_browser_lens_check, login_browser_check, scene_webview_crop_check, stage_helper_check};
+    use super::{
+        app_backend_check, dual_browser_lens_check, login_browser_check, scene_webview_crop_check,
+        stage_helper_check, windows_desktop_scope_check,
+    };
     use std::path::Path;
 
     #[test]
@@ -486,10 +530,39 @@ mod tests {
 
     #[test]
     fn stage_helper_is_optional_off_macos() {
-        let c = stage_helper_check(None, "windows");
+        let c = stage_helper_check(None, "linux");
         assert_eq!(c.name, "stage_helper");
         assert_eq!(c.status, "pass");
         assert!(c.detail.contains("macOS-only"));
+        let w = stage_helper_check(None, "windows");
+        assert_eq!(w.status, "pass");
+        assert!(w.detail.contains("WinForms"), "{}", w.detail);
+        assert!(!w.detail.contains("omit the helper"), "{}", w.detail);
+    }
+
+    #[test]
+    fn windows_app_backend_names_honest_paths_not_ax() {
+        let w = app_backend_check("windows");
+        assert_eq!(w.name, "app_backend");
+        assert!(w.detail.contains("wm_settext"), "{}", w.detail);
+        assert!(w.detail.contains("bm_click"), "{}", w.detail);
+        assert!(w.detail.contains("clipboard_paste"), "{}", w.detail);
+        assert!(!w.detail.contains("AXPress"), "{}", w.detail);
+        let hint = w.hint.unwrap();
+        assert!(hint.contains("Not product Windows CU"), "{hint}");
+        assert!(hint.contains("No SendInput"), "{hint}");
+        let m = app_backend_check("macos");
+        assert!(m.hint.unwrap().contains("AXPress"));
+    }
+
+    #[test]
+    fn windows_desktop_scope_warns_not_product() {
+        assert!(windows_desktop_scope_check("macos").is_none());
+        let c = windows_desktop_scope_check("windows").unwrap();
+        assert_eq!(c.name, "windows_desktop_scope");
+        assert_eq!(c.status, "warn");
+        assert!(c.detail.contains("Not a product Windows"), "{}", c.detail);
+        assert!(!c.detail.contains("AXPress"));
     }
 
     #[test]

@@ -128,6 +128,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_260.ps1
+      - name: windows vcu doctor scope (CU-D-270)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_270.ps1
 
   package-macos:
     needs: test

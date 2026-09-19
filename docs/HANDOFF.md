@@ -1,11 +1,11 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-260 CI 已绿。下一刀尚未写入 ROADMAP。
+更新：2026-09-20。CU-D-270 doctor 诚实 Windows 范围进行中。
 
 ## 本轮
 
-- 260：run `35474689948` `HOVER_OK path=guide_hover os_cursor_used=False` / `INVOKE_OK path=bm_click os_cursor_used=False` / `CU-D-260 OK`。
+- 270：`vcu doctor` 必须 warn `windows_desktop_scope`（CI 切片不是产品会话）；Windows `app_backend` 写 wm_settext/bm_click 不是 AXPress；WinForms HUD。
 
 ## 下一刀
 
-先把 **CU-D-270** 写进 `docs/ROADMAP-CU.md` 再写代码。候选：doctor 诚实区分 CI 切片与产品会话。不要 claim MAC-NEXT / FEISHU-001。未宣称完整 Windows 产品 CU / 完整 Codex CU。
+看 CI `SCOPE_OK` / `BACKEND_OK` / `CU-D-270 OK`。未绿不得宣称 270 完成。不要 claim MAC-NEXT / FEISHU-001。
