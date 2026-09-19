@@ -19,6 +19,8 @@ impl WindowsAppBackend {
                 "powershell".into(),
                 "cmd".into(),
                 "conhost".into(),
+                "calc".into(),
+                "calculator".into(),
             ],
         }
     }
@@ -703,7 +705,7 @@ impl AppBackend for WindowsAppBackend {
             let script = r#"
 Get-Process | Where-Object {
   $_.MainWindowTitle -ne '' -or
-  @('cmd','conhost','powershell','pwsh','WindowsTerminal') -contains $_.ProcessName
+  @('cmd','conhost','powershell','pwsh','WindowsTerminal','Calculator','calc','CalculatorApp') -contains $_.ProcessName
 } |
   ForEach-Object { '{0}|{1}|{2}' -f $_.ProcessName, $_.Id, ($_.MainWindowTitle -replace '[\r\n\t]',' ') }
 "#;
@@ -1068,7 +1070,7 @@ mod tests {
     #[test]
     fn parse_process_list_keeps_allowlist_drops_wechat() {
         let b = WindowsAppBackend::new();
-        let raw = "notepad\t1001\tUntitled - Notepad\nWeChat\t2002\tWeChat\nexplorer\t3003\tDocuments\nmsedge\t4004\tMicrosoft Edge\ncmd\t5005\t\nconhost\t5006\tVCU-D-140\n";
+        let raw = "notepad\t1001\tUntitled - Notepad\nWeChat\t2002\tWeChat\nexplorer\t3003\tDocuments\nmsedge\t4004\tMicrosoft Edge\ncmd\t5005\t\nconhost\t5006\tVCU-D-140\nCalculator\t5007\tCalculator\n";
         let wins = parse_process_list_lines(raw, |n| b.allowed(n));
         let names: Vec<_> = wins.iter().map(|w| w.bundle_or_exe.as_str()).collect();
         assert!(names.contains(&"notepad"));
@@ -1076,10 +1078,12 @@ mod tests {
         assert!(names.contains(&"msedge"));
         assert!(names.contains(&"cmd"));
         assert!(names.contains(&"conhost"));
+        assert!(names.contains(&"Calculator"));
         assert!(!names.iter().any(|n| n.to_lowercase().contains("wechat")));
         assert!(wins.iter().any(|w| w.id.starts_with("win:notepad:")));
         assert!(wins.iter().any(|w| w.id == "win:cmd:5005"));
         assert!(wins.iter().any(|w| w.id == "win:conhost:5006"));
+        assert!(wins.iter().any(|w| w.id == "win:Calculator:5007"));
     }
 
     #[test]
@@ -1215,6 +1219,13 @@ mod tests {
         let l140 = s140.to_ascii_lowercase();
         assert!(!l140.contains("sendinput("));
         assert!(!l140.contains("[system.windows.forms.sendkeys"));
+        let p160 = root.join("scripts/poc_cu_d_160.ps1");
+        let s160 = std::fs::read_to_string(&p160).unwrap_or_default();
+        assert!(s160.contains("INVOKE_OK"), "{}", p160.display());
+        assert!(s160.contains("win:calculator:"));
+        let l160 = s160.to_ascii_lowercase();
+        assert!(!l160.contains("sendinput("));
+        assert!(!l160.contains("[system.windows.forms.sendkeys"));
         let book = root.join("playbooks/desktop.md");
         let play = std::fs::read_to_string(&book).unwrap_or_default();
         assert!(play.contains("clipboard_paste"), "{}", book.display());

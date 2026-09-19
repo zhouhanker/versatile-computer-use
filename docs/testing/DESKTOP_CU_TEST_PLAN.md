@@ -141,6 +141,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-130 | vcu reveal Explorer | **通过** run `35467970349` `REVEAL_OK path=explorer_reveal` |
 | TC-D-140 | cmd type without Return | **通过** run `35469208163` `TYPE_OK path=clipboard_paste`；`NEWLINE_DENIED`；无 SendInput |
 | TC-D-150 | Windows playbook names clipboard_paste | **通过** `playbooks/desktop.md` 含 `clipboard_paste` / `win:cmd:`；无 SendInput |
+| TC-D-160 | Calculator click without HID | **未过** 抛弃型 calc；`INVOKE_OK`；无 SendInput |
 
 ## 8. 未通过不得宣称完成
 

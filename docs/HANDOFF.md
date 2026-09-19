@@ -1,13 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-140 CI 绿；150 playbook + README 已诚实落地。
+更新：2026-09-20。CU-D-160 Calculator 点击已加脚本，待 CI。
 
 ## 本轮
 
-- 140：run `35469208163` `TYPE_OK path=clipboard_paste` `NEWLINE_DENIED`。
-- 150：`playbooks/desktop.md` Windows 最短环。
-- README：Windows 是 CI 切片，不是产品 CU。
+- allowlist 增加 calc/calculator。
+- POC：`scripts/poc_cu_d_160.ps1` 点数字按钮，无 SendInput。
 
 ## 下一刀
 
-路线图 140 之后没有产品 Windows 会话。不要假绿双浏览器 / 跨源 iframe / 完整 Codex CU。可执行项：再加 allowlist App 的 CI 切片，或停在诚实边界。
+看 CI `INVOKE_OK`。未绿不得宣称 160 完成。不要写成产品 Windows CU。

@@ -84,6 +84,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_140.ps1
+      - name: windows vcu desktop calculator click (CU-D-160)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_160.ps1
 
   package-macos:
     needs: test
