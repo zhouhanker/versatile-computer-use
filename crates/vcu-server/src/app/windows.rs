@@ -43,7 +43,11 @@ impl WindowsAppBackend {
         std::fs::write(&path, &bytes).map_err(|e| {
             VcuError::with_detail(ErrorCode::Internal, "write powershell script", e.to_string())
         })?;
-        let output = Command::new("powershell")
+        let ps = {
+            let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+            std::path::PathBuf::from(root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe")
+        };
+        let output = Command::new(ps)
             .args([
                 "-NoProfile",
                 "-STA",
@@ -108,9 +112,9 @@ pub fn uia_tree_script(pid: i32, max_nodes: i32) -> String {
     format!(
         r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
-$pid = {pid}
+$targetPid = {pid}
 $max = {max}
-$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+$proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
 if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'MISSING'; exit 0 }}
 $win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
 if ($null -eq $win) {{ 'MISSING'; exit 0 }}
@@ -141,9 +145,9 @@ pub fn uia_invoke_script(pid: i32, eref: &str) -> String {
     format!(
         r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
-$pid = {pid}
+$targetPid = {pid}
 $want = {n}
-$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+$proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
 if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
 $win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
 if ($null -eq $win) {{ 'not-found'; exit 0 }}
@@ -188,10 +192,10 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, st
 '@
   Add-Type -MemberDefinition $sig -Name VcuSetValue070 -Namespace Vcu | Out-Null
 }}
-$pid = {pid}
+$targetPid = {pid}
 $want = {n}
 $val = '{val}'
-$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+$proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
 if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
 $win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
 if ($null -eq $win) {{ 'not-found'; exit 0 }}
