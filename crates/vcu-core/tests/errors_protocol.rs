@@ -27,6 +27,7 @@ fn every_error_code_has_hint() {
         ErrorCode::NotImplemented,
         ErrorCode::AccessibilityDenied,
         ErrorCode::AppDenied,
+        ErrorCode::StageRequired,
     ] {
         assert!(!code.default_hint().is_empty(), "{code:?}");
         let e = VcuError::coded(code, "x");

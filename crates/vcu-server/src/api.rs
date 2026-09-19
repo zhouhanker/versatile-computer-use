@@ -1389,6 +1389,8 @@ async fn session_start_inner(
         } else {
             None
         },
+        stage_hud: backend.stage_hud().map(|(shown, _)| shown),
+        stage_presenter: backend.stage_hud().map(|(_, p)| p.to_string()),
     };
     let blackboard = Blackboard {
         session_id: session_id.clone(),
@@ -2626,6 +2628,8 @@ mod abort_watch_tests {
             active_tab_id: None,
             agent_window_id: None,
             active_app_id: None,
+            stage_hud: Some(true),
+            stage_presenter: Some("noop".into()),
         };
         handle
             .state

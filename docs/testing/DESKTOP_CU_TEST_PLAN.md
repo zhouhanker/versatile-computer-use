@@ -50,8 +50,8 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-002 | os_cursor / HID 主路径拒绝 | OsCursorDenied | 已有 mock / login-state |
 | TC-D-003 | next_action 永不出现 click Allow | 文案无 Allow debugging | 已有 |
 | TC-D-004 | Return 无 confirm_send 拒绝 | FocusPolicyViolation | 已有 key 门禁 |
-| TC-D-005 | desktop 会话无 Stage 则失败 | 不得 act | **待实现**（CU-D-010） |
-| TC-D-006 | Abort 后无残留 HUD/Guide | 无 vcu-stage 残留 | **待实现**（CU-D-011） |
+| TC-D-005 | desktop 会话无 Stage 则失败 | 不得 act | `desktop_rejects_hidden_stage` + HTTP `stage_hud` |
+| TC-D-006 | Abort 后无残留 HUD/Guide | 无 vcu-stage 残留 | 单测 `abort_watch_removes_session` / `wait_stops_on_stage_abort`；真机未跑 |
 | TC-D-007 | 缺辅助功能 repair 指向系统设置 | 不提 Edge Allow | doctor 单测扩展 |
 
 ## 4. 观察用例（阶段 1）

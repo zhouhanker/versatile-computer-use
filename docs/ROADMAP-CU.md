@@ -93,11 +93,11 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 
 | ID | 工作 | 验收 |
 | --- | --- | --- |
-| CU-D-010 | `vcu session start --surface desktop` 必须升起 Stage 胶囊 HUD | 无 HUD 则 session 失败；单测 mock |
-| CU-D-011 | Abort（默认 Escape 热键）立刻拆 Stage/Guide，会话结束 | 单测 + 真机 TextEdit 开一下就 Abort |
-| CU-D-012 | `vcu app windows` 只返回 allowlist；微信硬拒绝 | 已有测试保持；补「覆盖点拒绝」 |
-| CU-D-013 | 窗口截帧：CGWindowID，不截被挡应用，失败不包装成功 | 与现有 observe 门禁一致 |
-| CU-D-014 | Scene：AX 摘要 + screenshot_scale∈{1,2,3} | doctor 缺辅助功能时指向系统设置，不提 Allow |
+| CU-D-010 | `vcu session start --surface desktop` 必须升起 Stage 胶囊 HUD | **完成（单测）** `ErrorCode::StageRequired`；hidden Stage 拒绝；session JSON `stage_hud`；raise 写 `hud:true` |
+| CU-D-011 | Abort（默认 Escape 热键）立刻拆 Stage/Guide，会话结束 | **单测完成** abort_watch 删会话、wait 遇 abort 结束、mock 武装 abort 路径。**真机 TextEdit Abort 未跑** |
+| CU-D-012 | `vcu app windows` 只返回 allowlist；微信硬拒绝 | **完成（单测）** `wechat_is_hard_denied` + `denied_app_covering_point` |
+| CU-D-013 | 窗口截帧：CGWindowID，不截被挡应用，失败不包装成功 | **单测完成** `observe_does_not_wrap_a_failed_snapshot_in_success` |
+| CU-D-014 | Scene：AX 摘要 + screenshot_scale∈{1,2,3} | **单测完成** `pixel_scale_snaps_retina_and_rejects_junk`；doctor 不提 Allow |
 
 **本阶段不做：** 对 Finder/飞书真点击。
 

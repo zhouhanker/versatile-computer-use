@@ -37,7 +37,7 @@ impl DesktopBackend {
         let stage = StageHandle::raise_for_platform(&platform)?;
         if !stage.shown {
             return Err(VcuError::coded(
-                ErrorCode::Internal,
+                ErrorCode::StageRequired,
                 "desktop surface requires a visible Stage banner",
             ));
         }
@@ -57,7 +57,7 @@ impl DesktopBackend {
     ) -> VcuResult<Self> {
         if !stage.shown {
             return Err(VcuError::coded(
-                ErrorCode::Internal,
+                ErrorCode::StageRequired,
                 "desktop surface requires a visible Stage banner",
             ));
         }
@@ -334,10 +334,14 @@ impl BrowserBackend for DesktopBackend {
         self.stage.abort_watch_path()
     }
 
+    fn stage_hud(&self) -> Option<(bool, &'static str)> {
+        Some((self.stage.shown, self.stage.presenter))
+    }
+
     async fn ensure_agent_window(&mut self) -> VcuResult<String> {
         if !self.stage.shown {
             return Err(VcuError::coded(
-                ErrorCode::Internal,
+                ErrorCode::StageRequired,
                 "Stage banner is not visible",
             ));
         }
@@ -852,6 +856,27 @@ fn plan_desktop_key(key: &str, confirm_send: bool, has_ref: bool) -> VcuResult<D
 mod tests {
     use super::*;
     use crate::app::mock_app::MockAppBackend;
+
+    #[tokio::test]
+    async fn mock_desktop_stage_arms_abort_watch() {
+        let app: Arc<RwLock<Box<dyn AppBackend>>> =
+            Arc::new(RwLock::new(Box::new(MockAppBackend::default())));
+        let b = DesktopBackend::new(app).await.unwrap();
+        assert!(b.stage_shown());
+        assert!(b.abort_watch_path().is_some(), "CU-D-011 mock Stage must arm abort watch");
+    }
+
+    #[tokio::test]
+    async fn desktop_rejects_hidden_stage() {
+        let app: Arc<RwLock<Box<dyn AppBackend>>> =
+            Arc::new(RwLock::new(Box::new(MockAppBackend::default())));
+        let err = match DesktopBackend::new_with_stage(app, crate::stage::StageHandle::hidden()).await {
+            Ok(_) => panic!("hidden Stage must not start a desktop backend"),
+            Err(e) => e,
+        };
+        assert_eq!(err.code(), ErrorCode::StageRequired);
+        assert!(err.message().contains("Stage banner"));
+    }
 
     #[tokio::test]
     async fn mock_desktop_scene_and_actuator() {

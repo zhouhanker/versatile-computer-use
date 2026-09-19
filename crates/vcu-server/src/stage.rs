@@ -176,6 +176,14 @@ impl StageHandle {
         }
     }
 
+    /// CU-D-010: a Stage that never became visible must not start a desktop session.
+    pub fn hidden() -> Self {
+        let mut s = Self::noop();
+        s.shown = false;
+        s.presenter = "hidden";
+        s
+    }
+
     pub fn noop_with_abort(abort_path: PathBuf) -> Self {
         let mut s = Self::noop();
         s.abort_path = Some(abort_path);
@@ -184,7 +192,11 @@ impl StageHandle {
 
     pub fn raise_for_platform(platform: &str) -> VcuResult<Self> {
         if platform == "mock-app" {
-            return Ok(Self::noop());
+            let abort = std::env::temp_dir().join(format!(
+                "vcu-stage-mock-{}.abort",
+                ulid::Ulid::new()
+            ));
+            return Ok(Self::noop_with_abort(abort));
         }
         Self::raise_live()
     }
@@ -194,7 +206,7 @@ impl StageHandle {
         {
             let token = ulid::Ulid::new().to_string();
             let control_path = std::env::temp_dir().join(format!("vcu-stage-{token}.json"));
-            write_control(&control_path, false, None, None)?;
+            write_control(&control_path, false, None, Some(true))?;
             if let Some(handle) = try_spawn_native(&token, &control_path) {
                 return Ok(handle);
             }
@@ -202,7 +214,10 @@ impl StageHandle {
         }
         #[cfg(not(target_os = "macos"))]
         {
-            Ok(Self::noop())
+            Err(VcuError::coded(
+                ErrorCode::StageRequired,
+                "desktop Stage HUD is macOS-only in this slice; Windows UIA is later",
+            ))
         }
     }
 
@@ -479,6 +494,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hidden_stage_is_not_shown() {
+        let s = StageHandle::hidden();
+        assert!(!s.shown);
+        assert_eq!(s.presenter, "hidden");
+    }
+
+    #[test]
     fn noop_stage_is_shown_without_process() {
         let mut s = StageHandle::noop();
         assert!(s.shown);
@@ -514,6 +536,16 @@ mod tests {
         assert!(s.abort_requested());
         s.teardown();
         assert!(!abort.exists());
+    }
+
+    #[test]
+    fn write_control_can_show_hud() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("c.json");
+        write_control(&p, false, None, Some(true)).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+        assert_eq!(v["hud"], true);
+        assert_eq!(v["stop"], false);
     }
 
     #[test]

@@ -86,6 +86,11 @@ pub struct Session {
     pub agent_window_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_app_id: Option<String>,
+    /// Desktop Stage capsule is visible. Required true for surface=desktop.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage_hud: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage_presenter: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

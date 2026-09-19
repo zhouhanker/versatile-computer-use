@@ -32,6 +32,8 @@ async fn desktop_surface_scene_actuator_and_wechat_denied() {
     assert_eq!(started["data"]["adapter"], "desktop");
     assert_eq!(started["data"]["backend"], "desktop");
     assert_eq!(started["data"]["policy"]["os_cursor"], "deny");
+    assert_eq!(started["data"]["stage_hud"], true, "{started}");
+    assert_eq!(started["data"]["stage_presenter"], "noop");
     let sid = started["data"]["session_id"].as_str().unwrap().to_string();
     let active = started["data"]["active_app_id"].as_str().unwrap().to_string();
     assert!(active.contains("TextEdit"));

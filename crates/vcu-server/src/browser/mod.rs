@@ -31,6 +31,9 @@ pub trait BrowserBackend: Send + Sync {
     fn abort_watch_path(&self) -> Option<std::path::PathBuf> {
         None
     }
+    fn stage_hud(&self) -> Option<(bool, &'static str)> {
+        None
+    }
 }
 
 #[derive(Debug, Clone)]

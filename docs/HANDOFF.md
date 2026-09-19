@@ -2,20 +2,20 @@
 
 更新时间：2026-09-20。作者zhouhanker。
 
-**先读 [当前计划](PLAN.md)。** 已发布 Bridge **0.2.8**（浏览器）。用户已要求对标 Codex CU **含桌面**；执行总览是 [ROADMAP-CU.md](ROADMAP-CU.md)，测试是 [testing/DESKTOP_CU_TEST_PLAN.md](testing/DESKTOP_CU_TEST_PLAN.md)。桌面切片尚未开工。
+**先读 [PLAN.md](PLAN.md) 与 [ROADMAP-CU.md](ROADMAP-CU.md)。** Bridge 0.2.8 浏览器冻结有效。桌面史诗进行中。
 
-## 硬约束（桌面史诗也不破）
+## 本轮完成
 
-不点 Allow；不自动化微信；不 warp OS 光标；不修改 `~/.codex/computer-use/`；不碰用户 Edge 组 `1` / `3`。网页细操作仍走 extension_dom。
+- **CU-D-010**（单测）：无可见 Stage 则 `ErrorCode::StageRequired`；`session start --surface desktop` 返回 `stage_hud` / `stage_presenter`；raise 控制文件 `hud: true`。
+- **CU-D-011**（单测）：abort 文件删除会话；mock Stage 武装 abort watch。真机 TextEdit Escape 未跑。
+- **CU-D-012**（单测）：微信 denylist + covering point。
 
-## 已发布
-
-| 项 | 值 |
-| --- | --- |
-| Git | `e960014` README；功能 `98997b7` Bridge 0.2.8 |
-| 热更新 | `vcu browser install-lens --reload` |
-| 默认 open | 现有窗口新标签 |
+证据：`cargo test --workspace --offline` 绿；`node --test extension/tests/*.test.cjs` 42 绿。
 
 ## 下一刀
 
-CU-D-010：desktop 会话必须升起 Stage HUD，否则拒绝。先单测，不要先对用户真窗口开Actuator。
+CU-D-011 真机 Abort，或 CU-D-013/014 观察路径（窗口截帧 / Scene scale）按 ROADMAP 继续。不要对用户 Edge 组 1/3 做动作。
+
+## 红线
+
+不点 Allow；不自动化微信；不 warp OS 光标；不把 `/reference/` 官方包提交进 git。

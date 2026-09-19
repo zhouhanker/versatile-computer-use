@@ -57,7 +57,11 @@
 - [x] **P2 / 0.2.7 体验补丁**：光标朝向与点击压缩、viewport 截图保留光标、合并 Edge+Chrome tabs、CLI/MCP hover、同源 iframe 内层点选、canvas 合成点击。
 - [x] **P2 / 0.2.8**：`install-lens --reload` 热更新已连接 Edge/Chrome SW；默认 `open` 在现有 USER 窗口开新标签。
 - [ ] **P2 后续（浏览器）**：跨源 iframe / trusted 手势 / TC-B-040 仍不在浏览器范围内。双浏览器 tabs 真机复检。
-- [ ] **下一史诗 CU-D-000…**：桌面会话 / Scene / Actuator / Stage，见 ROADMAP-CU。第一刀 CU-D-010 会话必须升起 HUD。
+- [x] **CU-D-010**：无 Stage HUD 则 desktop session 失败（`StageRequired`）；HTTP `stage_hud=true`。
+- [ ] **CU-D-011 真机**：Escape Abort 拆 HUD（单测已有；TextEdit live 未跑）。
+- [x] **CU-D-012**：微信 denylist + 覆盖点拒绝（单测）。
+- [ ] **下一史诗其余 CU-D-013…**：见 ROADMAP-CU。
+
 
 ## 操作入口
 
