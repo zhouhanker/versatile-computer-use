@@ -274,6 +274,8 @@ pub fn is_editable_ax_role(role: &str) -> bool {
         || r.contains("combo")
         || r.contains("axtext")
         || r == "text"
+        || (r.contains("edit") && !r.contains("credit"))
+        || r.contains("document")
 }
 
 /// Prefer the largest WebView/messenger frame so chat pane wins over the sidebar strip.
@@ -660,6 +662,9 @@ mod tests {
         assert!(is_editable_ax_role("text area"));
         assert!(is_editable_ax_role("AXTextField"));
         assert!(is_editable_ax_role("text"));
+        assert!(is_editable_ax_role("ControlType.Edit"));
+        assert!(is_editable_ax_role("ControlType.Pane/Edit"));
+        assert!(!is_editable_ax_role("ControlType.Pane"));
         assert!(!is_editable_ax_role("AXScrollArea"));
         assert!(!is_editable_ax_role("scroll area"));
         assert!(!is_editable_ax_role("AXButton"));

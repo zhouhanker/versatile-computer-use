@@ -590,11 +590,12 @@ impl BrowserBackend for DesktopBackend {
         }
         if let Some(role) = self.cached_role(tab_id, r) {
             let textedit = tab_id.to_ascii_lowercase().contains("textedit");
+            let notepad = tab_id.to_ascii_lowercase().contains("notepad");
             let terminal = {
                 let t = tab_id.to_ascii_lowercase();
                 t.contains("terminal") || t.contains("ghostty")
             };
-            if !is_editable_ax_role(&role) && !textedit && !terminal {
+            if !is_editable_ax_role(&role) && !textedit && !notepad && !terminal {
                 return Err(VcuError::coded(
                     ErrorCode::InvalidInput,
                     format!(

@@ -11,6 +11,80 @@ use std::sync::Mutex;
 use vcu_core::{ErrorCode, VcuError, VcuResult};
 
 const BANNER: &str = "VCU 正在使用这台 Mac    按 Escape 取消";
+#[allow(dead_code)]
+const BANNER_WINDOWS: &str = "VCU 正在使用这台 PC    按 Escape 取消";
+
+/// WinForms HUD + Guide. No SendInput / cursor warp. Escape writes the abort file.
+#[allow(dead_code)]
+const STAGE_WINPS: &str = r#"
+Add-Type -AssemblyName System.Windows.Forms | Out-Null
+Add-Type -AssemblyName System.Drawing | Out-Null
+$controlPath = $args[0]
+if (-not $controlPath) { exit 1 }
+$abortPath = [System.IO.Path]::ChangeExtension($controlPath, 'abort')
+function Read-Control {
+  if (-not (Test-Path -LiteralPath $controlPath)) { return $null }
+  try {
+    return (Get-Content -LiteralPath $controlPath -Raw -ErrorAction Stop | ConvertFrom-Json)
+  } catch { return $null }
+}
+$screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$form = New-Object System.Windows.Forms.Form
+$form.Text = 'VCU'
+$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+$form.TopMost = $true
+$form.ShowInTaskbar = $false
+$form.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+$form.Width = 320
+$form.Height = 32
+$form.Left = [int]($screen.Left + ($screen.Width - 320) / 2)
+$form.Top = [int]($screen.Top + 8)
+$form.BackColor = [System.Drawing.Color]::FromArgb(18, 46, 107)
+$form.KeyPreview = $true
+$form.Add_KeyDown({
+  if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
+    [System.IO.File]::WriteAllText($abortPath, '1')
+  }
+})
+$label = New-Object System.Windows.Forms.Label
+$label.Text = 'VCU 正在使用这台 PC    Esc 取消'
+$label.ForeColor = [System.Drawing.Color]::White
+$label.AutoSize = $false
+$label.Width = 320
+$label.Height = 32
+$label.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+$form.Controls.Add($label)
+$guide = New-Object System.Windows.Forms.Form
+$guide.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+$guide.TopMost = $true
+$guide.ShowInTaskbar = $false
+$guide.Width = 48
+$guide.Height = 48
+$guide.BackColor = [System.Drawing.Color]::FromArgb(255, 107, 56)
+$guide.Opacity = 0.85
+$guide.Visible = $false
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 80
+$timer.Add_Tick({
+  $c = Read-Control
+  if ($null -eq $c) { return }
+  if ($c.stop) { $timer.Stop(); $form.Close(); return }
+  if ($c.PSObject.Properties.Name -contains 'hud') {
+    if ($c.hud -eq $false) { $form.Hide() } else { $form.Show() }
+  }
+  if ($c.guide) {
+    $gx = 0; $gy = 0
+    try { $gx = [int]$c.guide.x } catch {}
+    try { $gy = [int]$c.guide.y } catch {}
+    $guide.Left = $gx - 24
+    $guide.Top = $gy - 24
+    if ($c.guide.visible -eq $false) { $guide.Hide() } else { $guide.Show() }
+  }
+})
+$timer.Start()
+$form.Add_FormClosed({ $timer.Stop(); try { $guide.Close() } catch {} })
+[System.Windows.Forms.Application]::Run($form)
+"#;
 
 const STAGE_JXA: &str = r#"
 ObjC.import('Cocoa');
@@ -212,11 +286,15 @@ impl StageHandle {
             }
             spawn_jxa_fallback(&token, control_path)
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(windows)]
+        {
+            spawn_winforms_hud()
+        }
+        #[cfg(not(any(target_os = "macos", windows)))]
         {
             Err(VcuError::coded(
                 ErrorCode::StageRequired,
-                "desktop Stage HUD is macOS-only in this slice; Windows UIA is later",
+                "desktop Stage HUD is macOS/Windows in this slice",
             ))
         }
     }
@@ -317,7 +395,14 @@ impl Drop for StageHandle {
 }
 
 pub fn banner_text() -> &'static str {
-    BANNER
+    #[cfg(windows)]
+    {
+        BANNER_WINDOWS
+    }
+    #[cfg(not(windows))]
+    {
+        BANNER
+    }
 }
 
 pub fn resolve_stage_bin() -> Option<PathBuf> {
@@ -463,6 +548,87 @@ fn spawn_jxa_fallback(token: &str, control_path: PathBuf) -> VcuResult<StageHand
     })
 }
 
+#[cfg(windows)]
+fn windows_powershell() -> PathBuf {
+    let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+    PathBuf::from(root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe")
+}
+
+#[cfg(windows)]
+fn spawn_winforms_hud() -> VcuResult<StageHandle> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let token = ulid::Ulid::new().to_string();
+    let control_path = std::env::temp_dir().join(format!("vcu-stage-{token}.json"));
+    write_control(&control_path, false, None, Some(true))?;
+    let script_path = std::env::temp_dir().join(format!("vcu-stage-{token}.ps1"));
+    {
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(STAGE_WINPS.as_bytes());
+        std::fs::write(&script_path, bytes).map_err(|e| {
+            VcuError::with_detail(ErrorCode::Internal, "write windows stage script", e.to_string())
+        })?;
+    }
+    let log_path = std::env::temp_dir().join(format!("vcu-stage-{token}.log"));
+    let log = std::fs::File::create(&log_path).map_err(|e| {
+        VcuError::with_detail(ErrorCode::Internal, "windows stage log", e.to_string())
+    })?;
+    let mut cmd = Command::new(windows_powershell());
+    cmd.args([
+        "-NoProfile",
+        "-STA",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        script_path.to_string_lossy().as_ref(),
+        control_path.to_string_lossy().as_ref(),
+    ])
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(std::process::Stdio::from(log))
+    .creation_flags(CREATE_NO_WINDOW);
+    let mut child = cmd.spawn().map_err(|e| {
+        let _ = std::fs::remove_file(&script_path);
+        let _ = std::fs::remove_file(&control_path);
+        VcuError::with_detail(
+            ErrorCode::StageRequired,
+            "failed to raise Windows Stage HUD",
+            e.to_string(),
+        )
+    })?;
+    std::thread::sleep(std::time::Duration::from_millis(600));
+    match child.try_wait() {
+        Ok(None) => {}
+        Ok(Some(status)) => {
+            let err = std::fs::read_to_string(&log_path).unwrap_or_default();
+            let _ = std::fs::remove_file(&script_path);
+            let _ = std::fs::remove_file(&control_path);
+            return Err(VcuError::with_detail(
+                ErrorCode::StageRequired,
+                "Windows Stage HUD exited",
+                format!("status={status:?} log={err}"),
+            ));
+        }
+        Err(e) => {
+            return Err(VcuError::with_detail(
+                ErrorCode::StageRequired,
+                "Windows Stage HUD wait failed",
+                e.to_string(),
+            ));
+        }
+    }
+    Ok(StageHandle {
+        child: Mutex::new(Some(child)),
+        script_path: Some(script_path),
+        control_path: Some(control_path.clone()),
+        abort_path: Some(control_path.with_extension("abort")),
+        last_guide: Mutex::new(None),
+        shown: true,
+        mock: false,
+        presenter: "winforms",
+    })
+}
+
 fn write_control(
     path: &PathBuf,
     stop: bool,
@@ -592,6 +758,19 @@ mod tests {
         }
         assert!(STAGE_JXA.contains("VCU 正在使用这台 Mac"));
         assert!(STAGE_JXA.contains("Esc 取消"));
+        assert!(BANNER_WINDOWS.contains("VCU 正在使用这台 PC"));
+        assert!(BANNER_WINDOWS.contains("Escape") || BANNER_WINDOWS.contains("Esc"));
+        assert!(STAGE_WINPS.contains("VCU 正在使用这台 PC"));
+        assert!(STAGE_WINPS.contains("Esc 取消"));
+        assert!(STAGE_WINPS.contains("Keys]::Escape"));
+        assert!(STAGE_WINPS.contains("abort"));
+        assert!(STAGE_WINPS.contains("TopMost"));
+        assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));
+        assert!(!STAGE_WINPS.to_ascii_lowercase().contains("[system.windows.forms.sendkeys"));
+        for banned in ["ChatGPT", "Using your Mac", "Codex is using"] {
+            assert!(!BANNER_WINDOWS.contains(banned), "{BANNER_WINDOWS}");
+            assert!(!STAGE_WINPS.contains(banned), "winps");
+        }
         let swift = include_str!("../../../helpers/vcu-stage/main.swift");
         assert!(swift.contains(r#"let hudTitle = "VCU 正在使用这台 Mac""#));
         assert!(swift.contains(r#"let hudSub = "Esc 取消""#));

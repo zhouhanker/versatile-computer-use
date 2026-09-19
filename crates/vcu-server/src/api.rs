@@ -1922,7 +1922,12 @@ async fn snapshot(
         browser_profile,
         surface: slot.session.surface,
         source: Some(if matches!(slot.session.surface, SurfaceKind::Desktop) {
-            "ax_scene".into()
+            let plat = state.app_backend.read().await.platform().to_string();
+            if plat == "windows" {
+                "uia_scene".into()
+            } else {
+                "ax_scene".into()
+            }
         } else if matches!(slot.session.backend, BackendKind::Extension) {
             "extension_dom".into()
         } else {

@@ -106,8 +106,9 @@ while ($q.Count -gt 0 -and $n -lt $max) {{
   $n++
   $ct = $el.Current.ControlType.ProgrammaticName
   $nm = ($el.Current.Name -replace '[\r\n\|]', ' ')
+  $cls = ($el.Current.ClassName -replace '[\r\n\|]', ' ')
   $r = $el.Current.BoundingRectangle
-  '{{0}}|{{1}}|{{2}}|{{3}},{{4}},{{5}},{{6}}' -f ("e$n"), $ct, $nm, [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height
+  '{{0}}|{{1}}|{{2}}|{{3}},{{4}},{{5}},{{6}}|{{7}}' -f ("e$n"), $ct, $nm, [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height, $cls
   if ($n -ge $max) {{ break }}
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
   foreach ($k in $kids) {{ $q.Enqueue($k) }}
@@ -307,13 +308,20 @@ pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
         if line.is_empty() || line == "MISSING" {
             continue;
         }
-        let mut sp = line.splitn(4, '|');
+        let mut sp = line.split('|');
         let eref = sp.next().unwrap_or("").trim();
-        let role = sp.next().unwrap_or("").trim();
-        let name = sp.next().unwrap_or("").trim();
+        let mut role = sp.next().unwrap_or("").trim().to_string();
+        let name = sp.next().unwrap_or("").trim().to_string();
         let fr = sp.next().unwrap_or("").trim();
+        let class = sp.next().unwrap_or("").trim();
         if eref.is_empty() {
             continue;
+        }
+        if !class.is_empty() {
+            let cl = class.to_ascii_lowercase();
+            if cl == "edit" || cl == "document" || cl.contains("richedit") {
+                role = format!("{role}/{class}");
+            }
         }
         let frame = {
             let p: Vec<&str> = fr.split(',').collect();
@@ -332,8 +340,8 @@ pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
         };
         out.push(AppElement {
             r#ref: eref.to_string(),
-            role: role.to_string(),
-            name: name.to_string(),
+            role,
+            name,
             value: None,
             frame,
         });
@@ -597,15 +605,16 @@ mod tests {
     #[test]
     fn parse_uia_tree_and_scripts_are_pattern_not_hid() {
         let els = parse_uia_element_lines(
-            "e1|ControlType.Window|Notepad|10,10,800,600\ne2|ControlType.Button|Save|20,40,80,24\nMISSING\n",
-        );
-        assert_eq!(els.len(), 2);
+            "e1|ControlType.Window|Notepad|10,10,800,600\ne2|ControlType.Button|Save|20,40,80,24\nMISSING\ne3|ControlType.Pane||10,40,780,540|Edit\n"        );
+        assert_eq!(els.len(), 3);
         assert_eq!(els[0].r#ref, "e1");
         assert_eq!(els[1].name, "Save");
         assert_eq!(els[1].frame, Some([20.0, 40.0, 80.0, 24.0]));
+        assert_eq!(els[2].role, "ControlType.Pane/Edit");
         let tree = uia_tree_script(4242, 80);
         assert!(tree.contains("UIAutomationClient"));
         assert!(tree.contains("ProcessIdProperty"));
+        assert!(tree.contains("ClassName"));
         assert!(!tree.to_ascii_lowercase().contains("sendinput"));
         let inv = uia_invoke_script(4242, "e2");
         assert!(inv.contains("InvokePattern"));
@@ -651,8 +660,8 @@ mod tests {
 
     #[test]
     fn windows_live_poc_script_is_uia_not_hid() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../scripts/poc_desktop_windows.ps1");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path = root.join("scripts/poc_desktop_windows.ps1");
         let raw = std::fs::read_to_string(&path).unwrap_or_default();
         assert!(raw.contains("UIA_OK"), "{}", path.display());
         assert!(raw.contains("PRINTWINDOW_OK"));
@@ -664,6 +673,14 @@ mod tests {
         assert!(!lower.contains("[system.windows.forms.sendkeys"));
         assert!(!lower.contains("mouse_event("));
         assert!(!lower.contains("copyfromscreen("));
+        let p90 = root.join("scripts/poc_cu_d_090.ps1");
+        let s90 = std::fs::read_to_string(&p90).unwrap_or_default();
+        assert!(s90.contains("session start"), "{}", p90.display());
+        assert!(s90.contains("--surface desktop"));
+        assert!(s90.contains("TYPE_OK"));
+        let l90 = s90.to_ascii_lowercase();
+        assert!(!l90.contains("sendinput("));
+        assert!(!l90.contains("[system.windows.forms.sendkeys"));
     }
 
     #[cfg(not(windows))]
