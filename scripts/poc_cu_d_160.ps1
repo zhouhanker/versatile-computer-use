@@ -56,7 +56,7 @@ try {
   }
   if (-not $ok) { throw "daemon health failed" }
 
-  $tab = "win:calculator:$($calc.Id)"
+  $tab = "win:$($calc.ProcessName):$($calc.Id)"
   $startRaw = & $vcu --user-dir $ud session start --surface desktop --app-id $tab --json
   Write-Host $startRaw
   $start = $startRaw | ConvertFrom-Json

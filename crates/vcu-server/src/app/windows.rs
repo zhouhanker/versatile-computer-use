@@ -1231,7 +1231,7 @@ mod tests {
         let p160 = root.join("scripts/poc_cu_d_160.ps1");
         let s160 = std::fs::read_to_string(&p160).unwrap_or_default();
         assert!(s160.contains("INVOKE_OK"), "{}", p160.display());
-        assert!(s160.contains("win:calculator:"));
+        assert!(s160.contains("ProcessName") && s160.contains("win:"));
         let l160 = s160.to_ascii_lowercase();
         assert!(!l160.contains("sendinput("));
         assert!(!l160.contains("[system.windows.forms.sendkeys"));

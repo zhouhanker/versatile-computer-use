@@ -1717,7 +1717,7 @@ async fn ensure_tab_writable(slot: &mut SessionSlot, tab_id: &str) -> Result<(),
     let tabs = slot.backend.list_tabs().await?;
     let tab = tabs
         .iter()
-        .find(|t| t.tab_id == tab_id)
+        .find(|t| t.tab_id == tab_id || t.tab_id.eq_ignore_ascii_case(tab_id))
         .ok_or_else(|| VcuError::coded(ErrorCode::TabNotFound, format!("tab {tab_id}")))?;
     if tab.agent_owned {
         return Ok(());
