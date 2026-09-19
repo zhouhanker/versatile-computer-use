@@ -111,6 +111,19 @@ async fn mcp_initialize_and_session_tools() {
             "{name} missing tab_id"
         );
     }
+    assert!(
+        arr.iter().any(|t| t["name"] == "vcu_hover"),
+        "missing vcu_hover"
+    );
+    assert!(
+        arr.iter().any(|t| t["name"] == "vcu_session_abort"),
+        "missing vcu_session_abort"
+    );
+    let wait = arr.iter().find(|t| t["name"] == "vcu_wait").unwrap();
+    assert!(
+        wait["inputSchema"]["properties"].get("value").is_some(),
+        "vcu_wait missing value"
+    );
 
     write_msg(
         &mut stdin,
