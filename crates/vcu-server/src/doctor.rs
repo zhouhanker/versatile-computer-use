@@ -121,6 +121,13 @@ pub async fn build_report(paths: &VcuPaths, live: Option<&AppState>) -> DoctorRe
             detail: ext_detail,
             hint: ext_hint,
         });
+        {
+            let chrome_app = std::path::Path::new("/Applications/Google Chrome.app").exists()
+                || std::path::Path::new(r"C:\Program Files\Google\Chrome\Application\chrome.exe").exists();
+            let edge_app = std::path::Path::new("/Applications/Microsoft Edge.app").exists()
+                || std::path::Path::new(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe").exists();
+            checks.push(dual_browser_lens_check(chrome_app, edge_app, &ext_browsers));
+        }
         let cfg = state.config.read().await;
         DaemonStatus {
             running: true,
@@ -393,6 +400,43 @@ fn login_browser_check(report: &crate::login_state::LoginBrowserReport) -> Docto
     }
 }
 
+fn dual_browser_lens_check(
+    chrome_installed: bool,
+    edge_installed: bool,
+    polling: &[String],
+) -> DoctorCheck {
+    let chrome_poll = polling.iter().any(|b| b.eq_ignore_ascii_case("chrome"));
+    let edge_poll = polling.iter().any(|b| b.eq_ignore_ascii_case("edge"));
+    if chrome_installed && edge_installed && !(chrome_poll && edge_poll) {
+        let have = if polling.is_empty() {
+            "none".to_string()
+        } else {
+            polling.join(",")
+        };
+        return DoctorCheck {
+            name: "lens_dual_browser".into(),
+            status: "warn".into(),
+            detail: format!("Chrome and Edge are installed but lens is polling: {have}"),
+            hint: Some(
+                "Load unpacked ~/.vcu/lens-extension in the missing USER browser, then Reload. Never click Allow.".into(),
+            ),
+        };
+    }
+    let detail = if chrome_poll && edge_poll {
+        "lens polling chrome+edge".into()
+    } else if polling.is_empty() {
+        "lens polling none".into()
+    } else {
+        format!("lens polling {}", polling.join(","))
+    };
+    DoctorCheck {
+        name: "lens_dual_browser".into(),
+        status: "pass".into(),
+        detail,
+        hint: None,
+    }
+}
+
 fn stage_helper_check(found: Option<&std::path::Path>, os: &str) -> DoctorCheck {
     if os != "macos" {
         return DoctorCheck {
@@ -423,8 +467,22 @@ fn stage_helper_check(found: Option<&std::path::Path>, os: &str) -> DoctorCheck 
 
 #[cfg(test)]
 mod tests {
-    use super::{login_browser_check, scene_webview_crop_check, stage_helper_check};
+    use super::{dual_browser_lens_check, login_browser_check, scene_webview_crop_check, stage_helper_check};
     use std::path::Path;
+
+    #[test]
+    fn dual_browser_lens_warns_when_only_one_polls() {
+        let c = dual_browser_lens_check(true, true, &["edge".into()]);
+        assert_eq!(c.name, "lens_dual_browser");
+        assert_eq!(c.status, "warn");
+        assert!(c.detail.contains("edge"), "{}", c.detail);
+        assert!(c.hint.unwrap().contains("Never click Allow"));
+        let p = dual_browser_lens_check(true, true, &["chrome".into(), "edge".into()]);
+        assert_eq!(p.status, "pass");
+        assert!(p.detail.contains("chrome+edge"));
+        let one = dual_browser_lens_check(false, true, &["edge".into()]);
+        assert_eq!(one.status, "pass");
+    }
 
     #[test]
     fn stage_helper_is_optional_off_macos() {

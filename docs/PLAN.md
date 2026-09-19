@@ -58,6 +58,7 @@
 - [x] **P2 / 0.2.8**：`install-lens --reload` 热更新已连接 Edge/Chrome SW；默认 `open` 在现有 USER 窗口开新标签。
 - [ ] **P2 后续（浏览器）**：跨源 iframe / trusted 手势 / TC-B-040 仍不在范围内。双浏览器 tabs 真机复检未过（现仅 Edge 轮询）。
 - [x] **CU-B-010**：tabs/health 报告 `browser_count`/`browsers`（单测）。真机 Chrome 未连。
+- [x] **CU-B-011**：doctor `lens_dual_browser` 在双浏览器已装但只连一个时 warn（单测）。真机仍 Edge-only。
 - [x] **CU-D-010**：无 Stage HUD 则 desktop session 失败（`StageRequired`）；HTTP `stage_hud=true`。
 - [x] **CU-D-011**：`vcu session abort` / HTTP abort 拆会话（单测）。未弹用户 HUD 做目视 Escape。
 - [x] **CU-D-012**：微信 denylist + 覆盖点拒绝（单测）。
