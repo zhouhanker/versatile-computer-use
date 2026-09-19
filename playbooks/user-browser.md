@@ -42,7 +42,7 @@ DOM 操作必须 `source=extension_dom`；标签管理为 `source=extension_tabs
 
 selector 多个匹配、隐藏、禁用或被遮挡时应修正目标；输入只接受可编辑节点。DOM 事件为非 trusted，无法替代网站要求的原生用户手势；不要靠重试伪造成功。超时可能发生在动作已经执行之后，应先重新观察，不盲目重复动作。
 
-## 网页截图坐标点击（Bridge 0.2.7）
+## 网页截图坐标点击（Bridge 0.2.8）
 
 ```sh
 vcu browser select --tab <id>
@@ -90,4 +90,4 @@ MCP 对应 `vcu_browser_tabs/select/open/group/group_update/ungroup` 和 `observ
 
 禁止自动化微信、点击调试 Allow、OS cursor warp/HID，以及修改 `~/.codex/computer-use/`。
 
-当前0.2.5支持`browser open --new-window --background`与显式`browser close --tab`。真实多窗口POC：`python3 scripts/poc_browser_parity.py --live`（仅本地受控页面，默认不执行真实动作）。
+默认`browser open`在已有 USER 窗口里开新标签；只有显式`--new-window`才开新窗口。`browser close --tab`关闭指定标签。真实多窗口POC：`python3 scripts/poc_browser_parity.py --live`（仅本地受控页面，默认不执行真实动作）。

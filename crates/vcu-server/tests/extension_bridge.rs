@@ -275,3 +275,60 @@ async fn action_with_known_tab_id_targets_owning_client() {
     chrome_w.await.unwrap();
     edge_w.await.unwrap();
 }
+
+#[tokio::test]
+async fn reload_all_clients_targets_each_connected_browser() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge
+        .mark_hello_client(true, Some("edge".into()), Some("edge".into()))
+        .await;
+    bridge
+        .mark_hello_client(true, Some("chrome".into()), Some("chrome".into()))
+        .await;
+    let edge = bridge.clone();
+    let chrome = bridge.clone();
+    let edge_w = tokio::spawn(async move {
+        let cmd = edge.poll_for(2000, Some("edge".into())).await.expect("edge reload");
+        assert_eq!(cmd.method, "reload_self");
+        edge.submit_result(&cmd.id, json!({"ok": true, "reloading": true, "browser": "edge"}))
+            .await;
+    });
+    let chrome_w = tokio::spawn(async move {
+        let cmd = chrome
+            .poll_for(2000, Some("chrome".into()))
+            .await
+            .expect("chrome reload");
+        assert_eq!(cmd.method, "reload_self");
+        chrome
+            .submit_result(&cmd.id, json!({"ok": true, "reloading": true, "browser": "chrome"}))
+            .await;
+    });
+    let result = bridge.reload_all_clients().await.unwrap();
+    assert_eq!(result["reloaded"], 2);
+    edge_w.await.unwrap();
+    chrome_w.await.unwrap();
+}
+
+#[tokio::test]
+async fn reload_without_client_ids_enqueues_two_untargeted_commands() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge.mark_hello(true).await;
+    let a = bridge.clone();
+    let b = bridge.clone();
+    let wa = tokio::spawn(async move {
+        let cmd = a.poll(2000).await.expect("first");
+        assert_eq!(cmd.method, "reload_self");
+        a.submit_result(&cmd.id, json!({"ok": true, "reloading": true, "n": 1}))
+            .await;
+    });
+    let wb = tokio::spawn(async move {
+        let cmd = b.poll(2000).await.expect("second");
+        assert_eq!(cmd.method, "reload_self");
+        b.submit_result(&cmd.id, json!({"ok": true, "reloading": true, "n": 2}))
+            .await;
+    });
+    let result = bridge.reload_all_clients().await.unwrap();
+    assert_eq!(result["reloaded"], 2);
+    wa.await.unwrap();
+    wb.await.unwrap();
+}

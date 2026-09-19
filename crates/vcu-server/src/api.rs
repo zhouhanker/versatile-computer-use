@@ -919,12 +919,13 @@ async fn browser_ping(
         ));
     }
     if req.reload {
-        match state.extension_bridge.call_timeout("reload_self", json!({}), 2).await {
+        match state.extension_bridge.reload_all_clients().await {
             Ok(v) => {
                 return Json(Envelope::ok(json!({
                     "login_state": true,
                     "hud": false,
                     "reloading": true,
+                    "reloaded": v.get("reloaded").cloned().unwrap_or(json!(0)),
                     "extension": v,
                     "os_cursor_used": false,
                     "never_click_allow": true,

@@ -4,7 +4,7 @@
 
 ## 当前节点
 
-**浏览器版 Bridge 0.2.7。** 0.2.5/0.2.6 门禁仍有效。本轮补完光标朝向/点击压缩、截图保留光标、双浏览器合并 tabs、CLI hover、同源 iframe 与 canvas 合成点击。README 已按测试证据重写边界。总体产品目标仍是浏览器 CU，不是全桌面 CU。
+**浏览器版 Bridge 0.2.8。** 0.2.5–0.2.7 门禁仍有效。本轮补完已加载 lens 热更新与默认 open 新标签（钉现有窗口）。总体产品目标仍是浏览器 CU，不是全桌面 CU。
 
 额度规则：用户已重置总额度。旧“周额度不足10%”提示无效；今后按重置后的**总额度剩10%**要求写交接，不能把goal token计数当账户余额。
 
@@ -48,15 +48,16 @@
 - [x] **P1 / PARITY-004**：同背景浅色页对照 native/DOM/Guide 的 idle/click/move；DOM 按 tab zoom 逆缩放。发现 halo 过小过淡后已加大圆雾并统一 Guide。约束仍有效：不再向用户索要截图；不退回长箭尾/硬圆环；仅 mismatch 时改代码；可参考开源/公开技术；不修改私有安装。
 - [x] **P1 / PARITY-005**：Chrome 真机 DOM extract/click/type 已过（counter 0→1，input=chrome-live，遮挡拒绝）。原生 popup 已过。用户 1/3 组未改。
 - [x] **P2 / PARITY-005（定版提交）**：工作树已定版提交 `d8ee9ad` 并准备推送 origin/main。AWR 证据绑定该 SHA；光标终验与 Chrome 真机仍未完成。
-- [x] **P2 / 0.2.7 体验补丁**：光标朝向与点击压缩、viewport 截图保留光标、合并 Edge+Chrome tabs、CLI/MCP hover、同源 iframe 内层点选、canvas 合成点击。证据：40 Node + 桥接单测。
-- [ ] **P2 后续**：跨源 iframe / trusted 手势 / TC-B-040 AX 网页像素仍不在范围内。双浏览器真机复检、本机 Reload 0.2.7 lens。没有新证据时不扩大重构。
+- [x] **P2 / 0.2.7 体验补丁**：光标朝向与点击压缩、viewport 截图保留光标、合并 Edge+Chrome tabs、CLI/MCP hover、同源 iframe 内层点选、canvas 合成点击。
+- [x] **P2 / 0.2.8**：`install-lens --reload` 热更新已连接 Edge/Chrome SW；默认 `open` 在现有 USER 窗口开新标签。
+- [ ] **P2 后续**：跨源 iframe / trusted 手势 / TC-B-040 AX 网页像素仍不在范围内。双浏览器 tabs 真机复检。没有新证据时不扩大重构。
 
 ## 操作入口
 
 ```sh
 vcu browser ping --json
 vcu browser tabs --json
-vcu browser open --new-window --background --session-name '🔎 Task' --url https://example.com
+vcu browser open --url https://example.com --background
 vcu browser select --tab <id>
 vcu browser screenshot --tab <id> --json
 # 查看返回PNG后：

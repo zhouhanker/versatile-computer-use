@@ -127,7 +127,7 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_doctor", "Diagnose VCU install and daemon", json!({"type":"object","properties":{}})),
         tool("vcu_browser_login_state", "Classify user vs empty Agent browser. Login-state is the USER window, not ~/.vcu/edge-agent-profile.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_next", "Next login-state action only (load unpacked / observe). Never clicks Allow.", json!({"type":"object","properties":{}})),
-        tool("vcu_browser_install_lens", "Copy VCU extension to ~/.vcu/lens-extension for USER Edge load-unpacked. Does not click UI.", json!({"type":"object","properties":{}})),
+        tool("vcu_browser_install_lens", "Copy VCU extension to ~/.vcu/lens-extension. Optional reload hot-restarts every connected Edge/Chrome SW. Does not click UI or Allow.", json!({"type":"object","properties":{"reload":{"type":"boolean","default":false}}})),
         tool("vcu_browser_observe", "Observe the USER logged-in browser without Stage HUD. Returns PNG image content plus JSON (vision_handoff.must_view). Look at the image before clicking.", json!({
             "type":"object",
             "properties":{
@@ -194,8 +194,8 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_browser_tabs", "List USER browser tabs and native groups, including focus and collapsed state.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_select", "Select an exact tab, expand its group and focus its browser window.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"}}})),
         tool("vcu_browser_close", "Close exactly the explicitly named tab. Use for completed task tabs; never substitutes another tab.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"}}})),
-        tool("vcu_browser_open", "Open a USER browser page; session_name creates a named native group, group_id joins one. Mutually exclusive.", json!({"type":"object","required":["url"],"properties":{
-            "url":{"type":"string"},"session_name":{"type":"string"},"group_id":{"type":"string"},"active":{"type":"boolean","default":true},"new_window":{"type":"boolean","default":false,"description":"Separate USER-profile window; incompatible with group_id"}
+        tool("vcu_browser_open", "Open a new TAB in an existing USER Edge/Chrome window. new_window=true is opt-in for a separate window. session_name creates a named native group, group_id joins one. Mutually exclusive.", json!({"type":"object","required":["url"],"properties":{
+            "url":{"type":"string"},"session_name":{"type":"string"},"group_id":{"type":"string"},"active":{"type":"boolean","default":true},"new_window":{"type":"boolean","default":false,"description":"Opt-in: open a separate USER-profile window. Default is a new tab in the existing window. Incompatible with group_id"}
         }})),
         tool("vcu_browser_group", "Group explicit same-window tab IDs in a named, colored native browser group.", json!({"type":"object","required":["tab_ids","title"],"properties":{
             "tab_ids":{"type":"array","minItems":1,"items":{"type":"string"}},"title":{"type":"string"},"color":{"type":"string","default":"purple"},"collapsed":{"type":"boolean","default":false}
@@ -204,7 +204,7 @@ fn tool_defs() -> Vec<Value> {
             "group_id":{"type":"string"},"title":{"type":"string"},"color":{"type":"string"},"collapsed":{"type":"boolean"}
         }})),
         tool("vcu_browser_ungroup", "Ungroup explicit tab IDs without closing their pages.", json!({"type":"object","required":["tab_ids"],"properties":{"tab_ids":{"type":"array","minItems":1,"items":{"type":"string"}}}})),
-        tool("vcu_browser_ping", "Ping USER Edge extension SW. Must pong. unknown method ping means Reload unpacked lens. Never click Allow.", json!({"type":"object","properties":{}})),
+        tool("vcu_browser_ping", "Ping USER Edge/Chrome extension SW. Must pong. reload=true copies nothing but chrome.runtime.reload on every connected lens. Never click Allow.", json!({"type":"object","properties":{"reload":{"type":"boolean","default":false}}})),
         tool("vcu_browser_extract", "DOM extract via USER Edge extension. source must be extension_dom. No HUD, no Agent Edge, no AX chrome fake-green.", json!({
             "type":"object","properties":{
                 "selector":{"type":"string","default":"a"},
@@ -412,7 +412,21 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
                 "install_lens": "vcu browser install-lens",
             }})
         }
-        "vcu_browser_install_lens" => client.post("/v1/browser/install-lens", json!({})).await?,
+        "vcu_browser_install_lens" => {
+            let copied = client.post("/v1/browser/install-lens", json!({})).await?;
+            if args.get("reload").and_then(|v| v.as_bool()).unwrap_or(false) {
+                let reloaded = client.post("/v1/browser/ping", json!({"reload": true})).await?;
+                json!({
+                    "ok": true,
+                    "data": {
+                        "copied": copied.get("data").cloned().unwrap_or(copied.clone()),
+                        "reload": reloaded.get("data").cloned().unwrap_or(reloaded),
+                    }
+                })
+            } else {
+                copied
+            }
+        }
         "vcu_browser_observe" => {
             let ls = client.get("/v1/browser/login-state").await?;
             let user = ls
@@ -522,7 +536,9 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
         "vcu_browser_group" => client.post("/v1/browser/group", args).await?,
         "vcu_browser_group_update" => client.post("/v1/browser/group/update", args).await?,
         "vcu_browser_ungroup" => client.post("/v1/browser/ungroup", args).await?,
-        "vcu_browser_ping" => client.post("/v1/browser/ping", json!({})).await?,
+        "vcu_browser_ping" => client.post("/v1/browser/ping", json!({
+            "reload": args.get("reload").and_then(|v| v.as_bool()).unwrap_or(false)
+        })).await?,
         "vcu_browser_extract" => {
             let mut body = json!({
                 "selector": args.get("selector").and_then(|v| v.as_str()).unwrap_or("a")

@@ -4,7 +4,7 @@
 (() => {
 
 const VCU_CURSOR_ID = "vcu-virtual-cursor";
-const VCU_CONTENT_VERSION = "0.2.7";
+const VCU_CONTENT_VERSION = "0.2.8";
 const VCU_CURSOR_HIDE_MS = 520;
 const VCU_HALO_MS = 240;
 const VCU_LAYOUT_MAX_NODES = 1000;

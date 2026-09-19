@@ -287,7 +287,7 @@ test("repeated content-script execution is versioned and listener-idempotent", (
   assert.equal(context.__vcuContent.document_id, firstDocumentId, "same document keeps its identity");
   let response;
   listeners[0]({ type: "vcu_ping_page" }, null, (value) => { response = value; });
-  assert.equal(response.version, "0.2.7");
+  assert.equal(response.version, "0.2.8");
 
   const legacyListeners = [];
   const legacyContext = {

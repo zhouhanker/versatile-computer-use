@@ -662,6 +662,31 @@ async function selectTab(params) {
   return tabsResult(state, Object.assign(tabActionState(selected), { group: selectedGroup }));
 }
 
+function isUserWindowId(id) {
+  return id != null && String(id) !== String(agentWindowId);
+}
+
+async function userWindowIdForNewTab() {
+  try {
+    const focused = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+    if (focused && isUserWindowId(focused.id)) return focused.id;
+  } catch (_) {}
+  try {
+    const wins = await chrome.windows.getAll({ windowTypes: ["normal"] });
+    const hit = (wins || []).find((w) => w && w.focused && isUserWindowId(w.id))
+      || (wins || []).find((w) => w && isUserWindowId(w.id));
+    if (hit) return hit.id;
+  } catch (_) {}
+  try {
+    const tabs = await chrome.tabs.query({});
+    const hit = (tabs || []).find((t) => t && t.focused && isUserWindowId(t.windowId))
+      || (tabs || []).find((t) => t && t.active && isUserWindowId(t.windowId))
+      || (tabs || []).find((t) => t && isUserWindowId(t.windowId));
+    if (hit) return hit.windowId;
+  } catch (_) {}
+  return null;
+}
+
 async function openTab(params) {
   const url = params.url || "";
   if (!url || !/^https?:/i.test(url)) return { ok: false, error: "http(s) url required" };
@@ -692,6 +717,11 @@ async function openTab(params) {
       tab = win.tabs?.[0] || (await chrome.tabs.query({ windowId: win.id }))[0];
       if (!tab) return { ok: false, error: "new browser window has no tab", window_id: String(win.id) };
     } else {
+      if (createInfo.windowId == null) {
+        const windowId = await userWindowIdForNewTab();
+        if (windowId == null) return { ok: false, error: "no existing USER window; pass new_window to open one" };
+        createInfo.windowId = windowId;
+      }
       tab = await chrome.tabs.create(createInfo);
     }
     if (sessionName) {
@@ -774,8 +804,10 @@ async function handleCommand(cmd) {
         return { ok: true, closed: true, tab_id: String(id), window_id: String(tab.windowId), source: "extension_tabs", os_cursor_used: false };
       }
       case "reload_self":
+        polling = false;
+        pollGen += 1;
         setTimeout(() => chrome.runtime.reload(), 50);
-        return { ok: true, reloading: true };
+        return { ok: true, reloading: true, version: chrome.runtime.getManifest().version };
       case "list_tabs": {
         const state = await listTabsState();
         return tabsResult(state);

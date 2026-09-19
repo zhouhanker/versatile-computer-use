@@ -33,6 +33,25 @@ fn copy_dir_filtered(src: &Path, dst: &Path) -> VcuResult<u32> {
     Ok(n)
 }
 
+fn manifest_version(dir: &Path) -> Option<(u32, u32, u32)> {
+    let raw = fs::read_to_string(dir.join("manifest.json")).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let s = v.get("version")?.as_str()?;
+    let mut it = s.split('.');
+    Some((
+        it.next()?.parse().ok()?,
+        it.next().and_then(|x| x.parse().ok()).unwrap_or(0),
+        it.next().and_then(|x| x.parse().ok()).unwrap_or(0),
+    ))
+}
+
+fn pick_newest(cands: Vec<PathBuf>) -> Option<PathBuf> {
+    cands
+        .into_iter()
+        .filter(|p| p.join("manifest.json").exists())
+        .max_by_key(|p| manifest_version(p).unwrap_or((0, 0, 0)))
+}
+
 fn resolve_packaged_extension(paths: &VcuPaths) -> Option<PathBuf> {
     if let Ok(p) = std::env::var("VCU_EXTENSION_DIR") {
         let pb = PathBuf::from(p);
@@ -40,25 +59,17 @@ fn resolve_packaged_extension(paths: &VcuPaths) -> Option<PathBuf> {
             return Some(pb);
         }
     }
+    let mut cands = Vec::new();
     if let Some(home) = paths.root.parent() {
-        let share = home.join(".local/share/vcu/extension");
-        if share.join("manifest.json").exists() {
-            return Some(share);
-        }
+        cands.push(home.join(".local/share/vcu/extension"));
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
-            let cand = parent.join("../share/vcu/extension");
-            if cand.join("manifest.json").exists() {
-                return Some(cand);
-            }
+            cands.push(parent.join("../share/vcu/extension"));
         }
     }
-    let cwd = PathBuf::from("extension");
-    if cwd.join("manifest.json").exists() {
-        return Some(cwd);
-    }
-    None
+    cands.push(PathBuf::from("extension"));
+    pick_newest(cands)
 }
 
 pub fn install_user_lens(paths: &VcuPaths) -> VcuResult<Value> {

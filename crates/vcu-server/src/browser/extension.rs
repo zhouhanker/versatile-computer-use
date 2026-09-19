@@ -188,7 +188,7 @@ impl ExtensionBridge {
                             t <= now
                                 && matches!(
                                     c.method.as_str(),
-                                    "ping" | "list_tabs" | "extract" | "snapshot" | "screenshot"
+                                    "ping" | "list_tabs" | "extract" | "snapshot" | "screenshot" | "reload_self"
                                 )
                         })
                         .unwrap_or(true)
@@ -366,6 +366,87 @@ impl ExtensionBridge {
             }
         }
         found
+    }
+
+    pub async fn reload_all_clients(&self) -> VcuResult<serde_json::Value> {
+        let ids = self.active_client_ids().await;
+        let mut reloaded = Vec::new();
+        if ids.is_empty() {
+            reloaded.extend(self.fire_reload_commands(None, 2).await);
+        } else {
+            for id in ids {
+                reloaded.extend(self.fire_reload_commands(Some(id), 1).await);
+            }
+        }
+        let ok_n = reloaded
+            .iter()
+            .filter(|v| v.get("ok").and_then(|x| x.as_bool()) == Some(true))
+            .count();
+        if ok_n == 0 {
+            return Err(VcuError::coded(
+                ErrorCode::ExtensionDisconnected,
+                "no extension accepted reload_self",
+            ));
+        }
+        Ok(serde_json::json!({
+            "ok": true,
+            "reloading": true,
+            "reloaded": ok_n,
+            "clients": reloaded,
+        }))
+    }
+
+    async fn fire_reload_commands(
+        &self,
+        target: Option<String>,
+        n: usize,
+    ) -> Vec<serde_json::Value> {
+        if n <= 1 {
+            return vec![match self
+                .call_timeout_for(target, "reload_self", serde_json::json!({}), 2)
+                .await
+            {
+                Ok(v) => v,
+                Err(e) => serde_json::json!({"ok": false, "error": e.message()}),
+            }];
+        }
+        let mut rxs = Vec::new();
+        let mut ids = Vec::new();
+        {
+            let mut g = self.inner.lock().await;
+            if !g.connected {
+                return vec![serde_json::json!({"ok": false, "error": "not connected"})];
+            }
+            for _ in 0..n {
+                let id = new_id();
+                let (tx, rx) = oneshot::channel();
+                g.waiters.insert(id.clone(), tx);
+                g.pending.push(PendingCmd {
+                    id: id.clone(),
+                    method: "reload_self".into(),
+                    params: serde_json::json!({}),
+                    leased_until: None,
+                    retries: 0,
+                    target_client: target.clone(),
+                });
+                ids.push(id);
+                rxs.push(rx);
+            }
+        }
+        let mut out = Vec::new();
+        for (id, rx) in ids.into_iter().zip(rxs) {
+            match tokio::time::timeout(Duration::from_secs(2), rx).await {
+                Ok(Ok(v)) => out.push(v),
+                Ok(Err(_)) => out.push(serde_json::json!({"ok": false, "error": "dropped", "id": id})),
+                Err(_) => {
+                    let mut g = self.inner.lock().await;
+                    g.waiters.remove(&id);
+                    g.pending.retain(|c| c.id != id);
+                    out.push(serde_json::json!({"ok": false, "error": "timeout", "id": id}));
+                }
+            }
+        }
+        out
     }
 
     pub async fn call(

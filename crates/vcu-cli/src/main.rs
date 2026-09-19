@@ -354,7 +354,14 @@ enum BrowserCmd {
     Next,
     /// Copy VCU extension into ~/.vcu/lens-extension and print load-unpacked steps (no UI clicks)
     #[command(name = "install-lens")]
-    InstallLens,
+    InstallLens {
+        /// After copying, chrome.runtime.reload every connected Edge/Chrome lens. Never clicks Allow.
+        #[arg(long, default_value_t = false)]
+        reload: bool,
+        /// Extension source directory containing manifest.json.
+        #[arg(long)]
+        from: Option<String>,
+    },
     /// Observe the USER browser window without Stage HUD (login-state Scene)
     Observe {
         #[arg(long, default_value_t = true)]
@@ -1028,10 +1035,20 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 print_ok(&report, true);
                 Ok(0)
             }
-            BrowserCmd::InstallLens => {
-                let report = install_user_lens(&paths)?;
-                print_ok(&report, true);
-                Ok(0)
+            BrowserCmd::InstallLens { reload, from } => {
+                let report = install_user_lens(&paths, from.as_deref())?;
+                if !reload {
+                    print_ok(&report, true);
+                    return Ok(0);
+                }
+                let v = api_post(&paths, "/v1/browser/ping", json!({"reload": true})).await?;
+                let mut out = report;
+                if let Some(obj) = out.as_object_mut() {
+                    obj.insert("reloading".into(), json!(true));
+                    obj.insert("reload".into(), v.get("data").cloned().unwrap_or(v.clone()));
+                }
+                print_ok(&out, true);
+                Ok(ok_exit(&v))
             }
             BrowserCmd::LoginState => {
                 match api_get(&paths, "/v1/browser/login-state").await {
@@ -1872,35 +1889,50 @@ fn copy_dir_filtered(src: &std::path::Path, dst: &std::path::Path) -> Result<u32
     Ok(n)
 }
 
-fn resolve_packaged_extension() -> Option<PathBuf> {
+fn manifest_version(dir: &std::path::Path) -> Option<(u32, u32, u32)> {
+    let raw = fs::read_to_string(dir.join("manifest.json")).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let s = v.get("version")?.as_str()?;
+    let mut it = s.split('.');
+    Some((
+        it.next()?.parse().ok()?,
+        it.next().and_then(|x| x.parse().ok()).unwrap_or(0),
+        it.next().and_then(|x| x.parse().ok()).unwrap_or(0),
+    ))
+}
+
+fn resolve_packaged_extension(from: Option<&str>) -> Option<PathBuf> {
+    if let Some(p) = from {
+        let pb = PathBuf::from(p);
+        if pb.join("manifest.json").exists() {
+            return Some(pb);
+        }
+        return None;
+    }
     if let Ok(p) = std::env::var("VCU_EXTENSION_DIR") {
         let pb = PathBuf::from(p);
         if pb.join("manifest.json").exists() {
             return Some(pb);
         }
     }
-    let home = dirs::home_dir()?;
-    let share = home.join(".local/share/vcu/extension");
-    if share.join("manifest.json").exists() {
-        return Some(share);
+    let mut cands = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        cands.push(home.join(".local/share/vcu/extension"));
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
-            let cand = parent.join("../share/vcu/extension");
-            if cand.join("manifest.json").exists() {
-                return Some(cand);
-            }
+            cands.push(parent.join("../share/vcu/extension"));
         }
     }
-    let cwd = PathBuf::from("extension");
-    if cwd.join("manifest.json").exists() {
-        return Some(cwd);
-    }
-    None
+    cands.push(PathBuf::from("extension"));
+    cands
+        .into_iter()
+        .filter(|p| p.join("manifest.json").exists())
+        .max_by_key(|p| manifest_version(p).unwrap_or((0, 0, 0)))
 }
 
-fn install_user_lens(paths: &VcuPaths) -> Result<Value, VcuError> {
-    let src = resolve_packaged_extension().ok_or_else(|| {
+fn install_user_lens(paths: &VcuPaths, from: Option<&str>) -> Result<Value, VcuError> {
+    let src = resolve_packaged_extension(from).ok_or_else(|| {
         VcuError::coded(
             ErrorCode::InvalidInput,
             "cannot find packaged extension (expected ~/.local/share/vcu/extension)",

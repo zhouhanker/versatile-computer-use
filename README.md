@@ -10,14 +10,14 @@
 
 | 项 | 值 |
 | --- | --- |
-| Browser Bridge | **0.2.7** |
+| Browser Bridge | **0.2.8** |
 | Runtime package | **0.1.0** |
 | 范围 | 仅浏览器（USER Edge/Chrome + Browser Bridge） |
 | 仓库 | https://github.com/zhouhanker/versatile-computer-use |
 
-0.2.7 在 0.2.6 之上补完：光标移动朝向 + 点击压缩、viewport 截图保留虚拟光标、Edge+Chrome 合并 tabs、CLI/MCP hover、同源 iframe 内层点选、canvas 合成点击。不宣称总体 Computer Use 产品已全部完成，也不宣称与 Codex 官方桌面 CU 对等。
+0.2.8 在 0.2.7 之上补完：已加载 lens 热更新（`install-lens --reload`）、默认 `open` 钉在现有窗口新标签。0.2.7 已有光标朝向、截图保留光标、合并 tabs、hover、同源 iframe/canvas 合成点击。不宣称总体 Computer Use 产品已全部完成。
 
-本机已装 lens 若仍 ping `0.2.5`/`0.2.6`，需要 `vcu browser install-lens` 后在 Edge/Chrome **Reload** 扩展。
+本机 lens 落后时：`vcu browser install-lens --reload`（已 Load unpacked 则不必再点扩展页）。已打开的旧网页仍可能是旧 content.js，刷新该页即可。
 
 ## 能力边界（当前 Computer Use 是什么）
 
@@ -65,7 +65,7 @@ VCU 这一版是 **登录态浏览器操作层**，不是 Codex 官方桌面 Com
 - Chrome 真机（0.2.6）：extract / click / type，`source=extension_dom`，计数 0→1
 - 更多场景 22 项（0.2.6）：dry-run 无副作用、readonly/disabled/遮挡/缺失/歧义/无效 tab 拒绝、滚动后点页底、Return dry-run 阻断、viewport 像素点选、已消费 capture 拒绝
 - 原生 popup：按窗口分区；勾选一窗后其它窗复选框禁用
-- 0.2.7 自动化：40 Node 扩展测试；桥接单测含双客户端合并 tabs 与按 tab 所有者路由
+- 0.2.8 自动化：Node 扩展测试；桥接单测含双客户端合并 tabs、按 tab 所有者路由、双边 reload
 
 ## 安装
 
@@ -83,8 +83,9 @@ VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 vcu daemon start
-vcu browser install-lens    # 然后在 USER Edge 和 Chrome 都 Load unpacked ~/.vcu/lens-extension
-vcu browser ping --json     # 必须 pong；unknown method = Reload 扩展
+vcu browser install-lens            # 第一次：然后在 USER Edge 和 Chrome Load unpacked ~/.vcu/lens-extension
+vcu browser install-lens --reload   # 之后热更新：拷最新文件并 runtime.reload 所有已连接的 Edge/Chrome
+vcu browser ping --json             # 必须 pong；version 应与仓库一致
 ```
 
 ## 快速使用
@@ -95,7 +96,8 @@ vcu browser ping --json     # 必须 pong；unknown method = Reload 扩展
 vcu browser login-state
 vcu browser tabs --json
 vcu browser select --tab <id>
-vcu browser open --new-window --background --session-name '🔎 Task' --url https://example.com
+vcu browser open --url https://example.com --background
+# 只要新窗口时才加 --new-window
 
 # 原生标签组
 vcu browser group --tabs <id>,<id> --title '🎨 分享设计' --color purple
