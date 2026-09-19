@@ -338,6 +338,10 @@ impl BrowserBackend for DesktopBackend {
         Some((self.stage.shown, self.stage.presenter))
     }
 
+    fn request_stage_abort(&self) -> VcuResult<()> {
+        self.stage.write_abort_signal()
+    }
+
     async fn ensure_agent_window(&mut self) -> VcuResult<String> {
         if !self.stage.shown {
             return Err(VcuError::coded(
@@ -1032,6 +1036,7 @@ mod tests {
         assert_eq!(pixel.detail["os_cursor_used"], false);
         assert_eq!(pixel.detail["hid_injected"], false);
         assert_eq!(pixel.detail["hit_ref"], "e15");
+        assert_ne!(pixel.detail["input_path"], "extension_dom");
         assert_eq!(pixel.detail["screenshot_scale"], 1.0);
         assert_eq!(pixel.detail["ax_point"]["x"], 2218.0 + 712.0);
         assert_eq!(pixel.detail["ax_point"]["y"], 36.0 + 519.0);

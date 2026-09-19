@@ -59,6 +59,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/session/list", get(session_list))
         .route("/v1/session/{id}", get(session_show))
         .route("/v1/session/{id}/stop", post(session_stop))
+        .route("/v1/session/{id}/abort", post(session_abort))
         .route("/v1/session/{id}/checkpoint", post(session_checkpoint))
         .route("/v1/session/{id}/request-help", post(session_request_help))
         .route("/v1/session/{id}/tabs", get(tabs_list))
@@ -1480,6 +1481,32 @@ async fn session_stop(
             slot.session.closed_at = Some(Utc::now());
             slot.session.revision += 1;
             Json(Envelope::ok(json!({"stopped": id, "returned_borrows": true}))).into_response()
+        }
+        None => err_response(VcuError::coded(
+            ErrorCode::SessionNotFound,
+            format!("session {id}"),
+        )),
+    }
+}
+
+async fn session_abort(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    let mut sessions = state.sessions.write().await;
+    match sessions.remove(&id) {
+        Some(slot) => {
+            let signaled = slot.backend.request_stage_abort().is_ok();
+            Json(Envelope::ok(json!({
+                "aborted": true,
+                "session_id": id,
+                "stage_signaled": signaled,
+                "hud": false
+            }))).into_response()
         }
         None => err_response(VcuError::coded(
             ErrorCode::SessionNotFound,

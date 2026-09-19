@@ -185,6 +185,13 @@ pub fn ax_position_press_succeeded(detail: &str) -> bool {
         && detail.rsplit_once(":axpress:").is_some_and(|(_, code)| code.trim() == "0")
 }
 
+/// AXPress by Scene ref. Bare "ok" or System Events `click` is not success.
+pub fn ax_ref_press_succeeded(detail: &str) -> bool {
+    let d = detail.trim();
+    (d.starts_with("ok:ax_press:") || d.starts_with("ok-webview:ax_press:"))
+        && d.rsplit_once(":axpress:").is_some_and(|(_, code)| code.trim() == "0")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppTarget {
     pub id: String,
@@ -556,6 +563,11 @@ mod tests {
         assert!(ax_position_press_succeeded("ok:ax_position_press:pid:123:axpress:0"));
         for detail in ["ok:ax_position_press:pid:123:axpress:-25206", "ok:ax_position_press:pid:123:axpress:-25204", "", "ok", "error:other-pid:999:Finder"] {
             assert!(!ax_position_press_succeeded(detail), "{detail}");
+        }
+        assert!(ax_ref_press_succeeded("ok:ax_press:axpress:0"));
+        assert!(ax_ref_press_succeeded("ok-webview:ax_press:axpress:0"));
+        for detail in ["ok", "ok-click", "ok-webview", "ok-webview-click", "ok:ax_press:axpress:-25204", "not-found", "error:ax_press:fail"] {
+            assert!(!ax_ref_press_succeeded(detail), "{detail}");
         }
     }
 

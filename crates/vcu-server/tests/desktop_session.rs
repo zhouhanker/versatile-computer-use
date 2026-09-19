@@ -337,3 +337,55 @@ async fn desktop_surface_scene_actuator_and_wechat_denied() {
         .unwrap();
     handle.join.abort();
 }
+
+#[tokio::test]
+async fn session_abort_removes_desktop_session() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = VcuPaths::from_root(dir.path());
+    let mut cfg = UserConfig::default();
+    cfg.daemon_port = 0;
+    paths.save_config(&cfg).unwrap();
+    let token = cfg.pairing_token.clone();
+    let handle = vcu_server::start_daemon(paths, cfg).await.unwrap();
+    {
+        let mut b = handle.state.app_backend.write().await;
+        *b = Box::new(MockAppBackend::default());
+    }
+    let base = format!("http://{}", handle.addr);
+    let client = reqwest::Client::new();
+    let auth = |r: reqwest::RequestBuilder| r.header("X-Vcu-Token", &token);
+
+    let started: serde_json::Value = auth(client.post(format!("{base}/v1/session/start")))
+        .json(&json!({"surface":"desktop","app_id":"proc:TextEdit:1"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(started["ok"], true, "{started}");
+    assert_eq!(started["data"]["stage_hud"], true);
+    let sid = started["data"]["session_id"].as_str().unwrap().to_string();
+
+    let aborted: serde_json::Value = auth(client.post(format!("{base}/v1/session/{sid}/abort")))
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(aborted["ok"], true, "{aborted}");
+    assert_eq!(aborted["data"]["aborted"], true);
+    assert_eq!(aborted["data"]["hud"], false);
+
+    let listed: serde_json::Value = auth(client.get(format!("{base}/v1/session/list")))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let arr = listed["data"].as_array().unwrap();
+    assert!(arr.iter().all(|s| s["session_id"] != sid), "{listed}");
+}

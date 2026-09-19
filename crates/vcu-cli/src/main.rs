@@ -252,6 +252,10 @@ enum SessionCmd {
     Stop {
         id: String,
     },
+    /// End a desktop session via Stage abort (same path as Escape). Tears down HUD.
+    Abort {
+        id: String,
+    },
     Checkpoint {
         id: String,
     },
@@ -1463,6 +1467,11 @@ async fn session_cmd(paths: &VcuPaths, sub: SessionCmd, _json: bool) -> Result<i
                 return Ok(0);
             }
             let v = api_post(paths, &format!("/v1/session/{id}/stop"), json!({})).await?;
+            println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+            Ok(ok_exit(&v))
+        }
+        SessionCmd::Abort { id } => {
+            let v = api_post(paths, &format!("/v1/session/{id}/abort"), json!({})).await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
             Ok(ok_exit(&v))
         }

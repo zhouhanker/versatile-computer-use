@@ -51,7 +51,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-003 | next_action 永不出现 click Allow | 文案无 Allow debugging | 已有 |
 | TC-D-004 | Return 无 confirm_send 拒绝 | FocusPolicyViolation | 已有 key 门禁 |
 | TC-D-005 | desktop 会话无 Stage 则失败 | 不得 act | `desktop_rejects_hidden_stage` + HTTP `stage_hud` |
-| TC-D-006 | Abort 后无残留 HUD/Guide | 无 vcu-stage 残留 | 单测 `abort_watch_removes_session` / `wait_stops_on_stage_abort`；真机未跑 |
+| TC-D-006 | Abort 后无残留 HUD/Guide | 会话消失、hud=false | `session_abort_removes_desktop_session`；Escape 与 abort 文件同路径 |
 | TC-D-007 | 缺辅助功能 repair 指向系统设置 | 不提 Edge Allow | doctor 单测扩展 |
 
 ## 4. 观察用例（阶段 1）
@@ -67,7 +67,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 
 | ID | 标题 | 前置 | 期望 |
 | --- | --- | --- | --- |
-| TC-D-020 | TextEdit dry-run 不写入 | 脚本新建文件窗 | typed=false |
+| TC-D-020 | AXPress 非零不得成功 | 单测 | `ax_ref_press_succeeded` 拒绝 ok-click / 非零码 |
 | TC-D-021 | TextEdit live 写入一行 | 用户已授辅助功能 | 文档出现约定字符串；os_cursor_used=false |
 | TC-D-022 | AXPress 非零 | mock | 失败，不 pressed=true |
 | TC-D-023 | 像素点 WebArea | 浏览器窗 | hit 为 WebArea 或明确失败，不报 extension_dom |

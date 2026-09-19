@@ -58,9 +58,11 @@
 - [x] **P2 / 0.2.8**：`install-lens --reload` 热更新已连接 Edge/Chrome SW；默认 `open` 在现有 USER 窗口开新标签。
 - [ ] **P2 后续（浏览器）**：跨源 iframe / trusted 手势 / TC-B-040 仍不在浏览器范围内。双浏览器 tabs 真机复检。
 - [x] **CU-D-010**：无 Stage HUD 则 desktop session 失败（`StageRequired`）；HTTP `stage_hud=true`。
-- [ ] **CU-D-011 真机**：Escape Abort 拆 HUD（单测已有；TextEdit live 未跑）。
+- [x] **CU-D-011**：`vcu session abort` / HTTP abort 拆会话（单测）。未弹用户 HUD 做目视 Escape。
 - [x] **CU-D-012**：微信 denylist + 覆盖点拒绝（单测）。
-- [ ] **下一史诗其余 CU-D-013…**：见 ROADMAP-CU。
+- [x] **CU-D-020/021/022/024**：AXPress 非零失败、Return 门禁、Guide overlay、像素命中不报 extension_dom（单测）。
+- [ ] **CU-D-023**：TextEdit/Notes 受控真机。
+- [ ] **阶段 3+**：CU-D-030… 见 ROADMAP-CU。
 
 
 ## 操作入口

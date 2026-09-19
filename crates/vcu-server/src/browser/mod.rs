@@ -34,6 +34,12 @@ pub trait BrowserBackend: Send + Sync {
     fn stage_hud(&self) -> Option<(bool, &'static str)> {
         None
     }
+    fn request_stage_abort(&self) -> vcu_core::VcuResult<()> {
+        Err(vcu_core::VcuError::coded(
+            vcu_core::ErrorCode::InvalidInput,
+            "Stage abort is only for desktop sessions",
+        ))
+    }
 }
 
 #[derive(Debug, Clone)]

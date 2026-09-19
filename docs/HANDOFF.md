@@ -2,20 +2,17 @@
 
 更新时间：2026-09-20。作者zhouhanker。
 
-**先读 [PLAN.md](PLAN.md) 与 [ROADMAP-CU.md](ROADMAP-CU.md)。** Bridge 0.2.8 浏览器冻结有效。桌面史诗进行中。
+桌面史诗进行中。浏览器 0.2.8 冻结有效。
 
-## 本轮完成
+## 本轮
 
-- **CU-D-010**（单测）：无可见 Stage 则 `ErrorCode::StageRequired`；`session start --surface desktop` 返回 `stage_hud` / `stage_presenter`；raise 控制文件 `hud: true`。
-- **CU-D-011**（单测）：abort 文件删除会话；mock Stage 武装 abort watch。真机 TextEdit Escape 未跑。
-- **CU-D-012**（单测）：微信 denylist + covering point。
+- CU-D-011：`POST /v1/session/{id}/abort` + `vcu session abort`；HTTP 测会话消失。
+- CU-D-020：AXPress 必须 `axpress:0`；去掉 `click el` 回退。
+- CU-D-021/022/024：既有单测 + 像素路径不得报 `extension_dom`。
+- CU-D-023 真机 TextEdit **未做**。
 
-证据：`cargo test --workspace --offline` 绿；`node --test extension/tests/*.test.cjs` 42 绿。
+`cargo test --workspace --offline` 绿。
 
 ## 下一刀
 
-CU-D-011 真机 Abort，或 CU-D-013/014 观察路径（窗口截帧 / Scene scale）按 ROADMAP 继续。不要对用户 Edge 组 1/3 做动作。
-
-## 红线
-
-不点 Allow；不自动化微信；不 warp OS 光标；不把 `/reference/` 官方包提交进 git。
+CU-D-023 受控 TextEdit 真机，或阶段 3 CU-D-030 Observation 契约。不要碰用户 Edge 组 1/3。

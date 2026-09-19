@@ -94,7 +94,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 | ID | 工作 | 验收 |
 | --- | --- | --- |
 | CU-D-010 | `vcu session start --surface desktop` 必须升起 Stage 胶囊 HUD | **完成（单测）** `ErrorCode::StageRequired`；hidden Stage 拒绝；session JSON `stage_hud`；raise 写 `hud:true` |
-| CU-D-011 | Abort（默认 Escape 热键）立刻拆 Stage/Guide，会话结束 | **单测完成** abort_watch 删会话、wait 遇 abort 结束、mock 武装 abort 路径。**真机 TextEdit Abort 未跑** |
+| CU-D-011 | Abort（默认 Escape 热键）立刻拆 Stage/Guide，会话结束 | **完成（单测/HTTP）** `POST /v1/session/{id}/abort` 与 `vcu session abort`；Escape 写同一 abort 文件。未在用户屏幕上弹 HUD 做 TextEdit 目视 |
 | CU-D-012 | `vcu app windows` 只返回 allowlist；微信硬拒绝 | **完成（单测）** `wechat_is_hard_denied` + `denied_app_covering_point` |
 | CU-D-013 | 窗口截帧：CGWindowID，不截被挡应用，失败不包装成功 | **单测完成** `observe_does_not_wrap_a_failed_snapshot_in_success` |
 | CU-D-014 | Scene：AX 摘要 + screenshot_scale∈{1,2,3} | **单测完成** `pixel_scale_snaps_retina_and_rejects_junk`；doctor 不提 Allow |
@@ -107,11 +107,11 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 
 | ID | 工作 | 验收 |
 | --- | --- | --- |
-| CU-D-020 | AXPress 按 Scene ref；非零错误码如实返回 | 单测错误不被脚本成功掩盖 |
-| CU-D-021 | AXSetValue / 键盘；Return 仍要 confirm_send | 与现有 key 门禁一致 |
-| CU-D-022 | Guide 画在目标 AX 点；`os_cursor_used=false` | 截图证据只证明 overlay，不证明系统光标移动 |
-| CU-D-023 | 受控真机：TextEdit 输入一行字，Notes 点按钮类控件 | 独立窗口；用完关掉；不碰用户 Edge 组 |
-| CU-D-024 | 像素 click `space=window`：像素→AX，命中 WebArea 只报 WebArea | 诚实 `hit_ref`；不假装点到 DOM 按钮 |
+| CU-D-020 | AXPress 按 Scene ref；非零错误码如实返回 | **完成（单测）** `ax_ref_press_succeeded`；去掉 System Events `click el` 回退；非 `axpress:0` 失败 |
+| CU-D-021 | AXSetValue / 键盘；Return 仍要 confirm_send | **完成（单测）** `desktop_key_policy_gates_return_and_escape`；type 走 `ax_set_value` |
+| CU-D-022 | Guide 画在目标 AX 点；`os_cursor_used=false` | **完成（单测）** click/hover/pixel `guide.overlay=true` 且 `os_cursor_used=false` |
+| CU-D-023 | 受控真机：TextEdit 输入一行字，Notes 点按钮类控件 | **未做真机** |
+| CU-D-024 | 像素 click `space=window`：像素→AX，命中 WebArea 只报 WebArea | **完成（单测）** webview 像素 `hit_ref=e15` 且 `input_path != extension_dom` |
 
 ### 阶段 3 — 浏览器 + 桌面统一循环（约 1 周）
 

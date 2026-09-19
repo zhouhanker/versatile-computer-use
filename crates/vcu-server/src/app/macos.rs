@@ -835,15 +835,11 @@ fn ax_invoke_script(process: &str, eref: &str) -> String {
                           try
                             perform action "AXPress" of el
                             if (nm contains "WebView") or (nm contains "messenger") or (r contains "WebArea") then
-                              return "ok-webview"
+                              return "ok-webview:ax_press:axpress:0"
                             end if
-                            return "ok"
-                          on error
-                            click el
-                            if (nm contains "WebView") or (nm contains "messenger") or (r contains "WebArea") then
-                              return "ok-webview-click"
-                            end if
-                            return "ok-click"
+                            return "ok:ax_press:axpress:0"
+                          on error errMsg
+                            return "error:ax_press:" & errMsg
                           end try
                         end if"#
         ),
@@ -1128,7 +1124,7 @@ impl AppBackend for MacosAppBackend {
         self.ensure_operable(&name)?;
         let script = ax_invoke_script(&Self::as_literal(&name), &Self::as_literal(element_ref));
         let out = Self::run_osascript_timeout(&script, AX_BFS_TIMEOUT_MS)?;
-        if out.to_ascii_lowercase().starts_with("error:") || out == "not-found" {
+        if !super::ax_ref_press_succeeded(&out) {
             return Err(VcuError::with_detail(ErrorCode::ActionFailed, "ax invoke failed", out));
         }
         let webview = out.contains("webview");
@@ -1421,7 +1417,10 @@ mod tests {
         assert!(snap.contains("WebArea"));
         assert!(inv.contains("AXPress"));
         assert!(inv.contains("e12"));
-        assert!(inv.contains("ok-webview"));
+        assert!(inv.contains("ok-webview:ax_press:axpress:0"));
+        assert!(inv.contains("ok:ax_press:axpress:0"));
+        assert!(!inv.contains("click el"));
+        assert!(!inv.contains("ok-click"));
         assert!(!inv.to_ascii_lowercase().contains("click at"));
         assert!(!inv.to_ascii_lowercase().contains("mouse location"));
         assert!(!inv.contains("CGWarp"));
