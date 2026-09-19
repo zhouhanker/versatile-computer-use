@@ -1,14 +1,16 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-090 实现已提交，待 Windows CI。
+更新：2026-09-20。CU-D-090 CI 已过。
 
 ## 本轮
 
-- Windows Stage：WinForms HUD「VCU 正在使用这台 PC」，presenter=`winforms`，Escape 写 abort。无 SendInput。
-- UIA 树带 ClassName；`ControlType.Pane/Edit` 视为可输入。
-- desktop snapshot 在 Windows 上 `source=uia_scene`。
-- `scripts/poc_cu_d_090.ps1`：`vcu session start --surface desktop` → snapshot → type。
+- CU-D-090 run `35465535542` @ `9e3c51c`：
+  - `STAGE_OK presenter=winforms`
+  - `SNAP_OK source=uia_scene ref=e2`
+  - `TYPE_OK path=wm_settext os_cursor_used=False`
+  - `CU-D-090 OK`
+- 仍不是完整 Windows 产品 CU（无官方动画、无 Invoke 真机经 vcu、无微信）。
 
 ## 下一刀
 
-看 CI 是否打印 `STAGE_OK` / `SNAP_OK` / `TYPE_OK`。未绿不得宣称 090 完成。
+路线图阶段 6 主切片已齐。下一刀另开：Windows Invoke 真机、或 README/发布诚实同步。不要宣称对标 Codex CU 完成。

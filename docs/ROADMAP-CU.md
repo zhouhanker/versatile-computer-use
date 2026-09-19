@@ -154,7 +154,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-060 | UIA 列窗 / 截图 | **完成（CI 真机，非产品会话）** run `35462329205` @ `aa87390`：`UIA_OK` Untitled Notepad children=2；`PRINTWINDOW_OK` PNG。Darwin SKIP。Invoke/SetValue **未** live。不得写成 Windows 产品 CU。 |
 | CU-D-070 | Notepad 真写入（无 HID） | **完成（CI 真机，非产品会话）** run `35463098806` @ `1c86e6e`：`SETVALUE_OK path=wm_settext` class=Edit。Server 2022 Notepad Edit 是 `ControlType.Pane`，`GetSupportedPatterns` 为空，**不是** ValuePattern。禁止 SendInput。 |
 | CU-D-080 | WindowsAppBackend set_value 回退 WM_SETTEXT | **完成（单测）** `ok:wm_settext` → `input_path=wm_settext` `os_cursor_used=false`。无 SendInput。未接 `vcu session` 真机。 |
-| CU-D-090 | 经 `vcu` 的 Windows Stage + Notepad type | **进行中** WinForms HUD；`poc_cu_d_090.ps1` 等 CI `STAGE_OK`/`SNAP_OK source=uia_scene`/`TYPE_OK`。无 SendInput。 |
+| CU-D-090 | 经 `vcu` 的 Windows Stage + Notepad type | **完成（CI 真机）** run `35465535542`：`STAGE_OK presenter=winforms`；`SNAP_OK source=uia_scene ref=e2`；`TYPE_OK path=wm_settext os_cursor_used=False`。无 SendInput。不是完整 Windows CU。 |
 
 ## 4. 建议执行顺序（编排）
 
