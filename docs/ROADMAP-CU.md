@@ -38,6 +38,14 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 - OpenAI / Codex **公开** Computer Use 文档与公开仓库
 - 本机 Codex CU **运行时可见行为**（光标外形、HUD 结构、AX 流程）——用自有 SVG/AppKit/文案复现
 - 公开技术（Accessibility、CGWindow、Chrome tabGroups）
+- 仓库根目录 **`/reference/`**（已 gitignore）：本机对照用的 Computer Use 实现。开发时可反编译、拆包、读符号/结构，弄清 overlay、虚拟光标、AX、IPC 怎么串。结论写成自有笔记（`docs/research/`、本路线图），代码用 VCU 自己的 Steward/Stage/Guide/Scene/Actuator 重写。
+
+`/reference/` 使用约定：
+
+- 路径：`reference/computer-use/`（本地，不上传）
+- 用途：理解官方实现的架构与行为，指导独立实现
+- 反编译/拆包产物只留在本机或 `/reference/` 下，**禁止**把 `.app`、二进制、Lens 序列帧、反编译源码、AppInstructions 原文 commit 进 git
+- 不修改用户正在使用的 `~/.codex/computer-use/` 安装；对照副本只放 `/reference/`
 
 **仍然禁止**
 
@@ -69,6 +77,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 4. **网页仍走 extension。** 桌面像素点到 AXWebArea 只能点到整块 WebArea；细按钮继续 `source=extension_dom`。
 5. **可见才允许桌面会话。** `surface=desktop` 升起 Stage 失败则拒绝动作。
 6. **切片可独立验收。** 每个 CU-D-* 有命令、证据路径、通过/失败标准。
+7. **对照 `/reference/`，实现进本仓库。** 桌面切片可先看本地 Computer Use 实现再写 VCU 代码；提交物只能是自有源码与 `assets/` 自绘资源。
 
 ## 3. 阶段与工作项
 
