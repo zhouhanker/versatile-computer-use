@@ -151,7 +151,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 
 | ID | 工作 | 验收 |
 | --- | --- | --- |
-| CU-D-060 | UIA 列窗 / 截图 / Invoke | **脚本+解析单测** 列窗；UIA 树 / InvokePattern / **PrintWindow 截图**（无 SendInput、无 CopyFromScreen）。Windows 上 snapshot/invoke/capture 走这些脚本。**真机未跑**（本机 macOS）。不得写成产品已有 Windows CU。 |
+| CU-D-060 | UIA 列窗 / 截图 / Invoke | **脚本+解析单测** 列窗；UIA 树 / InvokePattern / ValuePattern / PrintWindow。macOS 上 `scripts/poc_desktop_windows.sh` 诚实 SKIP。**真机未跑**。不得写成产品已有 Windows CU。 |
 
 ## 4. 建议执行顺序（编排）
 

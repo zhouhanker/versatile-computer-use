@@ -157,6 +157,48 @@ while ($q.Count -gt 0) {{
     )
 }
 
+/// PowerShell: ValuePattern.SetValue on eN. No SendInput.
+pub fn uia_set_value_script(pid: i32, eref: &str, value: &str) -> String {
+    let n = eref.trim_start_matches('e').parse::<i32>().unwrap_or(0);
+    let val = value.replace('\'', "''");
+    format!(
+        r#"
+Add-Type -AssemblyName UIAutomationClient | Out-Null
+$pid = {pid}
+$want = {n}
+$val = '{val}'
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $pid)
+$win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+if ($null -eq $win) {{ 'not-found'; exit 0 }}
+$q = New-Object System.Collections.Queue
+$q.Enqueue($win)
+$i = 0
+while ($q.Count -gt 0) {{
+  $el = $q.Dequeue()
+  $i++
+  if ($i -eq $want) {{
+    $pat = [System.Windows.Automation.ValuePattern]::Pattern
+    try {{
+      $vp = $el.GetCurrentPattern($pat)
+      $vp.SetValue($val)
+      'ok:uia_set_value'
+    }} catch {{
+      'error:no-value-pattern'
+    }}
+    exit 0
+  }}
+  $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($k in $kids) {{ $q.Enqueue($k) }}
+}}
+'not-found'
+"#,
+        pid = pid,
+        n = n,
+        val = val,
+    )
+}
+
 /// PowerShell: PrintWindow of the process main HWND to PNG (base64). Not CopyFromScreen of an occluded desktop, not SendInput.
 pub fn uia_capture_script(pid: i32) -> String {
     format!(
@@ -394,8 +436,42 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
     }
 
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
-        let _ = (id, element_ref, value);
-        Err(VcuError::coded(ErrorCode::NotImplemented, "Windows app set_value is not implemented in slice 1"))
+        #[cfg(not(windows))]
+        {
+            let _ = (id, element_ref, value);
+            Err(VcuError::coded(ErrorCode::NotImplemented, "Windows set_value only runs on Windows hosts"))
+        }
+        #[cfg(windows)]
+        {
+            let name = id
+                .strip_prefix("win:")
+                .and_then(|rest| rest.split(':').next())
+                .map(|s| s.replace('_', " "))
+                .unwrap_or_else(|| id.to_string());
+            if is_denied_app(&name) {
+                return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+            }
+            if !self.allowed(&name) {
+                return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
+            }
+            let pid = pid_from_win_id(id).ok_or_else(|| {
+                VcuError::coded(ErrorCode::InvalidInput, "Windows set_value requires win:name:pid")
+            })?;
+            let out = Self::run_powershell(&uia_set_value_script(pid, element_ref, value))?;
+            if out.contains("ok:uia_set_value") {
+                Ok(serde_json::json!({
+                    "ok": true,
+                    "process": name,
+                    "ref": element_ref,
+                    "result": out,
+                    "input_path": "uia_set_value",
+                    "os_cursor_used": false,
+                    "hid_injected": false
+                }))
+            } else {
+                Err(VcuError::with_detail(ErrorCode::ActionFailed, "uia set_value failed", out))
+            }
+        }
     }
 
     async fn capture_window(&self, id: &str) -> VcuResult<Option<super::AppCapture>> {
@@ -443,6 +519,11 @@ mod tests {
         assert!(err.message().to_ascii_lowercase().contains("sendinput") || err.message().to_ascii_lowercase().contains("cursor"));
         let err = b.set_value("win:notepad:1", "e1", "hi").await.unwrap_err();
         assert_eq!(err.code(), ErrorCode::NotImplemented);
+        let setv = uia_set_value_script(4242, "e2", "hello");
+        assert!(setv.contains("ValuePattern"));
+        assert!(setv.contains("SetValue"));
+        assert!(setv.contains("hello"));
+        assert!(!setv.to_ascii_lowercase().contains("sendinput"));
         let cap = b.capture_window("win:notepad:1").await.unwrap();
         assert!(cap.is_none());
     }
