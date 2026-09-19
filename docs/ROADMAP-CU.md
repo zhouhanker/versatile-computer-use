@@ -151,7 +151,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 
 | ID | 工作 | 验收 |
 | --- | --- | --- |
-| CU-D-060 | UIA 列窗 / 截图 / Invoke | **脚本+单测+CI 步骤已加**；`poc_desktop_windows.ps1` 在 Windows 开 Notepad 做 UIA 找窗。Darwin SKIP。**本机未跑真机**；CI 结果需 push 后才有。不得提前写成产品已有 Windows CU。 |
+| CU-D-060 | UIA 列窗 / 截图 / Invoke | **进行中** 脚本+单测+CI 步骤已加；Windows `daemon.lock` 改为独占打开（修 CI `daemon_single_instance_lock_rejects_second_start`）。Darwin SKIP。**等 windows-latest 打印 UIA_OK / PRINTWINDOW_OK**。不得提前写成产品已有 Windows CU。 |
 
 ## 4. 建议执行顺序（编排）
 

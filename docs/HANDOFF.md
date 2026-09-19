@@ -4,9 +4,10 @@
 
 ## 本轮
 
-- `poc_desktop_windows.ps1` 增加 PrintWindow PNG 魔数校验（无 SendInput）。
-- Darwin 仍 SKIP。CI windows-latest 跑该脚本后才能标 060 真机。
+- 修 Windows `daemon.lock`：独占 `share_mode(0)`，PID 写进已打开的锁句柄（不再 `fs::write` 二次打开）。
+- 同进程二次 `start_daemon` / `acquire_daemon_lock` 必须 `DaemonAlreadyRunning`。这是 CI run `35461855794` 挡住 UIA smoke 的原因。
+- 单测 `second_lock_is_denied_then_released`；本地 `cargo test --workspace --offline` **121 passed**。
 
 ## 下一刀
 
-看 Windows CI 是否打印 UIA_OK 与 PRINTWINDOW_OK。未绿不得宣称 Windows CU。
+看 Windows CI：`cargo test` 必须先绿，随后 `windows UIA notepad smoke` 打印 `UIA_OK` 与 `PRINTWINDOW_OK`。未绿不得宣称 Windows CU。
