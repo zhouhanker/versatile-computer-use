@@ -549,7 +549,10 @@ mod tests {
         let denied = b.invoke("win:WeChat:2", "e1").await.unwrap_err();
         assert_eq!(denied.code(), ErrorCode::AppDenied);
         let err = b.set_value("win:notepad:1", "e1", "hi").await.unwrap_err();
+        #[cfg(not(windows))]
         assert_eq!(err.code(), ErrorCode::NotImplemented);
+        #[cfg(windows)]
+        assert_eq!(err.code(), ErrorCode::ActionFailed);
         let setv = uia_set_value_script(4242, "e2", "hello");
         assert!(setv.contains("ValuePattern"));
         assert!(setv.contains("SetValue"));
