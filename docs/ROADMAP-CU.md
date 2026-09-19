@@ -165,6 +165,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-170 | Windows Settings 只读观察 | **完成（CI 真机）** run `35471043411` @ `2400fdc`：`SNAP_OK ref=e1 count=1`；`CLICK_DENIED`；`TYPE_DENIED`；tab `win:SystemSettings:1472`。无 SendInput；未改设置。 |
 | CU-D-180 | Notepad 滚动（无 HID） | **完成（CI 真机）** run `35471497693` @ `514153c`：`SCROLL_OK path=wm_vscroll os_cursor_used=False`。不是 ScrollPattern。无 mouse_event / SendInput。 |
 | CU-D-190 | Scene 读回 Notepad 值并 extract | **完成（CI 真机）** run `35471859281` @ `5852f9a`：`EXTRACT_OK count=1`。ValuePattern 或 GetWindowText。无 SendInput。 |
+| CU-D-200 | wait 直到 Scene value 出现 | **进行中** type 标记后 wait value；`scene_wait`；无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -193,6 +194,7 @@ CU-D-000 文档
     → CU-D-170 vcu Windows settings observe-only
     → CU-D-180 vcu Windows notepad scroll
     → CU-D-190 vcu Windows notepad extract
+    → CU-D-200 vcu Windows notepad wait value
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

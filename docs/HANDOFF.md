@@ -1,12 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-190 CI 绿。
+更新：2026-09-20。CU-D-200 wait value 脚本已加，待 CI。
 
 ## 本轮
 
-- run `35471859281`：`EXTRACT_OK count=1`；`CU-D-190 OK`。
-- Scene 带 GetWindowText/ValuePattern。无 SendInput。
+- wait 可按 args.value 匹配 name/value。
+- POC：type 标记后 wait 必须 found_ref。
 
 ## 下一刀
 
-不是完整 Windows 产品 CU。不要假绿双浏览器 / 跨源 iframe。
+看 CI `WAIT_OK`。未绿不得宣称 200 完成。

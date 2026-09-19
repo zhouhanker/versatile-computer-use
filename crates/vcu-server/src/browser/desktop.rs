@@ -109,7 +109,11 @@ impl DesktopBackend {
             .or_else(|| action.args.get("ref").and_then(|v| v.as_str()));
         let want_name = action.args.get("name").and_then(|v| v.as_str());
         let want_role = action.args.get("role").and_then(|v| v.as_str());
-        let conditioned = want_ref.is_some() || want_name.is_some() || want_role.is_some();
+        let want_value = action.args.get("value").and_then(|v| v.as_str());
+        let conditioned = want_ref.is_some()
+            || want_name.is_some()
+            || want_role.is_some()
+            || want_value.is_some();
         if !conditioned {
             self.sleep_abortable(ms).await?;
             return Ok(ActionResultDetail {
@@ -126,7 +130,9 @@ impl DesktopBackend {
         loop {
             self.ensure_not_aborted()?;
             let snap = self.snapshot(tab_id, SnapshotMode::A11y, 2000).await?;
-            if let Some(found) = scene_wait_match(&snap.dom_refs, want_ref, want_name, want_role) {
+            if let Some(found) =
+                scene_wait_match(&snap.dom_refs, want_ref, want_name, want_role, want_value)
+            {
                 return Ok(ActionResultDetail {
                     ok: true,
                     detail: serde_json::json!({
@@ -903,6 +909,7 @@ fn scene_wait_match(
     want_ref: Option<&str>,
     want_name: Option<&str>,
     want_role: Option<&str>,
+    want_value: Option<&str>,
 ) -> Option<String> {
     refs.iter().find_map(|r| {
         if let Some(w) = want_ref {
@@ -917,6 +924,12 @@ fn scene_wait_match(
         }
         if let Some(w) = want_role {
             if !r.role.eq_ignore_ascii_case(w) {
+                return None;
+            }
+        }
+        if let Some(w) = want_value {
+            let hay = format!("{} {}", r.name, r.value.as_deref().unwrap_or(""));
+            if !hay.to_lowercase().contains(&w.to_lowercase()) {
                 return None;
             }
         }
@@ -1328,10 +1341,23 @@ mod tests {
             selector: None,
             frame: None,
         }];
-        assert_eq!(scene_wait_match(&refs, Some("e1"), None, None).as_deref(), Some("e1"));
-        assert_eq!(scene_wait_match(&refs, None, Some("ok"), Some("button")).as_deref(), Some("e1"));
-        assert!(scene_wait_match(&refs, Some("e9"), None, None).is_none());
-        assert!(scene_wait_match(&refs, None, Some("Send"), None).is_none());
+        assert_eq!(scene_wait_match(&refs, Some("e1"), None, None, None).as_deref(), Some("e1"));
+        assert_eq!(scene_wait_match(&refs, None, Some("ok"), Some("button"), None).as_deref(), Some("e1"));
+        assert!(scene_wait_match(&refs, Some("e9"), None, None, None).is_none());
+        assert!(scene_wait_match(&refs, None, Some("Send"), None, None).is_none());
+        let with_val = vec![DomRef {
+            r#ref: "e2".into(),
+            role: "ControlType.Pane/Edit".into(),
+            name: "".into(),
+            value: Some("VCU-D-200-MARK".into()),
+            selector: None,
+            frame: None,
+        }];
+        assert_eq!(
+            scene_wait_match(&with_val, None, None, None, Some("VCU-D-200-MARK")).as_deref(),
+            Some("e2")
+        );
+        assert!(scene_wait_match(&with_val, None, None, None, Some("nope")).is_none());
     }
 
     #[test]

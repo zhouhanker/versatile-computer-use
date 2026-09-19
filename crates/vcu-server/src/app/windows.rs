@@ -1398,6 +1398,11 @@ mod tests {
         let l160 = s160.to_ascii_lowercase();
         assert!(!l160.contains("sendinput("));
         assert!(!l160.contains("[system.windows.forms.sendkeys"));
+        let p200 = root.join("scripts/poc_cu_d_200.ps1");
+        let s200 = std::fs::read_to_string(&p200).unwrap_or_default();
+        assert!(s200.contains("WAIT_OK"), "{}", p200.display());
+        let l200 = s200.to_ascii_lowercase();
+        assert!(!l200.contains("sendinput("));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
