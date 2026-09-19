@@ -753,6 +753,46 @@ impl BrowserBackend for DesktopBackend {
                 ErrorCode::OsCursorDenied,
                 "OS cursor actions are denied; Guide is overlay-only",
             )),
+            "reveal" => {
+                let path = action
+                    .args
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        VcuError::coded(ErrorCode::InvalidInput, "reveal requires args.path")
+                    })?;
+                let mut app = self.app.write().await;
+                let mut detail = app.reveal_path(tab_id, path).await?;
+                if detail.get("os_cursor_used").and_then(|v| v.as_bool()) == Some(true) {
+                    return Err(VcuError::coded(
+                        ErrorCode::OsCursorDenied,
+                        "Finder reveal attempted OS cursor warp",
+                    ));
+                }
+                detail["os_cursor_used"] = serde_json::json!(false);
+                detail["hid_injected"] = serde_json::json!(false);
+                Ok(ActionResultDetail { ok: true, detail })
+            }
+            "open_path" => {
+                let path = action
+                    .args
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        VcuError::coded(ErrorCode::InvalidInput, "open_path requires args.path")
+                    })?;
+                let mut app = self.app.write().await;
+                let mut detail = app.open_path(tab_id, path).await?;
+                if detail.get("os_cursor_used").and_then(|v| v.as_bool()) == Some(true) {
+                    return Err(VcuError::coded(
+                        ErrorCode::OsCursorDenied,
+                        "Finder open_path attempted OS cursor warp",
+                    ));
+                }
+                detail["os_cursor_used"] = serde_json::json!(false);
+                detail["hid_injected"] = serde_json::json!(false);
+                Ok(ActionResultDetail { ok: true, detail })
+            }
             "navigate" => Err(VcuError::coded(
                 ErrorCode::NotImplemented,
                 "navigate is not available on the desktop surface",
@@ -998,6 +1038,47 @@ mod tests {
             .unwrap();
         assert_eq!(typed.detail["input_path"], "ax_set_value");
         assert_eq!(typed.detail["os_cursor_used"], false);
+        let finder = tabs.iter().find(|t| t.title == "Finder").unwrap();
+        let revealed = b
+            .act(
+                &finder.tab_id,
+                &ActionRequest {
+                    r#type: "reveal".into(),
+                    target: serde_json::json!({}),
+                    args: serde_json::json!({"path": "/tmp/VCU-D-040"}),
+                    idempotency_key: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(revealed.detail["input_path"], "nsworkspace_reveal");
+        assert_eq!(revealed.detail["os_cursor_used"], false);
+        let opened = b
+            .act(
+                &finder.tab_id,
+                &ActionRequest {
+                    r#type: "open_path".into(),
+                    target: serde_json::json!({}),
+                    args: serde_json::json!({"path": "/tmp/VCU-D-040"}),
+                    idempotency_key: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(opened.detail["input_path"], "nsworkspace_open");
+        let denied = b
+            .act(
+                &textedit.tab_id,
+                &ActionRequest {
+                    r#type: "open_path".into(),
+                    target: serde_json::json!({}),
+                    args: serde_json::json!({"path": "/tmp/VCU-D-040"}),
+                    idempotency_key: None,
+                },
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(denied.code(), ErrorCode::InvalidInput);
         let fs_typed_btn = b
             .type_text(&feishu.tab_id, "hello", Some("e1"))
             .await

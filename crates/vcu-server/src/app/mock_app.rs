@@ -37,6 +37,14 @@ impl Default for MockAppBackend {
                     browser_profile: None,
                 },
                 AppTarget {
+                    id: "proc:Finder:4".into(),
+                    title: "Finder".into(),
+                    bundle_or_exe: "Finder".into(),
+                    pid: Some(4),
+                    allowed: true,
+                    browser_profile: None,
+                },
+                AppTarget {
                     id: "proc:Microsoft_Edge:10".into(),
                     title: "Microsoft Edge".into(),
                     bundle_or_exe: "Microsoft Edge".into(),
@@ -227,6 +235,44 @@ impl AppBackend for MockAppBackend {
         }))
     }
 
+    async fn reveal_path(&mut self, id: &str, path: &str) -> VcuResult<serde_json::Value> {
+        let target = self.target(id)?;
+        self.ensure_operable(&target)?;
+        if !target.title.eq_ignore_ascii_case("Finder") {
+            return Err(VcuError::coded(
+                ErrorCode::InvalidInput,
+                "reveal_path is Finder-only",
+            ));
+        }
+        Ok(serde_json::json!({
+            "ok": true,
+            "process": target.title,
+            "path": path,
+            "input_path": "nsworkspace_reveal",
+            "os_cursor_used": false,
+            "hid_injected": false
+        }))
+    }
+
+    async fn open_path(&mut self, id: &str, path: &str) -> VcuResult<serde_json::Value> {
+        let target = self.target(id)?;
+        self.ensure_operable(&target)?;
+        if !target.title.eq_ignore_ascii_case("Finder") {
+            return Err(VcuError::coded(
+                ErrorCode::InvalidInput,
+                "open_path is Finder-only",
+            ));
+        }
+        Ok(serde_json::json!({
+            "ok": true,
+            "process": target.title,
+            "path": path,
+            "input_path": "nsworkspace_open",
+            "os_cursor_used": false,
+            "hid_injected": false
+        }))
+    }
+
     async fn scroll(
         &mut self,
         id: &str,
@@ -289,7 +335,7 @@ mod tests {
     async fn mock_app_list_and_snapshot() {
         let mut b = MockAppBackend::default();
         let wins = b.list_windows().await.unwrap();
-        assert_eq!(wins.len(), 5);
+        assert_eq!(wins.len(), 6);
         let snap = b.snapshot(&wins[0].id, 1000).await.unwrap();
         assert_eq!(snap.elements.len(), 2);
         assert_eq!(snap.elements[0].frame, Some([20.0, 20.0, 80.0, 24.0]));
@@ -301,6 +347,12 @@ mod tests {
         assert_eq!(pressed["os_cursor_used"], false);
         let typed = b.set_value(&wins[0].id, "e2", "hi").await.unwrap();
         assert_eq!(typed["input_path"], "ax_set_value");
+        let finder = wins.iter().find(|w| w.title == "Finder").unwrap();
+        let revealed = b.reveal_path(&finder.id, "/tmp/VCU-D-040").await.unwrap();
+        assert_eq!(revealed["input_path"], "nsworkspace_reveal");
+        let opened = b.open_path(&finder.id, "/tmp/VCU-D-040").await.unwrap();
+        assert_eq!(opened["input_path"], "nsworkspace_open");
+        assert!(b.open_path(&wins[0].id, "/tmp/VCU-D-040").await.is_err());
         let wechat = wins.iter().find(|w| w.title == "WeChat").unwrap();
         let err = b.snapshot(&wechat.id, 1000).await.unwrap_err();
         assert_eq!(err.code(), ErrorCode::AppDenied);

@@ -94,8 +94,8 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 
 | ID | 标题 | 期望 |
 | --- | --- | --- |
-| TC-D-040 | 脚本自建文件夹窗出现在 Scene | **部分通过** CGWindow 标题含目录名；`scripts/poc_desktop_finder.py` |
-| TC-D-041 | 选图标并打开子项 | **未通过** Finder AX 无图标；禁止 HID |
+| TC-D-040 | 脚本自建文件夹窗出现在 Scene | **通过** CGWindow 标题；`scripts/poc_desktop_finder.py` |
+| TC-D-041 | reveal + open_path 打开子文件夹 | **通过** `nsworkspace_reveal` / `nsworkspace_open`；非 AXPress、非 Return |
 
 ## 8. 未通过不得宣称完成
 

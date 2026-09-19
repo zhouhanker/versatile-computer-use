@@ -495,6 +495,20 @@ pub trait AppBackend: Send + Sync {
             "press_at_point not implemented",
         ))
     }
+    /// Select a file/folder in Finder (Launch Services). Not HID.
+    async fn reveal_path(&mut self, _id: &str, _path: &str) -> VcuResult<serde_json::Value> {
+        Err(VcuError::coded(
+            ErrorCode::NotImplemented,
+            "reveal_path not implemented",
+        ))
+    }
+    /// Open a file/folder in Finder (Launch Services). Not HID, not Return-as-Send.
+    async fn open_path(&mut self, _id: &str, _path: &str) -> VcuResult<serde_json::Value> {
+        Err(VcuError::coded(
+            ErrorCode::NotImplemented,
+            "open_path not implemented",
+        ))
+    }
 }
 
 /// Placeholder used when platform adapter is unavailable.

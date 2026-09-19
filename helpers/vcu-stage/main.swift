@@ -354,6 +354,29 @@ func parseControlPath() -> String? {
     return nil
 }
 
+// Finder file select/open via Launch Services. Not HID, not AXPress.
+if CommandLine.arguments.count == 3 && ["--reveal", "--open-path"].contains(CommandLine.arguments[1]) {
+    let raw = CommandLine.arguments[2]
+    var isDir: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: raw, isDirectory: &isDir) else {
+        fputs("vcu-stage: path not found\n", stderr)
+        exit(1)
+    }
+    let url = URL(fileURLWithPath: raw, isDirectory: isDir.boolValue)
+    if CommandLine.arguments[1] == "--reveal" {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+        print("{\"ok\":true,\"input_path\":\"nsworkspace_reveal\"}")
+        exit(0)
+    }
+    let ok = NSWorkspace.shared.open(url)
+    if ok {
+        print("{\"ok\":true,\"input_path\":\"nsworkspace_open\"}")
+        exit(0)
+    }
+    fputs("vcu-stage: NSWorkspace.open failed\n", stderr)
+    exit(1)
+}
+
 // Read-only CG window list for Scene when System Events has no AX windows
 // (Finder folder windows on current macOS). Do not start a HUD.
 if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--list-windows" {

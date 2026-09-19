@@ -23,3 +23,13 @@ USER Edge 的 HTML 控件：`vcu browser click --selector`，`source=extension_d
 Abort：`vcu session abort <sid>`（与 Stage 上 Escape 同一路径）。不要传 `--id`。
 
 真机脚本：`scripts/poc_desktop_textedit.sh`（CU-D-023，文档必须出现标记才算过）。
+
+Finder（CU-D-040）：AX 不暴露文件夹图标。列窗用 Scene `CGWindow`；选中/打开用 Launch Services：
+
+```sh
+# action.json: {"type":"open_path","target":{"tab_id":"proc:Finder:<pid>"},"args":{"path":"/tmp/VCU-D-040/OPENME","tab_id":"proc:Finder:<pid>"}}
+vcu act --session <sid> --action-json action.json --json
+# detail.input_path=nsworkspace_open  os_cursor_used=false
+```
+
+不要对 Finder 图标宣称 AXPress；不要用 Return 当打开（Return 仍是 Send 门禁）。

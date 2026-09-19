@@ -1003,6 +1003,61 @@ fn parse_cg_window_list(raw: &str) -> Vec<CgWindowInfo> {
 }
 
 impl MacosAppBackend {
+    fn finder_posix_path(&self, id: &str, path: &str) -> VcuResult<String> {
+        let name = Self::process_name_from_id(id);
+        self.ensure_operable(&name)?;
+        if !name.eq_ignore_ascii_case("Finder") {
+            return Err(VcuError::coded(
+                ErrorCode::InvalidInput,
+                "reveal/open_path is Finder-only",
+            ));
+        }
+        let p = std::path::Path::new(path);
+        if !p.is_absolute() {
+            return Err(VcuError::coded(
+                ErrorCode::InvalidInput,
+                "Finder path must be absolute",
+            ));
+        }
+        let canon = p.canonicalize().map_err(|e| {
+            VcuError::with_detail(ErrorCode::InvalidInput, "Finder path not found", e.to_string())
+        })?;
+        let shown = canon.display().to_string();
+        if super::is_denied_app(&shown) {
+            return Err(super::denied_app_error(&shown));
+        }
+        Ok(shown)
+    }
+
+    fn run_finder_launch(flag: &str, path: &str) -> VcuResult<serde_json::Value> {
+        let helper = crate::stage::resolve_stage_bin().ok_or_else(|| {
+            VcuError::coded(
+                ErrorCode::ActionFailed,
+                "vcu-stage helper is missing for Finder launch services",
+            )
+        })?;
+        let output = Command::new(helper)
+            .args([flag, path])
+            .output()
+            .map_err(|e| {
+                VcuError::with_detail(ErrorCode::ActionFailed, "vcu-stage spawn", e.to_string())
+            })?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if !output.status.success() {
+            return Err(VcuError::with_detail(
+                ErrorCode::ActionFailed,
+                "Finder launch services failed",
+                if stderr.is_empty() { stdout } else { stderr },
+            ));
+        }
+        let parsed = serde_json::from_str::<serde_json::Value>(&stdout).unwrap_or(serde_json::json!({
+            "ok": true,
+            "result": stdout
+        }));
+        Ok(parsed)
+    }
+
     fn list_cg_windows(pid: i32) -> Vec<CgWindowInfo> {
         let Some(helper) = crate::stage::resolve_stage_bin() else {
             return Vec::new();
@@ -1347,6 +1402,30 @@ impl AppBackend for MacosAppBackend {
             "input_path": "ax_set_value",
             "os_cursor_used": false
         }))
+    }
+
+    async fn reveal_path(&mut self, id: &str, path: &str) -> VcuResult<serde_json::Value> {
+        let path = self.finder_posix_path(id, path)?;
+        let mut detail = Self::run_finder_launch("--reveal", &path)?;
+        detail["os_cursor_used"] = serde_json::json!(false);
+        detail["hid_injected"] = serde_json::json!(false);
+        detail["path"] = serde_json::json!(path);
+        if detail.get("input_path").is_none() {
+            detail["input_path"] = serde_json::json!("nsworkspace_reveal");
+        }
+        Ok(detail)
+    }
+
+    async fn open_path(&mut self, id: &str, path: &str) -> VcuResult<serde_json::Value> {
+        let path = self.finder_posix_path(id, path)?;
+        let mut detail = Self::run_finder_launch("--open-path", &path)?;
+        detail["os_cursor_used"] = serde_json::json!(false);
+        detail["hid_injected"] = serde_json::json!(false);
+        detail["path"] = serde_json::json!(path);
+        if detail.get("input_path").is_none() {
+            detail["input_path"] = serde_json::json!("nsworkspace_open");
+        }
+        Ok(detail)
     }
 
     async fn scroll(
