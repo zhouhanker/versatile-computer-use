@@ -47,7 +47,6 @@ impl WindowsAppBackend {
             .args([
                 "-NoProfile",
                 "-STA",
-                "-NonInteractive",
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
@@ -111,9 +110,9 @@ pub fn uia_tree_script(pid: i32, max_nodes: i32) -> String {
 Add-Type -AssemblyName UIAutomationClient | Out-Null
 $pid = {pid}
 $max = {max}
-$root = [System.Windows.Automation.AutomationElement]::RootElement
-$cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $pid)
-$win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'MISSING'; exit 0 }}
+$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
 if ($null -eq $win) {{ 'MISSING'; exit 0 }}
 $q = New-Object System.Collections.Queue
 $q.Enqueue($win)
@@ -144,9 +143,9 @@ pub fn uia_invoke_script(pid: i32, eref: &str) -> String {
 Add-Type -AssemblyName UIAutomationClient | Out-Null
 $pid = {pid}
 $want = {n}
-$root = [System.Windows.Automation.AutomationElement]::RootElement
-$cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $pid)
-$win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
+$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
 if ($null -eq $win) {{ 'not-found'; exit 0 }}
 $q = New-Object System.Collections.Queue
 $q.Enqueue($win)
@@ -192,9 +191,9 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, st
 $pid = {pid}
 $want = {n}
 $val = '{val}'
-$root = [System.Windows.Automation.AutomationElement]::RootElement
-$cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $pid)
-$win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
+$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$proc.MainWindowHandle)
 if ($null -eq $win) {{ 'not-found'; exit 0 }}
 $q = New-Object System.Collections.Queue
 $q.Enqueue($win)
@@ -390,7 +389,11 @@ pub fn snapshot_from_uia(id: &str, name: &str, pid: Option<i32>, raw: &str, budg
             allowed: true,
             browser_profile: None,
         },
-        summary: format!("process=\"{name}\" elements={} note=uia_tree", elements.len()),
+                summary: if elements.is_empty() {
+            format!("process=\"{name}\" elements=0 note=uia_tree raw={}", raw.chars().take(160).collect::<String>())
+        } else {
+            format!("process=\"{name}\" elements={} note=uia_tree", elements.len())
+        },
         elements,
         truncated: true,
         window_frame: None,
@@ -632,7 +635,7 @@ mod tests {
         assert_eq!(els[2].role, "ControlType.Pane/Edit");
         let tree = uia_tree_script(4242, 80);
         assert!(tree.contains("UIAutomationClient"));
-        assert!(tree.contains("ProcessIdProperty"));
+        assert!(tree.contains("FromHandle"));
         assert!(tree.contains("ClassName"));
         assert!(!tree.to_ascii_lowercase().contains("sendinput"));
         let inv = uia_invoke_script(4242, "e2");
