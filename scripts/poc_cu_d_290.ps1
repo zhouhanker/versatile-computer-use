@@ -35,29 +35,12 @@ function Add-McpFrame([System.IO.MemoryStream]$ms, [string]$json) {
 
 function Get-McpBodies([string]$out) {
   $bodies = New-Object System.Collections.ArrayList
-  $pos = 0
-  while ($true) {
-    $idx = $out.IndexOf("Content-Length:", $pos)
-    if ($idx -lt 0) { break }
-    $breakIdx = $out.IndexOf("`r`n`r`n", $idx)
-    $add = 4
-    if ($breakIdx -lt 0) {
-      $breakIdx = $out.IndexOf("`n`n", $idx)
-      $add = 2
-    }
-    if ($breakIdx -lt 0) { break }
-    $header = $out.Substring($idx, $breakIdx - $idx)
-    $len = 0
-    foreach ($line in $header.Split("`n")) {
-      $t = $line.Trim()
-      if ($t.StartsWith("Content-Length:")) {
-        $len = [int]$t.Substring(15).Trim()
-      }
-    }
-    $start = $breakIdx + $add
-    if ($len -le 0 -or ($start + $len) -gt $out.Length) { break }
-    [void]$bodies.Add($out.Substring($start, $len))
-    $pos = $start + $len
+  $parts = $out -split "Content-Length:"
+  foreach ($part in $parts) {
+    $p = [string]$part
+    $brace = $p.IndexOf("{")
+    if ($brace -lt 0) { continue }
+    [void]$bodies.Add($p.Substring($brace).Trim())
   }
   return ,$bodies.ToArray()
 }
