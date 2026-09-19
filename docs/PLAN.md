@@ -6,7 +6,7 @@
 
 **已发布：浏览器版 Bridge 0.2.8。** 浏览器门禁仍有效。
 
-**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–3 骨架、TextEdit 真写入、浏览器回归已过；下一刀 CU-D-040 Finder。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
+**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–3 已过。CU-D-040 Finder 列目录窗（CGWindow）真机已见自建窗口；选图标/回车打开因 Finder AX 无图标未完成，不得标 040 完成。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
 
 本地对照实现在 gitignore 的 `/reference/computer-use/`：可反编译作结构参考，笔记进 `docs/research/`，自有代码进仓库；`.app` / 反编译源码 / 官方素材不上传。
 
@@ -63,6 +63,7 @@
 - [x] **CU-D-020/021/022/024**：AXPress 非零失败、Return 门禁、Guide overlay、像素命中不报 extension_dom（单测）。
 - [x] **CU-D-023**：TextEdit 真机 `e8` AXTextArea 写入标记，`os_cursor_used=false`；Notes AXPress `axpress:0`。CLI session `type --tab`；`resolve_tab` 优先 active app。
 - [x] **CU-D-032**：浏览器回归 ping 0.2.8 / tabs / 现窗新标签 / screenshot capture dry-run / throwaway DOM click。组 1/3 未动。
+- [ ] **CU-D-040**：Finder 列目录窗 CG 真机已过；选图标/AXPress **未完成**（AX 无图标）。
 - [x] **CU-D-030/031/033**：Observation surface/source；USER Edge AXWebArea 不得假绿；`playbooks/desktop.md`。
 
 

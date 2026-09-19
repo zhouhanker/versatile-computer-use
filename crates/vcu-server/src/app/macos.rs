@@ -947,6 +947,79 @@ fn ax_set_value_script(process: &str, eref: &str, val: &str) -> String {
 }
 
 
+#[derive(Debug, Clone)]
+struct CgWindowInfo {
+    window_id: u64,
+    title: String,
+    frame: [f64; 4],
+}
+
+fn parse_cg_window_list(raw: &str) -> Vec<CgWindowInfo> {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return Vec::new();
+    };
+    let Some(arr) = v.as_array() else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for item in arr {
+        let title = item
+            .get("title")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let window_id = item
+            .get("window_id")
+            .and_then(|x| x.as_u64())
+            .unwrap_or(0);
+        let frame = item
+            .get("frame")
+            .and_then(|x| x.as_array())
+            .and_then(|a| {
+                if a.len() != 4 {
+                    return None;
+                }
+                Some([
+                    a[0].as_f64()?,
+                    a[1].as_f64()?,
+                    a[2].as_f64()?,
+                    a[3].as_f64()?,
+                ])
+            });
+        let Some(frame) = frame else {
+            continue;
+        };
+        if frame[2] < 120.0 || frame[3] < 80.0 {
+            continue;
+        }
+        out.push(CgWindowInfo {
+            window_id,
+            title,
+            frame,
+        });
+    }
+    out
+}
+
+impl MacosAppBackend {
+    fn list_cg_windows(pid: i32) -> Vec<CgWindowInfo> {
+        let Some(helper) = crate::stage::resolve_stage_bin() else {
+            return Vec::new();
+        };
+        let output = Command::new(helper)
+            .args(["--list-windows", &pid.to_string()])
+            .output();
+        let Ok(output) = output else {
+            return Vec::new();
+        };
+        if !output.status.success() {
+            return Vec::new();
+        }
+        parse_cg_window_list(&String::from_utf8_lossy(&output.stdout))
+    }
+}
+
 impl Default for MacosAppBackend {
     fn default() -> Self {
         Self::new()
@@ -1070,7 +1143,23 @@ impl AppBackend for MacosAppBackend {
                     browser_profile: crate::login_state::profile_for_pid(&name, Self::pid_from_id(id)),
                 },
                 summary: format!("process=\"{name}\" ax_error={}", raw.trim_start_matches("ERROR:")),
-                elements: vec![],
+                elements: if name.eq_ignore_ascii_case("Finder") {
+                    Self::pid_from_id(id)
+                        .map(Self::list_cg_windows)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, w)| AppElement {
+                            r#ref: format!("w{}", i + 1),
+                            role: "CGWindow".into(),
+                            name: w.title,
+                            value: Some(w.window_id.to_string()),
+                            frame: Some(w.frame),
+                        })
+                        .collect()
+                } else {
+                    vec![]
+                },
                 truncated: true,
                 window_frame: None,
                 webview: false,
@@ -1084,6 +1173,20 @@ impl AppBackend for MacosAppBackend {
         let parsed = parse_ax_snapshot(&raw);
         let mut elements = parsed.elements;
         let mut truncated = parsed.truncated;
+        if name.eq_ignore_ascii_case("Finder") {
+            if let Some(pid) = Self::pid_from_id(id) {
+                let cg = Self::list_cg_windows(pid);
+                for (i, w) in cg.into_iter().enumerate() {
+                    elements.push(AppElement {
+                        r#ref: format!("w{}", i + 1),
+                        role: "CGWindow".into(),
+                        name: w.title,
+                        value: Some(w.window_id.to_string()),
+                        frame: Some(w.frame),
+                    });
+                }
+            }
+        }
         let budget = if budget == 0 { 4000 } else { budget };
         let max_elems = (budget as usize / 20).max(5);
         if elements.len() > max_elems {
@@ -1525,6 +1628,14 @@ mod tests {
         assert!(te.contains("text area"));
         assert!(ax_prefer_text_kids("TextEdit"));
         assert!(!ax_prefer_text_kids("Finder"));
+        let cg = parse_cg_window_list(
+            r#"[{"title":"VCU-D-040-probe","window_id":19504,"frame":[2200,154,902,482]},{"title":"tiny","window_id":1,"frame":[0,0,10,10]}]"#,
+        );
+        assert_eq!(cg.len(), 1);
+        assert_eq!(cg[0].title, "VCU-D-040-probe");
+        assert_eq!(cg[0].window_id, 19504);
+        assert_eq!(cg[0].frame, [2200.0, 154.0, 902.0, 482.0]);
+        assert!(parse_cg_window_list("nope").is_empty());
         assert!(!ax_prefer_text_kids("Notes"));
         let notes = ax_snapshot_script("Notes");
         assert!(notes.contains("vcuDepth <= 4"));

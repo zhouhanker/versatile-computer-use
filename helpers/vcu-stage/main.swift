@@ -354,6 +354,27 @@ func parseControlPath() -> String? {
     return nil
 }
 
+// Read-only CG window list for Scene when System Events has no AX windows
+// (Finder folder windows on current macOS). Do not start a HUD.
+if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--list-windows" {
+    guard let pid = Int(CommandLine.arguments[2]),
+          let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { exit(2) }
+    var out: [[String: Any]] = []
+    for win in windows {
+        guard (win[kCGWindowOwnerPID as String] as? Int) == pid,
+              (win[kCGWindowLayer as String] as? Int) == 0,
+              let bounds = win[kCGWindowBounds as String] as? [String: Double],
+              let wx = bounds["X"], let wy = bounds["Y"], let ww = bounds["Width"], let wh = bounds["Height"],
+              ww >= 120, wh >= 80,
+              let id = win[kCGWindowNumber as String] as? Int else { continue }
+        let title = win[kCGWindowName as String] as? String ?? ""
+        out.append(["window_id": id, "title": title, "frame": [wx, wy, ww, wh]])
+    }
+    let data = try JSONSerialization.data(withJSONObject: out)
+    print(String(data: data, encoding: .utf8)!)
+    exit(0)
+}
+
 // Read-only native window lookup used by the browser screenshot path. Do not
 // initialize AppKit windows or a HUD for this command.
 if CommandLine.arguments.count == 7 && ["--window-id", "--window-info"].contains(CommandLine.arguments[1]) {

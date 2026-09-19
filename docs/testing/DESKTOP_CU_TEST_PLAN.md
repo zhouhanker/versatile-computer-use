@@ -90,6 +90,13 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 5. `trap` 里关闭自己创建的窗口；Abort 测试后检查无 HUD。  
 6. 证据进 `.local/desktop-cu/`（不提交仓库）。  
 
+## 7.1 Finder（CU-D-040）
+
+| ID | 标题 | 期望 |
+| --- | --- | --- |
+| TC-D-040 | 脚本自建文件夹窗出现在 Scene | **部分通过** CGWindow 标题含目录名；`scripts/poc_desktop_finder.py` |
+| TC-D-041 | 选图标并打开子项 | **未通过** Finder AX 无图标；禁止 HID |
+
 ## 8. 未通过不得宣称完成
 
 - TC-B-040 通用 AX 网页像素真点（浏览器计划已延期）  
