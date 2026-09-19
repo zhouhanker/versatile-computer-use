@@ -30,6 +30,8 @@ Windows hover then click（CU-D-260，CI）：先 hover 再 `vcu click`，仍是
 
 Windows doctor（CU-D-270）：`vcu doctor` 的 `windows_desktop_scope` 为 warn，写明 CI 切片不是产品 Windows CU；`app_backend` 写 wm_settext/bm_click，不是 AXPress。
 
+MCP（CU-D-280）：宿主用 `vcu_hover`、`vcu_wait`（含 `value`）、`vcu_session_abort`（拆 HUD）。不要把 `vcu_session_stop` 当成 Escape abort。
+
 真机脚本：`scripts/poc_desktop_textedit.sh`（CU-D-023，文档必须出现标记才算过）。
 
 Finder（CU-D-040）：AX 不暴露文件夹图标。列窗用 Scene `CGWindow`；选中/打开用 Launch Services：

@@ -225,6 +225,10 @@ fn tool_defs() -> Vec<Value> {
             "type":"object","required":["session"],
             "properties":{"session":{"type":"string"}}
         })),
+        tool("vcu_session_abort", "Abort a desktop session the same way as Stage Escape. Tears down HUD. Not session stop.", json!({
+            "type":"object","required":["session"],
+            "properties":{"session":{"type":"string"}}
+        })),
         tool("vcu_tabs_list", "List tabs for a session", json!({
             "type":"object","required":["session"],
             "properties":{"session":{"type":"string"}}
@@ -245,6 +249,14 @@ fn tool_defs() -> Vec<Value> {
                 "mode":{"type":"string","default":"a11y"},
                 "budget":{"type":"integer","default":4000},
                 "force_vision":{"type":"boolean","default":false}
+            }
+        })),
+        tool("vcu_hover", "Move Guide overlay to a Scene ref. Never OS cursor / HID. Desktop only.", json!({
+            "type":"object","required":["session","ref"],
+            "properties":{
+                "session":{"type":"string"},
+                "ref":{"type":"string"},
+                "tab_id":{"type":"string"}
             }
         })),
         tool("vcu_click", "Click by Scene ref, or screenshot pixels mapped to AX points (never OS cursor)", json!({
@@ -278,7 +290,7 @@ fn tool_defs() -> Vec<Value> {
                 "full_page":{"type":"boolean","default":false}
             }
         })),
-        tool("vcu_wait", "Wait ms, or until a Scene ref/name/role appears (desktop)", json!({
+        tool("vcu_wait", "Wait ms, or until a Scene ref/name/role/value appears (desktop)", json!({
             "type":"object","required":["session"],
             "properties":{
                 "session":{"type":"string"},
@@ -286,7 +298,8 @@ fn tool_defs() -> Vec<Value> {
                 "ms":{"type":"integer","default":200},
                 "ref":{"type":"string"},
                 "name":{"type":"string"},
-                "role":{"type":"string"}
+                "role":{"type":"string"},
+                "value":{"type":"string","description":"Match Scene name or value (CU-D-200)"}
             }
         })),
         tool("vcu_act", "Generic action JSON (type/target/args)", json!({
@@ -568,6 +581,12 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             client.post("/v1/session/start", body).await?
         }
         "vcu_session_list" => client.get("/v1/session/list").await?,
+        "vcu_session_abort" => {
+            let sid = req_str(&args, "session")?;
+            client
+                .post(&format!("/v1/session/{sid}/abort"), json!({}))
+                .await?
+        }
         "vcu_session_stop" => {
             let sid = req_str(&args, "session")?;
             if sid == "all" {
@@ -629,6 +648,22 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
                 .post(
                     &format!("/v1/session/{sid}/snapshot"),
                     body,
+                )
+                .await?
+        }
+        "vcu_hover" => {
+            let sid = req_str(&args, "session")?;
+            let r = req_str(&args, "ref")?;
+            let mut target = json!({"ref": r});
+            let mut act_args = json!({});
+            if let Some(t) = args.get("tab_id") {
+                target["tab_id"] = t.clone();
+                act_args["tab_id"] = t.clone();
+            }
+            client
+                .post(
+                    &format!("/v1/session/{sid}/act"),
+                    json!({"type":"hover","target": target, "args": act_args}),
                 )
                 .await?
         }
@@ -737,6 +772,9 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             }
             if let Some(r) = args.get("role") {
                 a["role"] = r.clone();
+            }
+            if let Some(v) = args.get("value") {
+                a["value"] = v.clone();
             }
             if let Some(t) = args.get("tab_id") {
                 a["tab_id"] = t.clone();
@@ -955,5 +993,27 @@ mod vision_handoff_tests {
         let c = mcp_vision_content(&v);
         assert_eq!(c.len(), 1);
         assert_eq!(c[0]["type"], "text");
+    }
+}
+
+#[cfg(test)]
+mod desktop_host_tools_tests {
+    use super::tool_defs;
+
+    #[test]
+    fn mcp_lists_desktop_hover_wait_value_and_abort() {
+        let tools = tool_defs();
+        let names: Vec<String> = tools
+            .iter()
+            .filter_map(|t| t.get("name").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .collect();
+        assert!(names.contains(&"vcu_hover".into()), "{names:?}");
+        assert!(names.contains(&"vcu_session_abort".into()), "{names:?}");
+        assert!(names.contains(&"vcu_wait".into()), "{names:?}");
+        let wait = tools.iter().find(|t| t["name"] == "vcu_wait").unwrap();
+        let props = &wait["inputSchema"]["properties"];
+        assert!(props.get("value").is_some(), "{wait}");
+        let hover = tools.iter().find(|t| t["name"] == "vcu_hover").unwrap();
+        assert!(hover["description"].as_str().unwrap().contains("Never OS cursor"));
     }
 }

@@ -1,11 +1,11 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-270 CI 已绿。下一刀尚未写入 ROADMAP。
+更新：2026-09-20。CU-D-280 MCP desktop hover/wait/abort 进行中。
 
 ## 本轮
 
-- 270：run `35475108584` `SCOPE_OK` / `BACKEND_OK` / `STAGE_OK` / `CU-D-270 OK`。
+- 280：宿主 MCP 必须有 `vcu_hover`；`vcu_wait` 转发 `args.value`；`vcu_session_abort` 走 abort 不是 stop。
 
 ## 下一刀
 
-先把 **CU-D-280** 写进 `docs/ROADMAP-CU.md` 再写代码。不要 claim MAC-NEXT / FEISHU-001。未宣称完整 Windows 产品 CU / 完整 Codex CU。
+看 CI `TOOLS_OK` / `CU-D-280 OK`。未绿不得宣称 280 完成。不要 claim MAC-NEXT / FEISHU-001。

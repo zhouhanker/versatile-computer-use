@@ -1464,6 +1464,14 @@ mod tests {
         assert!(s270.contains("CU-D-270 OK"));
         let l270 = s270.to_ascii_lowercase();
         assert!(!l270.contains("sendinput("));
+        let p280 = root.join("scripts/poc_cu_d_280.ps1");
+        let s280 = std::fs::read_to_string(&p280).unwrap_or_default();
+        assert!(s280.contains("TOOLS_OK"), "{}", p280.display());
+        assert!(s280.contains("vcu_hover"));
+        assert!(s280.contains("vcu_session_abort"));
+        assert!(s280.contains("CU-D-280 OK"));
+        let l280 = s280.to_ascii_lowercase();
+        assert!(!l280.contains("sendinput("));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
