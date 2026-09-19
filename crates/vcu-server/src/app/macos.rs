@@ -352,6 +352,16 @@ fn ax_is_notes(process: &str) -> bool {
     process.eq_ignore_ascii_case("Notes") || process.contains("备忘录")
 }
 
+fn uses_cg_windows(process: &str) -> bool {
+    let p = process.to_ascii_lowercase();
+    p == "finder" || p == "terminal" || p.contains("ghostty")
+}
+
+fn uses_menu_paste(process: &str) -> bool {
+    let p = process.to_ascii_lowercase();
+    p == "terminal" || p.contains("ghostty")
+}
+
 fn ax_bfs_max_depth(process: &str) -> i32 {
     if process.to_ascii_lowercase().contains("finder") || ax_is_notes(process) {
         4
@@ -870,6 +880,32 @@ fn ax_invoke_script(process: &str, eref: &str) -> String {
     )
 }
 
+fn ax_terminal_paste_script(process: &str, val: &str) -> String {
+    format!(
+        r#"
+            tell application "System Events"
+              tell process "{process}"
+                set frontmost to true
+              end tell
+              set the clipboard to "{val}"
+              tell process "{process}"
+                try
+                  click menu item "粘贴" of menu "编辑" of menu bar 1
+                  return "ok-paste-zh"
+                on error
+                  try
+                    click menu item "Paste" of menu "Edit" of menu bar 1
+                    return "ok-paste-en"
+                  on error errMsg
+                    return "error:" & errMsg
+                  end try
+                end try
+              end tell
+            end tell
+            "#
+    )
+}
+
 fn ax_textedit_document_script(val: &str) -> String {
     format!(
         r#"
@@ -1198,7 +1234,7 @@ impl AppBackend for MacosAppBackend {
                     browser_profile: crate::login_state::profile_for_pid(&name, Self::pid_from_id(id)),
                 },
                 summary: format!("process=\"{name}\" ax_error={}", raw.trim_start_matches("ERROR:")),
-                elements: if name.eq_ignore_ascii_case("Finder") {
+                elements: if uses_cg_windows(&name) {
                     Self::pid_from_id(id)
                         .map(Self::list_cg_windows)
                         .unwrap_or_default()
@@ -1228,7 +1264,7 @@ impl AppBackend for MacosAppBackend {
         let parsed = parse_ax_snapshot(&raw);
         let mut elements = parsed.elements;
         let mut truncated = parsed.truncated;
-        if name.eq_ignore_ascii_case("Finder") {
+        if uses_cg_windows(&name) {
             if let Some(pid) = Self::pid_from_id(id) {
                 let cg = Self::list_cg_windows(pid);
                 for (i, w) in cg.into_iter().enumerate() {
@@ -1378,6 +1414,28 @@ impl AppBackend for MacosAppBackend {
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
         let name = Self::process_name_from_id(id);
         self.ensure_operable(&name)?;
+        if uses_menu_paste(&name) {
+            if value.contains('\n') || value.contains('\r') {
+                return Err(VcuError::coded(
+                    ErrorCode::FocusPolicyViolation,
+                    "Terminal paste refuses newlines; that would execute a command",
+                ));
+            }
+            let script = ax_terminal_paste_script(&Self::as_literal(&name), &Self::as_literal(value));
+            let out = Self::run_osascript_timeout(&script, 4000)?;
+            if out.to_ascii_lowercase().starts_with("error:") {
+                return Err(VcuError::with_detail(ErrorCode::ActionFailed, "terminal paste failed", out));
+            }
+            return Ok(serde_json::json!({
+                "ok": true,
+                "process": name,
+                "ref": element_ref,
+                "result": out,
+                "input_path": "ax_menu_paste",
+                "os_cursor_used": false,
+                "hid_injected": false
+            }));
+        }
         let script = ax_set_value_script(&Self::as_literal(&name), &Self::as_literal(element_ref), &Self::as_literal(value));
         let mut out = Self::run_osascript_timeout(&script, AX_BFS_TIMEOUT_MS)?;
         if (out.to_ascii_lowercase().starts_with("error:") || out == "not-found")
@@ -1707,6 +1765,14 @@ mod tests {
         assert!(te.contains("text area"));
         assert!(ax_prefer_text_kids("TextEdit"));
         assert!(!ax_prefer_text_kids("Finder"));
+        assert!(uses_cg_windows("Terminal"));
+        assert!(uses_menu_paste("Terminal"));
+        assert!(!uses_menu_paste("TextEdit"));
+        let paste = ax_terminal_paste_script("Terminal", "hello");
+        assert!(paste.contains("粘贴") || paste.contains("Paste"));
+        assert!(paste.contains("set the clipboard"));
+        assert!(!paste.to_ascii_lowercase().contains("keystroke"));
+        assert!(!paste.to_ascii_lowercase().contains("key code"));
         let cg = parse_cg_window_list(
             r#"[{"title":"VCU-D-040-probe","window_id":19504,"frame":[2200,154,902,482]},{"title":"tiny","window_id":1,"frame":[0,0,10,10]}]"#,
         );

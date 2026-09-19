@@ -97,6 +97,14 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-040 | 脚本自建文件夹窗出现在 Scene | **通过** CGWindow 标题；`scripts/poc_desktop_finder.py` |
 | TC-D-041 | reveal + open_path 打开子文件夹 | **通过** `nsworkspace_reveal` / `nsworkspace_open`；非 AXPress、非 Return |
 
+## 7.2 Terminal（CU-D-041）
+
+| ID | 标题 | 期望 |
+| --- | --- | --- |
+| TC-D-042 | 抛弃型 Terminal 窗可列 CGWindow | **通过** `scripts/poc_desktop_terminal.py` |
+| TC-D-043 | type 无换行出现在终端 | **通过** `ax_menu_paste`；未执行命令 |
+| TC-D-044 | 换行 type 与盲目 Return 拒绝 | **通过** FocusPolicyViolation |
+
 ## 8. 未通过不得宣称完成
 
 - TC-B-040 通用 AX 网页像素真点（浏览器计划已延期）  

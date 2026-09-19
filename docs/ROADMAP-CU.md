@@ -131,7 +131,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 | ID | App | 先做 | 不做 |
 | --- | --- | --- | --- |
 | CU-D-040 | Finder | 列目录窗、选图标、回车打开 | **完成（真机，诚实路径）** Scene `role=CGWindow` 列出脚本自建窗；`act reveal`=`nsworkspace_reveal`；`act open_path`=`nsworkspace_open`；`os_cursor_used=false`。**不是** AXPress 图标，**不是** Return（仍 Send 门禁）。禁止批量删除。脚本 `scripts/poc_desktop_finder.py` |
-| CU-D-041 | Terminal / Ghostty | 聚焦、输入、禁盲目 Return | 执行未确认的破坏命令 |
+| CU-D-041 | Terminal / Ghostty | 聚焦、输入、禁盲目 Return | **完成（真机 Terminal.app）** Scene `CGWindow`；`type` 走 `ax_menu_paste`（无换行）；换行与 Return 均为 `FocusPolicyViolation`。未碰 Ghostty。禁止执行命令。脚本 `scripts/poc_desktop_terminal.py` |
 | CU-D-042 | 飞书 / Lark **客户端** | 打开已有会话、读可见消息 | 自动发送；必须点名收信人 |
 | CU-D-043 | 系统设置 | 只读观察；辅助功能 repair 只给 hint | 自动改权限 |
 

@@ -33,3 +33,12 @@ vcu act --session <sid> --action-json action.json --json
 ```
 
 不要对 Finder 图标宣称 AXPress；不要用 Return 当打开（Return 仍是 Send 门禁）。
+
+Terminal（CU-D-041）：只操作脚本新开的 **Terminal.app**，不要打用户 Ghostty。
+
+```sh
+vcu type --session <sid> --tab proc:Terminal:<pid> --ref w1 --text 'echo-not-run' --json
+# input_path=ax_menu_paste  —— 无换行，不会执行
+```
+
+换行或 `act type=key return` 无 `confirm_send` → FocusPolicyViolation。

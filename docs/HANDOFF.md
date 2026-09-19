@@ -4,9 +4,9 @@
 
 ## 本轮
 
-- CU-D-040 **真机通过**（诚实路径）：`act type=open_path` / `reveal` 走 NSWorkspace；Scene 列出 `VCU-D-040-*` 与 `OPENME`；`os_cursor_used=false`。不是 AXPress，不是 Return。
-- 不要 `tell application "Finder"`。不要 HID。
+- CU-D-041 **真机通过**（Terminal.app，非 Ghostty）：Scene `CGWindow`；`vcu type` → `ax_menu_paste`；剪贴板读回标记；含换行的 type 与无 confirm_send 的 Return 均为 `FocusPolicyViolation`。
+- 终端 AX 无文本区，输入不是 AXSetValue，也不是 HID keystroke。
 
 ## 下一刀
 
-CU-D-041 Terminal / Ghostty：聚焦、输入、**禁盲目 Return**。只动脚本新开的 Terminal 窗，不要往用户正在用的 Ghostty/agent 终端打字。
+CU-D-042 飞书 / Lark **客户端**：打开已有会话、读可见消息。禁止自动发送。不要碰 Edge 组 1/3。
