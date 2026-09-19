@@ -1419,6 +1419,14 @@ mod tests {
         let l220 = s220.to_ascii_lowercase();
         assert!(!l220.contains("sendinput("));
         assert!(!l220.contains("[system.windows.forms.sendkeys"));
+        let p230 = root.join("scripts/poc_cu_d_230.ps1");
+        let s230 = std::fs::read_to_string(&p230).unwrap_or_default();
+        assert!(s230.contains("TYPE_OK"), "{}", p230.display());
+        assert!(s230.contains("NEWLINE_DENIED"));
+        assert!(s230.contains("CU-D-230 OK"));
+        let l230 = s230.to_ascii_lowercase();
+        assert!(!l230.contains("sendinput("));
+        assert!(!l230.contains("[system.windows.forms.sendkeys"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());

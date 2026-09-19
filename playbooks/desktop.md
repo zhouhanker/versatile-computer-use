@@ -78,3 +78,5 @@ Windows wait（CU-D-200，CI）：type 标记后 `vcu act` wait，`args.value` �
 Windows wait miss（CU-D-210，CI）：等不存在的 value/ref 必须 `ok=false` `error.code=ActionFailed`，文案含 `timed out`，不得假绿。无 SendInput。
 
 Windows key（CU-D-220，CI）：Notepad `act type=key return` 无 `confirm_send` → FocusPolicyViolation。不要用 Return 当保存/发送。无 SendInput。
+
+Windows PowerShell（CU-D-230，CI）：无换行 type（常见 `clipboard_paste`）；换行拒绝。不要写成已执行命令。无 SendInput。

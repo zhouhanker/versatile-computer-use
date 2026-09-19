@@ -167,7 +167,8 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-190 | Scene 读回 Notepad 值并 extract | **完成（CI 真机）** run `35471859281` @ `5852f9a`：`EXTRACT_OK count=1`。ValuePattern 或 GetWindowText。无 SendInput。 |
 | CU-D-200 | wait 直到 Scene value 出现 | **完成（CI 真机）** run `35472199783` @ `0d77f27`：`WAIT_OK path=scene_wait found_ref=e2 os_cursor_used=False`；`CU-D-200 OK`。无 SendInput。 |
 | CU-D-210 | wait miss 诚实超时 | **完成（CI 真机）** run `35472851832` @ `cd371d4`：`WAIT_MISS_OK`；`WAIT_REF_MISS_OK`；`ActionFailed` `wait timed out after 800ms` 含 `value=Some("VCU-D-210-MISS")` / `ref=Some("e999")`。无 SendInput。 |
-| CU-D-220 | Notepad Return/key 拒绝 | **进行中** `key return` 无 `confirm_send` → `FocusPolicyViolation`；无 SendInput。 |
+| CU-D-220 | Notepad Return/key 拒绝 | **完成（CI 真机）** run `35473210457` @ `e47cf24`：`KEY_DENIED`；`FocusPolicyViolation` `Return/Enter is gated`；`CU-D-220 OK`。无 SendInput。 |
+| CU-D-230 | PowerShell 无换行输入 | **进行中** type 无换行；换行 `NEWLINE_DENIED`；无 SendInput；不执行命令。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -199,6 +200,7 @@ CU-D-000 文档
     → CU-D-200 vcu Windows notepad wait value
     → CU-D-210 vcu Windows wait miss timeout
     → CU-D-220 vcu Windows notepad key return denied
+    → CU-D-230 vcu Windows powershell type
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

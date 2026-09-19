@@ -112,6 +112,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_220.ps1
+      - name: windows vcu desktop powershell type (CU-D-230)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_230.ps1
 
   package-macos:
     needs: test
