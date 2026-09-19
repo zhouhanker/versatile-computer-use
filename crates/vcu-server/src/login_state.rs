@@ -150,6 +150,11 @@ pub fn login_next_action(
     sw_stale: bool,
 ) -> String {
     let _ = allow_dialog; // CDP abandoned: never ask the user to click Allow.
+    if sw_stale {
+        return format!(
+            "USER Edge extension SW is stale (ping unknown method). Open edge://extensions and click Reload on VCU Browser Bridge (unpacked {lens_dir}). Then `vcu browser ping` must pong. Never click Allow."
+        );
+    }
     if no_user_browser {
         return "Open the USER Chrome/Edge (logged-in profile), not Agent Edge.".into();
     }
@@ -159,11 +164,6 @@ pub fn login_next_action(
     if extension_profile != "user" {
         return format!(
             "In USER Edge open edge://extensions, Developer mode, Load unpacked → {lens_dir}. Then `vcu browser login-state` should show extension_profile=user. Observe without waiting: `vcu browser observe`. CDP is abandoned; never click Allow."
-        );
-    }
-    if sw_stale {
-        return format!(
-            "USER Edge extension SW is stale (ping unknown method). Open edge://extensions and click Reload on VCU Browser Bridge (unpacked {lens_dir}). Then `vcu browser ping` must pong. Never click Allow."
         );
     }
     "Login-state DOM lens is on the USER browser. `vcu browser ping` must pong; `vcu browser extract` source must be extension_dom. Do not use Agent Edge. CDP is abandoned; never click Allow.".into()
