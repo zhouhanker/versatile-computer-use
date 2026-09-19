@@ -1,12 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-120 脚本已加，待 CI。
+更新：2026-09-20。CU-D-120 CI 已过。
 
 ## 本轮
 
-- Windows `open_path` → `explorer.exe` 打开目录，`input_path=explorer_open`。
-- 双浏览器仍未过；本刀不假装 Chrome lens 已连。
+- CU-D-120 run `35467498771` @ `6ac45b7`：`OPEN_OK path=explorer_open os_cursor_used=False`；`CU-D-120 OK`
+- 对照 macOS Finder `open_path`。无 SendInput。未杀系统 explorer。
 
 ## 下一刀
 
-看 CI `OPEN_OK`。未绿不得宣称 120 完成。禁止杀 explorer.exe 系统进程、禁止 SendInput。
+P2 双浏览器仍未过。不要宣称完整 Codex CU。禁止微信 / HID / Allow。

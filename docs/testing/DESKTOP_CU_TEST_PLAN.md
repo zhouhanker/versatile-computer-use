@@ -137,7 +137,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-090 | vcu desktop Notepad type | **通过** run `35465535542` `STAGE_OK` + `SNAP_OK source=uia_scene` + `TYPE_OK path=wm_settext` |
 | TC-D-100 | vcu click 抛弃型按钮 | **通过** run `35466230837` `INVOKE_OK path=bm_click`；无 SendInput；非 InvokePattern |
 | TC-D-110 | vcu screenshot PrintWindow | **通过** run `35466641180` `SHOT_OK` 768x519 PNG |
-| TC-D-120 | vcu open_path Explorer | **未过** OPENME；`input_path=explorer_open`；无 SendInput |
+| TC-D-120 | vcu open_path Explorer | **通过** run `35467498771` `OPEN_OK path=explorer_open` |
 
 ## 8. 未通过不得宣称完成
 
