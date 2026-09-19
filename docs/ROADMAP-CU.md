@@ -152,7 +152,9 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | ID | 工作 | 验收 |
 | --- | --- | --- |
 | CU-D-060 | UIA 列窗 / 截图 | **完成（CI 真机，非产品会话）** run `35462329205` @ `aa87390`：`UIA_OK` Untitled Notepad children=2；`PRINTWINDOW_OK` PNG。Darwin SKIP。Invoke/SetValue **未** live。不得写成 Windows 产品 CU。 |
-| CU-D-070 | Notepad ValuePattern 真写入 | **进行中** `poc_desktop_windows.ps1` 在 UIA/PrintWindow 之后对可写 ValuePattern `SetValue` 并读回 `VCU-D-070`。等 CI `SETVALUE_OK`。禁止 SendInput。仍不宣称 `vcu session`。 |
+| CU-D-070 | Notepad 真写入（无 HID） | **完成（CI 真机，非产品会话）** run `35463098806` @ `1c86e6e`：`SETVALUE_OK path=wm_settext` class=Edit。Server 2022 Notepad Edit 是 `ControlType.Pane`，`GetSupportedPatterns` 为空，**不是** ValuePattern。禁止 SendInput。 |
+| CU-D-080 | WindowsAppBackend set_value 回退 WM_SETTEXT | **完成（单测）** `ok:wm_settext` → `input_path=wm_settext` `os_cursor_used=false`。无 SendInput。未接 `vcu session` 真机。 |
+| CU-D-090 | 经 `vcu` 的 Windows list/snapshot/set_value | **下一刀** CI 或受控机：`vcu` 打开/附着 Notepad，snapshot + type/set_value，`os_cursor_used=false`。无 Stage 也可先做；仍禁止 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -168,7 +170,9 @@ CU-D-000 文档
     → CU-D-042 飞书客户端（观察）
     → CU-D-050 HUD 体验
     → CU-D-060 Windows 列窗+截帧（CI）
-    → CU-D-070 Notepad ValuePattern 真写入（CI）
+    → CU-D-070 Notepad 真写入（CI WM_SETTEXT）
+    → CU-D-080 backend set_value 回退
+    → CU-D-090 vcu Windows set_value
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

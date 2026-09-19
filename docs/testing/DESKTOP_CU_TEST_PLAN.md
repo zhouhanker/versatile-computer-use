@@ -132,11 +132,14 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | --- | --- | --- |
 | TC-D-060 | CI Notepad UIA 列窗 | **通过** run `35462329205` `UIA_OK`；`scripts/poc_desktop_windows.ps1` |
 | TC-D-061 | CI PrintWindow PNG | **通过** `PRINTWINDOW_OK` 魔数；无 SendInput |
-| TC-D-070 | CI Notepad ValuePattern 写入并读回 | **未过** 写入标记；无 SendInput；非 `vcu session` |
+| TC-D-070 | CI Notepad 写入并读回 | **通过** run `35463098806` `SETVALUE_OK path=wm_settext`；无 SendInput；非 ValuePattern |
+| TC-D-080 | backend set_value 接受 wm_settext | **通过（单测）** `input_path=wm_settext` `os_cursor_used=false` |
 
 ## 8. 未通过不得宣称完成
 
 - TC-B-040 通用 AX 网页像素真点（浏览器计划已延期）  
 - 飞书客户端自动发送  
 - 任何微信窗口上的动作  
-- Windows `vcu session` 产品路径 / Stage HUD / live Invoke  
+- Windows `vcu session` 产品路径 / Stage HUD / live Invoke
+- 把 WM_SETTEXT 写成 UIA ValuePattern
+

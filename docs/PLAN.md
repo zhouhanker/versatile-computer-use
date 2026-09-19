@@ -6,7 +6,7 @@
 
 **已发布：浏览器版 Bridge 0.2.8。** 浏览器门禁仍有效。
 
-**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 已过。CU-D-060 CI 真机列窗+PrintWindow 已过（run `35462329205`）。下一刀 **CU-D-070** Notepad ValuePattern 真写入。未宣称 Windows 产品会话可用。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
+**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 已过。CU-D-060 CI 真机列窗+PrintWindow 已过（run `35462329205`）。CU-D-070 CI `SETVALUE_OK path=wm_settext`（非 ValuePattern）。CU-D-080 单测已过。下一刀 **CU-D-090** Windows `vcu session`。未宣称产品会话可用。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
 
 本地对照实现在 gitignore 的 `/reference/computer-use/`：可反编译作结构参考，笔记进 `docs/research/`，自有代码进仓库；`.app` / 反编译源码 / 官方素材不上传。
 
@@ -69,7 +69,9 @@
 - [x] **CU-D-030/031/033**：Observation surface/source；USER Edge AXWebArea 不得假绿；`playbooks/desktop.md`。
 - [x] **CU-D-050/051/052**：HUD 文案、Guide 短三角、`VCU_AUDIT=1`。
 - [x] **CU-D-060**：CI run `35462329205` Notepad `UIA_OK` + `PRINTWINDOW_OK`。非 `vcu session` 产品路径。
-- [ ] **CU-D-070**：Notepad ValuePattern 真写入并读回（CI，无 SendInput）。
+- [x] **CU-D-070**：CI `SETVALUE_OK path=wm_settext`（Edit 无 ValuePattern）。
+- [x] **CU-D-080**：backend set_value 回退 WM_SETTEXT（单测）。
+- [ ] **CU-D-090**：Windows `vcu session` 产品路径（未开始）。
 
 
 ## 操作入口

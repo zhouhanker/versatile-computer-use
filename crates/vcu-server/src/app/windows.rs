@@ -157,13 +157,20 @@ while ($q.Count -gt 0) {{
     )
 }
 
-/// PowerShell: ValuePattern.SetValue on eN. No SendInput.
+/// PowerShell: ValuePattern.SetValue on eN, else WM_SETTEXT. No SendInput.
 pub fn uia_set_value_script(pid: i32, eref: &str, value: &str) -> String {
     let n = eref.trim_start_matches('e').parse::<i32>().unwrap_or(0);
     let val = value.replace('\'', "''");
     format!(
         r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
+if (-not ("Vcu.VcuSetValue070" -as [type])) {{
+  $sig = @'
+[DllImport("user32.dll", CharSet=CharSet.Unicode)]
+public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam);
+'@
+  Add-Type -MemberDefinition $sig -Name VcuSetValue070 -Namespace Vcu | Out-Null
+}}
 $pid = {pid}
 $want = {n}
 $val = '{val}'
@@ -183,9 +190,15 @@ while ($q.Count -gt 0) {{
       $vp = $el.GetCurrentPattern($pat)
       $vp.SetValue($val)
       'ok:uia_set_value'
-    }} catch {{
-      'error:no-value-pattern'
+      exit 0
+    }} catch {{}}
+    $nh = [int64]$el.Current.NativeWindowHandle
+    if ($nh -ne 0) {{
+      [void][Vcu.VcuSetValue070]::SendMessage([IntPtr]$nh, 12, [IntPtr]::Zero, $val)
+      'ok:wm_settext'
+      exit 0
     }}
+    'error:no-value-pattern'
     exit 0
   }}
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
@@ -382,13 +395,18 @@ pub fn invoke_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuRe
 }
 
 pub fn set_value_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuResult<serde_json::Value> {
-    if out.contains("ok:uia_set_value") {
+    if out.contains("ok:uia_set_value") || out.contains("ok:wm_settext") {
+        let path = if out.contains("ok:uia_set_value") {
+            "uia_set_value"
+        } else {
+            "wm_settext"
+        };
         Ok(serde_json::json!({
             "ok": true,
             "process": name,
             "ref": element_ref,
             "result": out,
-            "input_path": "uia_set_value",
+            "input_path": path,
             "os_cursor_used": false,
             "hid_injected": false
         }))
@@ -557,7 +575,8 @@ mod tests {
         assert!(setv.contains("ValuePattern"));
         assert!(setv.contains("SetValue"));
         assert!(setv.contains("hello"));
-        assert!(!setv.to_ascii_lowercase().contains("sendinput"));
+        assert!(setv.contains("ok:wm_settext"));
+        assert!(!setv.to_ascii_lowercase().contains("sendinput("));
         let cap = b.capture_window("win:notepad:1").await.unwrap();
         assert!(cap.is_none());
     }
@@ -610,6 +629,13 @@ mod tests {
         assert!(invoke_from_uia_output("notepad", "e2", "not-found").is_err());
         let typed = set_value_from_uia_output("notepad", "e2", "ok:uia_set_value").unwrap();
         assert_eq!(typed["input_path"], "uia_set_value");
+        let wm = set_value_from_uia_output("notepad", "e2", "ok:wm_settext").unwrap();
+        assert_eq!(wm["input_path"], "wm_settext");
+        assert_eq!(wm["os_cursor_used"], false);
+        let setv = uia_set_value_script(4242, "e2", "hello");
+        assert!(setv.contains("ok:wm_settext"));
+        assert!(setv.contains("SendMessage"));
+        assert!(!setv.to_ascii_lowercase().contains("sendinput("));
         assert!(set_value_from_uia_output("notepad", "e2", "error:no-value-pattern").is_err());
         let cap_script = uia_capture_script(4242);
         assert!(cap_script.contains("PrintWindow"));
