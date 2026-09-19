@@ -51,6 +51,39 @@ impl WindowsAppBackend {
     }
 }
 
+/// Parse `name\tpid\ttitle` lines from the Windows process listing script.
+pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Vec<AppTarget> {
+    let mut out = Vec::new();
+    for (idx, line) in raw.lines().enumerate() {
+        let mut parts = line.split('\t');
+        let name = parts.next().unwrap_or("").trim();
+        let pid = parts.next().and_then(|s| s.trim().parse().ok());
+        let title = parts.next().unwrap_or(name).trim();
+        if name.is_empty() {
+            continue;
+        }
+        if is_denied_app(name) || is_denied_app(title) {
+            continue;
+        }
+        if !allowed(name) && !allowed(title) {
+            continue;
+        }
+        out.push(AppTarget {
+            id: format!("win:{}:{}", name.replace(' ', "_"), pid.unwrap_or(idx as i32)),
+            title: if title.is_empty() {
+                name.to_string()
+            } else {
+                title.to_string()
+            },
+            bundle_or_exe: name.to_string(),
+            pid,
+            allowed: true,
+            browser_profile: None,
+        });
+    }
+    out
+}
+
 impl Default for WindowsAppBackend {
     fn default() -> Self { Self::new() }
 }
@@ -71,24 +104,7 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
   ForEach-Object { '{0}`t{1}`t{2}' -f $_.ProcessName, $_.Id, ($_.MainWindowTitle -replace '[\r\n\t]',' ') }
 "#;
             let raw = Self::run_powershell(script)?;
-            let mut out = Vec::new();
-            for (idx, line) in raw.lines().enumerate() {
-                let mut parts = line.split('\t');
-                let name = parts.next().unwrap_or("").trim();
-                let pid = parts.next().and_then(|s| s.trim().parse().ok());
-                let title = parts.next().unwrap_or(name).trim();
-                if name.is_empty() { continue; }
-                if !self.allowed(name) && !self.allowed(title) { continue; }
-                out.push(AppTarget {
-                    id: format!("win:{}:{}", name.replace(' ', "_"), pid.unwrap_or(idx as i32)),
-                    title: if title.is_empty() { name.to_string() } else { title.to_string() },
-                    bundle_or_exe: name.to_string(),
-                    pid,
-                    allowed: true,
-                    browser_profile: None,
-                });
-            }
-            Ok(out)
+            Ok(parse_process_list_lines(&raw, |n| self.allowed(n)))
         }
     }
 
@@ -167,5 +183,33 @@ mod tests {
         assert_eq!(err.code(), ErrorCode::FocusPolicyViolation);
         let err = b.invoke("win:x:1", "e1").await.unwrap_err();
         assert_eq!(err.code(), ErrorCode::OsCursorDenied);
+        assert!(err.message().to_ascii_lowercase().contains("sendinput") || err.message().to_ascii_lowercase().contains("cursor"));
+        let err = b.set_value("win:notepad:1", "e1", "hi").await.unwrap_err();
+        assert_eq!(err.code(), ErrorCode::NotImplemented);
+        let cap = b.capture_window("win:notepad:1").await.unwrap();
+        assert!(cap.is_none());
+    }
+
+    #[test]
+    fn parse_process_list_keeps_allowlist_drops_wechat() {
+        let b = WindowsAppBackend::new();
+        let raw = "notepad\t1001\tUntitled - Notepad\nWeChat\t2002\tWeChat\nexplorer\t3003\tDocuments\nmsedge\t4004\tMicrosoft Edge\n";
+        let wins = parse_process_list_lines(raw, |n| b.allowed(n));
+        let names: Vec<_> = wins.iter().map(|w| w.bundle_or_exe.as_str()).collect();
+        assert!(names.contains(&"notepad"));
+        assert!(names.contains(&"explorer"));
+        assert!(names.contains(&"msedge"));
+        assert!(!names.iter().any(|n| n.to_lowercase().contains("wechat")));
+        assert!(wins.iter().any(|w| w.id.starts_with("win:notepad:")));
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn windows_list_and_snapshot_are_host_gated_off_windows() {
+        let b = WindowsAppBackend::new();
+        let list = b.list_windows().await.unwrap_err();
+        assert_eq!(list.code(), ErrorCode::NotImplemented);
+        let snap = b.snapshot("win:notepad:1", 1000).await.unwrap_err();
+        assert_eq!(snap.code(), ErrorCode::NotImplemented);
     }
 }

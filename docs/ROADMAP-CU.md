@@ -149,6 +149,10 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 
 UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不开 Windows 产品切片。
 
+| ID | 工作 | 验收 |
+| --- | --- | --- |
+| CU-D-060 | UIA 列窗 / 截图 / Invoke | **契约+单测** 列窗解析、微信过滤、Invoke 拒绝 HID；非 Windows 主机 NotImplemented。**真机 UIA 未跑**（本机 macOS），不得写成产品已有 Windows CU。 |
+
 ## 4. 建议执行顺序（编排）
 
 ```text
