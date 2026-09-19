@@ -108,6 +108,16 @@ fn pid_from_win_id(id: &str) -> Option<i32> {
     id.rsplit(':').next()?.parse().ok()
 }
 
+fn windows_console_app(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n.contains("cmd")
+        || n.contains("conhost")
+        || n.contains("powershell")
+        || n.contains("windows terminal")
+        || n.contains("windowsterminal")
+        || n.contains("wt")
+}
+
 pub fn uia_tree_script(pid: i32, max_nodes: i32) -> String {
     format!(
         r#"
@@ -236,6 +246,20 @@ while ($q.Count -gt 0) {{
     if ($nh -ne 0) {{
       [void][Vcu.VcuSetValue070]::SendMessage([IntPtr]$nh, 12, [IntPtr]::Zero, $val)
       'ok:wm_settext'
+      exit 0
+    }}
+    if (-not ("Vcu.VcuPaste140" -as [type])) {{
+      $sig = @'
+[DllImport("user32.dll")]
+public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+'@
+      Add-Type -MemberDefinition $sig -Name VcuPaste140 -Namespace Vcu | Out-Null
+    }}
+    Set-Clipboard -Value $val
+    $hwnd = $proc.MainWindowHandle
+    if ($hwnd -ne [IntPtr]::Zero) {{
+      [void][Vcu.VcuPaste140]::SendMessage($hwnd, 0x0302, [IntPtr]::Zero, [IntPtr]::Zero)
+      'ok:clipboard_paste'
       exit 0
     }}
     'error:no-value-pattern'
@@ -451,11 +475,13 @@ pub fn invoke_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuRe
 }
 
 pub fn set_value_from_uia_output(name: &str, element_ref: &str, out: &str) -> VcuResult<serde_json::Value> {
-    if out.contains("ok:uia_set_value") || out.contains("ok:wm_settext") {
+    if out.contains("ok:uia_set_value") || out.contains("ok:wm_settext") || out.contains("ok:clipboard_paste") {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
-        } else {
+        } else if out.contains("ok:wm_settext") {
             "wm_settext"
+        } else {
+            "clipboard_paste"
         };
         Ok(serde_json::json!({
             "ok": true,
@@ -574,6 +600,20 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
     }
 
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
+        let name = id
+            .strip_prefix("win:")
+            .and_then(|rest| rest.split(':').next())
+            .map(|s| s.replace('_', " "))
+            .unwrap_or_else(|| id.to_string());
+        if is_denied_app(&name) {
+            return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+        }
+        if windows_console_app(&name) && value.chars().any(|c| c == '\n' || c == '\r') {
+            return Err(VcuError::coded(
+                ErrorCode::FocusPolicyViolation,
+                "Windows console type refuses newline/Return so commands are not executed",
+            ));
+        }
         #[cfg(not(windows))]
         {
             let _ = (id, element_ref, value);
@@ -581,14 +621,6 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
         }
         #[cfg(windows)]
         {
-            let name = id
-                .strip_prefix("win:")
-                .and_then(|rest| rest.split(':').next())
-                .map(|s| s.replace('_', " "))
-                .unwrap_or_else(|| id.to_string());
-            if is_denied_app(&name) {
-                return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
-            }
             if !self.allowed(&name) {
                 return Err(VcuError::coded(ErrorCode::FocusPolicyViolation, format!("process '{name}' not in app allowlist")));
             }
@@ -749,6 +781,8 @@ mod tests {
         assert_eq!(err.code(), ErrorCode::NotImplemented);
         #[cfg(windows)]
         assert_eq!(err.code(), ErrorCode::ActionFailed);
+        let nl = b.set_value("win:cmd:1", "e1", "echo\nhi").await.unwrap_err();
+        assert_eq!(nl.code(), ErrorCode::FocusPolicyViolation);
         let setv = uia_set_value_script(4242, "e2", "hello");
         assert!(setv.contains("ValuePattern"));
         assert!(setv.contains("SetValue"));
@@ -812,11 +846,16 @@ mod tests {
         assert!(inv.contains("ok:bm_click") || inv.contains("0x00F5"));
         let typed = set_value_from_uia_output("notepad", "e2", "ok:uia_set_value").unwrap();
         assert_eq!(typed["input_path"], "uia_set_value");
+        let paste = set_value_from_uia_output("cmd", "e1", "ok:clipboard_paste").unwrap();
+        assert_eq!(paste["input_path"], "clipboard_paste");
+        assert_eq!(paste["os_cursor_used"], false);
         let wm = set_value_from_uia_output("notepad", "e2", "ok:wm_settext").unwrap();
         assert_eq!(wm["input_path"], "wm_settext");
         assert_eq!(wm["os_cursor_used"], false);
         let setv = uia_set_value_script(4242, "e2", "hello");
         assert!(setv.contains("ok:wm_settext"));
+        assert!(setv.contains("ok:clipboard_paste"));
+        assert!(setv.contains("Set-Clipboard"));
         assert!(setv.contains("SendMessage"));
         assert!(!setv.to_ascii_lowercase().contains("sendinput("));
         assert!(set_value_from_uia_output("notepad", "e2", "error:no-value-pattern").is_err());
@@ -882,6 +921,13 @@ mod tests {
         assert!(s130.contains("explorer_reveal"));
         let l130 = s130.to_ascii_lowercase();
         assert!(!l130.contains("sendinput("));
+        let p140 = root.join("scripts/poc_cu_d_140.ps1");
+        let s140 = std::fs::read_to_string(&p140).unwrap_or_default();
+        assert!(s140.contains("TYPE_OK"), "{}", p140.display());
+        assert!(s140.contains("NEWLINE_DENIED"));
+        let l140 = s140.to_ascii_lowercase();
+        assert!(!l140.contains("sendinput("));
+        assert!(!l140.contains("[system.windows.forms.sendkeys"));
     }
 
     #[cfg(not(windows))]

@@ -80,6 +80,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_130.ps1
+      - name: windows vcu desktop cmd type (CU-D-140)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_140.ps1
 
   package-macos:
     needs: test

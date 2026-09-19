@@ -593,7 +593,11 @@ impl BrowserBackend for DesktopBackend {
             let notepad = tab_id.to_ascii_lowercase().contains("notepad");
             let terminal = {
                 let t = tab_id.to_ascii_lowercase();
-                t.contains("terminal") || t.contains("ghostty")
+                t.contains("terminal")
+                    || t.contains("ghostty")
+                    || t.contains("cmd")
+                    || t.contains("conhost")
+                    || t.contains("powershell")
             };
             if !is_editable_ax_role(&role) && !textedit && !notepad && !terminal {
                 return Err(VcuError::coded(
