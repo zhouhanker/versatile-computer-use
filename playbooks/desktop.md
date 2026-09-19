@@ -70,3 +70,5 @@ Calculator（CU-D-160，CI）：Server 上是 `win32calc`，数字键是 Pane + 
 Windows Settings（CU-D-170，CI）：只观察。`click`/`type` → FocusPolicyViolation。不要改系统设置。
 
 Windows scroll（CU-D-180，CI）：Notepad `wm_vscroll`（非 ScrollPattern）。无 mouse_event / SendInput。
+
+Windows extract（CU-D-190，CI）：type 后再 `vcu extract`，scene value 来自 ValuePattern 或 GetWindowText。

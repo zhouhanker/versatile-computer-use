@@ -164,7 +164,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-160 | Calculator 点击数字（无 HID） | **完成（CI 真机）** run `35470610934` @ `a530de1`：`SNAP_OK ref=e14`；`INVOKE_OK path=bm_click os_cursor_used=False`；tab `win:win32calc:9932`。Server 数字键是 LegacyIAccessible 131，不是 UWP One。无 SendInput。 |
 | CU-D-170 | Windows Settings 只读观察 | **完成（CI 真机）** run `35471043411` @ `2400fdc`：`SNAP_OK ref=e1 count=1`；`CLICK_DENIED`；`TYPE_DENIED`；tab `win:SystemSettings:1472`。无 SendInput；未改设置。 |
 | CU-D-180 | Notepad 滚动（无 HID） | **完成（CI 真机）** run `35471497693` @ `514153c`：`SCROLL_OK path=wm_vscroll os_cursor_used=False`。不是 ScrollPattern。无 mouse_event / SendInput。 |
-| CU-D-190 | Scene 读回 Notepad 值并 extract | **进行中** ValuePattern 或 GetWindowText；extract 命中 typed 标记。无 SendInput。 |
+| CU-D-190 | Scene 读回 Notepad 值并 extract | **完成（CI 真机）** run `35471859281` @ `5852f9a`：`EXTRACT_OK count=1`。ValuePattern 或 GetWindowText。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 

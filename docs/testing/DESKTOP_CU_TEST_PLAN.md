@@ -144,7 +144,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-160 | Calculator click without HID | **通过** run `35470610934` `INVOKE_OK path=bm_click`；win32calc e14；无 SendInput |
 | TC-D-170 | Windows Settings observe-only | **通过** run `35471043411` `CLICK_DENIED` / `TYPE_DENIED`；SystemSettings |
 | TC-D-180 | Notepad scroll without HID | **通过** run `35471497693` `SCROLL_OK path=wm_vscroll`；无 SendInput |
-| TC-D-190 | extract typed Notepad value | **未过** `EXTRACT_OK`；无 SendInput |
+| TC-D-190 | extract typed Notepad value | **通过** run `35471859281` `EXTRACT_OK count=1`；无 SendInput |
 
 ## 8. 未通过不得宣称完成
 
