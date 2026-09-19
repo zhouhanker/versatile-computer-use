@@ -162,7 +162,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-140 | cmd 无换行输入；换行拒绝 | **完成（CI 真机）** run `35469208163` @ `af2fcde`：`SNAP_OK ref=e1`；`TYPE_OK path=clipboard_paste os_cursor_used=False`；`NEWLINE_DENIED`。HWND 经 conhost/AttachConsole，不是 MainWindowHandle。无 SendInput；未执行命令。 |
 | CU-D-150 | Windows playbook 最短环 | **完成** `playbooks/desktop.md`：cmd `clipboard_paste`、禁换行、无 SendInput。单测读 playbook。不是产品 Windows CU。 |
 | CU-D-160 | Calculator 点击数字（无 HID） | **完成（CI 真机）** run `35470610934` @ `a530de1`：`SNAP_OK ref=e14`；`INVOKE_OK path=bm_click os_cursor_used=False`；tab `win:win32calc:9932`。Server 数字键是 LegacyIAccessible 131，不是 UWP One。无 SendInput。 |
-| CU-D-170 | Windows Settings 只读观察 | **进行中** 可 snapshot；click/type FocusPolicyViolation；无 SendInput；不改设置。 |
+| CU-D-170 | Windows Settings 只读观察 | **完成（CI 真机）** run `35471043411` @ `2400fdc`：`SNAP_OK ref=e1 count=1`；`CLICK_DENIED`；`TYPE_DENIED`；tab `win:SystemSettings:1472`。无 SendInput；未改设置。 |
 
 ## 4. 建议执行顺序（编排）
 
