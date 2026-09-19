@@ -1,15 +1,11 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-100 CI 已过。
+更新：2026-09-20。CU-D-110 脚本已加，待 CI。
 
 ## 本轮
 
-- CU-D-100 run `35466230837` @ `f6bcb28`：
-  - `SNAP_OK ref=e2` (VcuCount, ControlType.Pane)
-  - `INVOKE_OK path=bm_click os_cursor_used=False`
-  - `CU-D-100 OK`
-- **不是** UIA InvokePattern；WinForms 按钮无 InvokePattern，走 BM_CLICK (0xF5)。无 SendInput。
+- 100 已过。110：`poc_cu_d_110.ps1` 经 `vcu screenshot` 截 Notepad（PrintWindow）。
 
 ## 下一刀
 
-不要宣称完整 Windows CU。可开 CU-D-110 浏览器 P2 或更多 App。禁止微信 / HID。
+看 CI `SHOT_OK`。未绿不得宣称 110 完成。禁止 SendInput / CopyFromScreen。

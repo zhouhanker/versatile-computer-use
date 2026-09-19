@@ -743,6 +743,13 @@ mod tests {
         let l100 = s100.to_ascii_lowercase();
         assert!(!l100.contains("sendinput("));
         assert!(!l100.contains("[system.windows.forms.sendkeys"));
+        let p110 = root.join("scripts/poc_cu_d_110.ps1");
+        let s110 = std::fs::read_to_string(&p110).unwrap_or_default();
+        assert!(s110.contains("SHOT_OK"), "{}", p110.display());
+        assert!(s110.contains("screenshot"));
+        let l110 = s110.to_ascii_lowercase();
+        assert!(!l110.contains("sendinput("));
+        assert!(!l110.contains("copyfromscreen("));
     }
 
     #[cfg(not(windows))]

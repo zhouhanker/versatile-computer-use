@@ -68,6 +68,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_100.ps1
+      - name: windows vcu desktop screenshot (CU-D-110)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_110.ps1
 
   package-macos:
     needs: test
