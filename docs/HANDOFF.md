@@ -4,9 +4,9 @@
 
 ## 本轮
 
-- CU-D-060 补了 `uia_tree_script` / `uia_invoke_script` / `parse_uia_element_lines`。Invoke 在 Windows 上走 InvokePattern，非 HID。单测锁脚本不含 SendInput。
-- 截图仍未实现。真机 UIA 需要 Windows 主机。
+- CU-D-060 接上 `uia_capture_script`（PrintWindow → PNG base64）+ `parse_uia_capture_output`。单测：脚本含 PrintWindow，不含 SendInput/CopyFromScreen；1×1 PNG 能解析。
+- 真机 UIA/截图仍需 Windows 主机。
 
 ## 下一刀
 
-Windows 主机：Notepad 列树 + InvokePattern。或接 PrintWindow 截图。不要在 macOS 上宣称 Windows CU 已可用。
+在 Windows 上对 Notepad 跑 list / UIA 树 / InvokePattern / PrintWindow。不要在 macOS 上宣称 Windows CU 已可用。

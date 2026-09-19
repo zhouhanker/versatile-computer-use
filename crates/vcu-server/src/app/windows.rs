@@ -1,7 +1,7 @@
 //! Windows app adapter (PowerShell list on Windows hosts).
 use async_trait::async_trait;
 use vcu_core::{ErrorCode, VcuError, VcuResult};
-use super::{is_denied_app, AppBackend, AppCapture, AppElement, AppSnapshot, AppTarget};
+use super::{is_denied_app, AppBackend, AppElement, AppSnapshot, AppTarget};
 
 pub struct WindowsAppBackend {
     pub allowlist: Vec<String>,
@@ -155,6 +155,94 @@ while ($q.Count -gt 0) {{
         pid = pid,
         n = n
     )
+}
+
+/// PowerShell: PrintWindow of the process main HWND to PNG (base64). Not CopyFromScreen of an occluded desktop, not SendInput.
+pub fn uia_capture_script(pid: i32) -> String {
+    format!(
+        r#"
+Add-Type -AssemblyName System.Drawing | Out-Null
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class VcuPrintWindow {{
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT {{ public int Left; public int Top; public int Right; public int Bottom; }}
+}}
+"@
+$proc = Get-Process -Id {pid} -ErrorAction SilentlyContinue
+if ($null -eq $proc -or $proc.MainWindowHandle -eq [IntPtr]::Zero) {{ 'MISSING'; exit 0 }}
+$hwnd = $proc.MainWindowHandle
+$rect = New-Object VcuPrintWindow+RECT
+[void][VcuPrintWindow]::GetWindowRect($hwnd, [ref]$rect)
+$w = [Math]::Max(1, $rect.Right - $rect.Left)
+$h = [Math]::Max(1, $rect.Bottom - $rect.Top)
+$bmp = New-Object System.Drawing.Bitmap $w, $h
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$hdc = $g.GetHdc()
+[void][VcuPrintWindow]::PrintWindow($hwnd, $hdc, 2)
+$g.ReleaseHdc($hdc)
+$g.Dispose()
+$ms = New-Object System.IO.MemoryStream
+$bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+$bmp.Dispose()
+$b64 = [Convert]::ToBase64String($ms.ToArray())
+$ms.Dispose()
+'FRAME|{{0}},{{1}},{{2}},{{3}}' -f $rect.Left, $rect.Top, $w, $h
+$b64
+"#,
+        pid = pid
+    )
+}
+
+pub fn parse_uia_capture_output(raw: &str) -> Option<(Vec<u8>, [f64; 4])> {
+    let mut lines = raw.lines().map(|l| l.trim()).filter(|l| !l.is_empty());
+    let header = lines.next()?;
+    let rest = header.strip_prefix("FRAME|")?;
+    let nums: Vec<f64> = rest.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+    if nums.len() != 4 {
+        return None;
+    }
+    let frame = [nums[0], nums[1], nums[2], nums[3]];
+    let b64 = lines.next()?;
+    let png = base64_decode(b64)?;
+    if super::png_ihdr_size(&png).is_none() {
+        return None;
+    }
+    Some((png, frame))
+}
+
+fn base64_decode(s: &str) -> Option<Vec<u8>> {
+    fn val(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let bytes: Vec<u8> = s.bytes().filter(|c| !c.is_ascii_whitespace()).collect();
+    if bytes.len() % 4 != 0 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    for chunk in bytes.chunks(4) {
+        let a = val(chunk[0])?;
+        let b = val(chunk[1])?;
+        let c = if chunk[2] == b'=' { 0 } else { val(chunk[2])? };
+        let d = if chunk[3] == b'=' { 0 } else { val(chunk[3])? };
+        out.push((a << 2) | (b >> 4));
+        if chunk[2] != b'=' {
+            out.push((b << 4) | (c >> 2));
+        }
+        if chunk[3] != b'=' {
+            out.push((c << 6) | d);
+        }
+    }
+    Some(out)
 }
 
 pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
@@ -311,8 +399,33 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
     }
 
     async fn capture_window(&self, id: &str) -> VcuResult<Option<super::AppCapture>> {
-        let _ = id;
-        Ok(None)
+        #[cfg(not(windows))]
+        {
+            let _ = id;
+            Ok(None)
+        }
+        #[cfg(windows)]
+        {
+            let name = id
+                .strip_prefix("win:")
+                .and_then(|rest| rest.split(':').next())
+                .map(|s| s.replace('_', " "))
+                .unwrap_or_else(|| id.to_string());
+            if is_denied_app(&name) || !self.allowed(&name) {
+                return Ok(None);
+            }
+            let Some(pid) = pid_from_win_id(id) else {
+                return Ok(None);
+            };
+            let raw = Self::run_powershell(&uia_capture_script(pid))?;
+            let Some((png, frame)) = parse_uia_capture_output(&raw) else {
+                return Ok(None);
+            };
+            let Some((width, height)) = super::png_ihdr_size(&png) else {
+                return Ok(None);
+            };
+            Ok(Some(super::AppCapture { png, width, height, frame }))
+        }
     }
 }
 
@@ -366,6 +479,16 @@ mod tests {
         assert!(!inv.to_ascii_lowercase().contains("sendinput"));
         assert!(!inv.to_ascii_lowercase().contains("mouse_event"));
         assert_eq!(pid_from_win_id("win:notepad:4242"), Some(4242));
+        let cap_script = uia_capture_script(4242);
+        assert!(cap_script.contains("PrintWindow"));
+        assert!(cap_script.contains("GetWindowRect"));
+        assert!(!cap_script.to_ascii_lowercase().contains("sendinput"));
+        assert!(!cap_script.to_ascii_lowercase().contains("mouse_event"));
+        assert!(!cap_script.to_ascii_lowercase().contains("copyfromscreen"));
+        let b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        let parsed = parse_uia_capture_output(&format!("FRAME|10,20,800,600\n{b64}\n")).expect("parse capture");
+        assert_eq!(parsed.1, [10.0, 20.0, 800.0, 600.0]);
+        assert_eq!(crate::app::png_ihdr_size(&parsed.0), Some((1, 1)));
     }
 
     #[cfg(not(windows))]
