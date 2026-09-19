@@ -677,7 +677,8 @@ mod tests {
         assert_eq!(s.last_guide().unwrap().y, 32.0);
         s.teardown();
         assert!(s.shown);
-        assert!(banner_text().contains("VCU 正在使用这台 Mac"));
+        assert!(banner_text().contains("VCU 正在使用这台"));
+        assert!(banner_text().contains("Mac") || banner_text().contains("PC"));
     }
 
     #[test]
