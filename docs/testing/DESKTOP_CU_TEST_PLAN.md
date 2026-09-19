@@ -126,9 +126,17 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-050 | HUD 文案为 VCU | **通过** `hud_copy_is_vcu_not_chatgpt_or_codex` |
 | TC-D-051 | Abort 拆 HUD | **通过** 真机 abort `hud=false` |
 
+## 7.6 Windows UIA（CU-D-060 / CU-D-070）
+
+| ID | 标题 | 期望 |
+| --- | --- | --- |
+| TC-D-060 | CI Notepad UIA 列窗 | **通过** run `35462329205` `UIA_OK`；`scripts/poc_desktop_windows.ps1` |
+| TC-D-061 | CI PrintWindow PNG | **通过** `PRINTWINDOW_OK` 魔数；无 SendInput |
+| TC-D-070 | CI Notepad ValuePattern 写入并读回 | **未过** 写入标记；无 SendInput；非 `vcu session` |
+
 ## 8. 未通过不得宣称完成
 
 - TC-B-040 通用 AX 网页像素真点（浏览器计划已延期）  
 - 飞书客户端自动发送  
 - 任何微信窗口上的动作  
-- Windows UIA（阶段 6 之前）  
+- Windows `vcu session` 产品路径 / Stage HUD / live Invoke  

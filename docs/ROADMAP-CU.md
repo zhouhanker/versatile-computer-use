@@ -151,7 +151,8 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 
 | ID | 工作 | 验收 |
 | --- | --- | --- |
-| CU-D-060 | UIA 列窗 / 截图 / Invoke | **进行中** 脚本+单测+CI 步骤已加；Windows `daemon.lock` 改为独占打开（修 CI `daemon_single_instance_lock_rejects_second_start`）。Darwin SKIP。**等 windows-latest 打印 UIA_OK / PRINTWINDOW_OK**。不得提前写成产品已有 Windows CU。 |
+| CU-D-060 | UIA 列窗 / 截图 | **完成（CI 真机，非产品会话）** run `35462329205` @ `aa87390`：`UIA_OK` Untitled Notepad children=2；`PRINTWINDOW_OK` PNG。Darwin SKIP。Invoke/SetValue **未** live。不得写成 Windows 产品 CU。 |
+| CU-D-070 | Notepad ValuePattern 真写入 | **进行中** `poc_desktop_windows.ps1` 在 UIA/PrintWindow 之后对可写 ValuePattern `SetValue` 并读回 `VCU-D-070`。等 CI `SETVALUE_OK`。禁止 SendInput。仍不宣称 `vcu session`。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -166,7 +167,8 @@ CU-D-000 文档
     → CU-D-040 Finder（可选并行于 030 之后）
     → CU-D-042 飞书客户端（观察）
     → CU-D-050 HUD 体验
-    → CU-D-060 Windows（独立史诗）
+    → CU-D-060 Windows 列窗+截帧（CI）
+    → CU-D-070 Notepad ValuePattern 真写入（CI）
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

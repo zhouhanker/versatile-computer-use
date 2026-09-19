@@ -623,6 +623,23 @@ mod tests {
         assert_eq!(crate::app::png_ihdr_size(&parsed.0), Some((1, 1)));
     }
 
+    #[test]
+    fn windows_live_poc_script_is_uia_not_hid() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../scripts/poc_desktop_windows.ps1");
+        let raw = std::fs::read_to_string(&path).unwrap_or_default();
+        assert!(raw.contains("UIA_OK"), "{}", path.display());
+        assert!(raw.contains("PRINTWINDOW_OK"));
+        assert!(raw.contains("SETVALUE_OK"));
+        assert!(raw.contains("ValuePattern"));
+        assert!(raw.contains("SetValue"));
+        let lower = raw.to_ascii_lowercase();
+        assert!(!lower.contains("sendinput("), "must not call SendInput");
+        assert!(!lower.contains("[system.windows.forms.sendkeys"));
+        assert!(!lower.contains("mouse_event("));
+        assert!(!lower.contains("copyfromscreen("));
+    }
+
     #[cfg(not(windows))]
     #[tokio::test]
     async fn windows_list_and_snapshot_are_host_gated_off_windows() {

@@ -62,6 +62,46 @@ try {
     throw "PrintWindow did not produce a PNG"
   }
   Write-Host ("PRINTWINDOW_OK bytes={0} frame={1},{2},{3},{4}" -f $bytes.Length, $rect.Left, $rect.Top, $w, $h)
+
+  # CU-D-070: ValuePattern write + readback. No SendInput / mouse_event.
+  $marker = "VCU-D-070"
+  $all = $win.FindAll(
+    [System.Windows.Automation.TreeScope]::Descendants,
+    [System.Windows.Automation.Condition]::TrueCondition
+  )
+  $hit = $false
+  foreach ($el in $all) {
+    try {
+      $vp = [System.Windows.Automation.ValuePattern]$el.GetCurrentPattern(
+        [System.Windows.Automation.ValuePattern]::Pattern
+      )
+      if ($null -eq $vp) { continue }
+      if ($vp.Current.IsReadOnly) { continue }
+      $vp.SetValue($marker)
+      Start-Sleep -Milliseconds 250
+      $got = [string]$vp.Current.Value
+      if ([string]::IsNullOrEmpty($got)) {
+        try {
+          $tp = [System.Windows.Automation.TextPattern]$el.GetCurrentPattern(
+            [System.Windows.Automation.TextPattern]::Pattern
+          )
+          $got = [string]$tp.DocumentRange.GetText(-1)
+        } catch {}
+      }
+      if ($got -notlike ("*{0}*" -f $marker)) {
+        throw ("SETVALUE readback mismatch got='{0}'" -f $got)
+      }
+      Write-Host ("SETVALUE_OK name={0} ct={1} value={2}" -f $el.Current.Name, $el.Current.ControlType.ProgrammaticName, $got)
+      $hit = $true
+      break
+    } catch {
+      if ($_.Exception.Message -like "*readback mismatch*") { throw }
+      # element has no ValuePattern — keep scanning
+    }
+  }
+  if (-not $hit) {
+    throw "no writable ValuePattern on notepad (CU-D-070)"
+  }
 } finally {
   if ($proc -and -not $proc.HasExited) {
     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue

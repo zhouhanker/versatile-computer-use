@@ -1,13 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。macOS 第一版门禁已齐。Windows 真机待 CI。
+更新：2026-09-20。CU-D-060 CI 列窗+截帧已过。CU-D-070 脚本已加，待 CI。
 
 ## 本轮
 
-- 修 Windows `daemon.lock`：独占 `share_mode(0)`，PID 写进已打开的锁句柄（不再 `fs::write` 二次打开）。
-- 同进程二次 `start_daemon` / `acquire_daemon_lock` 必须 `DaemonAlreadyRunning`。这是 CI run `35461855794` 挡住 UIA smoke 的原因。
-- 单测 `second_lock_is_denied_then_released`；本地 `cargo test --workspace --offline` **121 passed**。
+- 060 证据：CI run `35462329205` @ `aa87390`：`UIA_OK` + `PRINTWINDOW_OK`。
+- 070：`poc_desktop_windows.ps1` 对 Notepad 可写 ValuePattern 写入 `VCU-D-070` 并读回。无 SendInput。
 
 ## 下一刀
 
-看 Windows CI：`cargo test` 必须先绿，随后 `windows UIA notepad smoke` 打印 `UIA_OK` 与 `PRINTWINDOW_OK`。未绿不得宣称 Windows CU。
+看 Windows CI 是否打印 `SETVALUE_OK`。未绿不得宣称 070 完成，也不得写成 Windows 产品 CU。
