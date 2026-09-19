@@ -72,3 +72,7 @@ Windows Settings（CU-D-170，CI）：只观察。`click`/`type` → FocusPolicy
 Windows scroll（CU-D-180，CI）：Notepad `wm_vscroll`（非 ScrollPattern）。无 mouse_event / SendInput。
 
 Windows extract（CU-D-190，CI）：type 后再 `vcu extract`，scene value 来自 ValuePattern 或 GetWindowText。
+
+Windows wait（CU-D-200，CI）：type 标记后 `vcu act` wait，`args.value` 匹配 name/value，`input_path=scene_wait`。
+
+Windows wait miss（CU-D-210，CI）：等不存在的 value/ref 必须 `ok=false` `error.code=ActionFailed`，文案含 `timed out`，不得假绿。无 SendInput。

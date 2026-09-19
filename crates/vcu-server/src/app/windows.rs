@@ -1403,6 +1403,14 @@ mod tests {
         assert!(s200.contains("WAIT_OK"), "{}", p200.display());
         let l200 = s200.to_ascii_lowercase();
         assert!(!l200.contains("sendinput("));
+        let p210 = root.join("scripts/poc_cu_d_210.ps1");
+        let s210 = std::fs::read_to_string(&p210).unwrap_or_default();
+        assert!(s210.contains("WAIT_MISS_OK"), "{}", p210.display());
+        assert!(s210.contains("WAIT_REF_MISS_OK"));
+        assert!(s210.contains("CU-D-210 OK"));
+        let l210 = s210.to_ascii_lowercase();
+        assert!(!l210.contains("sendinput("));
+        assert!(!l210.contains("[system.windows.forms.sendkeys"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());

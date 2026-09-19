@@ -147,8 +147,8 @@ impl DesktopBackend {
                 return Err(VcuError::coded(
                     ErrorCode::ActionFailed,
                     format!(
-                        "wait timed out after {ms}ms for ref={:?} name={:?} role={:?}",
-                        want_ref, want_name, want_role
+                        "wait timed out after {ms}ms for ref={:?} name={:?} role={:?} value={:?}",
+                        want_ref, want_name, want_role, want_value
                     ),
                 ));
             }
@@ -1307,6 +1307,80 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(err.code(), ErrorCode::SessionClosed);
+    }
+
+    #[tokio::test]
+    async fn wait_times_out_when_value_missing() {
+        let app: Arc<RwLock<Box<dyn AppBackend>>> =
+            Arc::new(RwLock::new(Box::new(MockAppBackend::default())));
+        let mut b = DesktopBackend::new(app).await.unwrap();
+        let tabs = b.list_tabs().await.unwrap();
+        let textedit = tabs.iter().find(|t| t.title == "TextEdit").unwrap();
+        let err = b
+            .act(
+                &textedit.tab_id,
+                &ActionRequest {
+                    r#type: "wait".into(),
+                    target: serde_json::json!({}),
+                    args: serde_json::json!({"ms": 120, "value": "VCU-D-210-MISS"}),
+                    idempotency_key: None,
+                },
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), ErrorCode::ActionFailed);
+        assert!(err.message().contains("timed out"), "{}", err.message());
+        assert!(err.message().contains("VCU-D-210-MISS"), "{}", err.message());
+        assert!(err.message().contains("value="), "{}", err.message());
+    }
+
+    #[tokio::test]
+    async fn wait_times_out_when_ref_missing() {
+        let app: Arc<RwLock<Box<dyn AppBackend>>> =
+            Arc::new(RwLock::new(Box::new(MockAppBackend::default())));
+        let mut b = DesktopBackend::new(app).await.unwrap();
+        let tabs = b.list_tabs().await.unwrap();
+        let textedit = tabs.iter().find(|t| t.title == "TextEdit").unwrap();
+        let err = b
+            .act(
+                &textedit.tab_id,
+                &ActionRequest {
+                    r#type: "wait".into(),
+                    target: serde_json::json!({"ref": "e999"}),
+                    args: serde_json::json!({"ms": 120}),
+                    idempotency_key: None,
+                },
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), ErrorCode::ActionFailed);
+        assert!(err.message().contains("timed out"), "{}", err.message());
+        assert!(err.message().contains("e999"), "{}", err.message());
+    }
+
+    #[tokio::test]
+    async fn wait_succeeds_when_scene_value_present() {
+        let app: Arc<RwLock<Box<dyn AppBackend>>> =
+            Arc::new(RwLock::new(Box::new(MockAppBackend::default())));
+        let mut b = DesktopBackend::new(app).await.unwrap();
+        let tabs = b.list_tabs().await.unwrap();
+        let textedit = tabs.iter().find(|t| t.title == "TextEdit").unwrap();
+        let ok = b
+            .act(
+                &textedit.tab_id,
+                &ActionRequest {
+                    r#type: "wait".into(),
+                    target: serde_json::json!({}),
+                    args: serde_json::json!({"ms": 400, "value": "Hello"}),
+                    idempotency_key: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert!(ok.ok);
+        assert_eq!(ok.detail["input_path"], "scene_wait");
+        assert_eq!(ok.detail["os_cursor_used"], false);
+        assert_eq!(ok.detail["found_ref"], "e2");
     }
 
     #[test]
