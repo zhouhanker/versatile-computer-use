@@ -348,6 +348,7 @@ impl DesktopBackend {
         let t = tab_id.to_ascii_lowercase();
         t.contains("system_settings")
             || t.contains("system settings")
+            || t.contains("systemsettings")
             || tab_id.contains("系统设置")
     }
 
@@ -991,6 +992,14 @@ fn plan_desktop_key(key: &str, confirm_send: bool, has_ref: bool) -> VcuResult<D
 mod tests {
     use super::*;
     use crate::app::mock_app::MockAppBackend;
+
+    #[test]
+    fn windows_systemsettings_tab_is_observe_only() {
+        assert!(DesktopBackend::settings_like("win:SystemSettings:1"));
+        assert!(DesktopBackend::settings_like("win:systemsettings:9"));
+        assert!(!DesktopBackend::settings_like("win:notepad:1"));
+        assert!(!DesktopBackend::settings_like("win:win32calc:1"));
+    }
 
     #[tokio::test]
     async fn mock_desktop_stage_arms_abort_watch() {

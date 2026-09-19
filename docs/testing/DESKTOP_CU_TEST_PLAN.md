@@ -142,6 +142,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-140 | cmd type without Return | **通过** run `35469208163` `TYPE_OK path=clipboard_paste`；`NEWLINE_DENIED`；无 SendInput |
 | TC-D-150 | Windows playbook names clipboard_paste | **通过** `playbooks/desktop.md` 含 `clipboard_paste` / `win:cmd:`；无 SendInput |
 | TC-D-160 | Calculator click without HID | **通过** run `35470610934` `INVOKE_OK path=bm_click`；win32calc e14；无 SendInput |
+| TC-D-170 | Windows Settings observe-only | **未过** snapshot 可；click/type FocusPolicyViolation |
 
 ## 8. 未通过不得宣称完成
 

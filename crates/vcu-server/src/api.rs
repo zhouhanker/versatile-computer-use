@@ -1692,6 +1692,22 @@ fn ensure_writable(slot: &SessionSlot, tab_id: &str) -> Result<(), VcuError> {
     Ok(())
 }
 
+fn desktop_tab_ids_equiv(listed: &str, requested: &str) -> bool {
+    if listed == requested || listed.eq_ignore_ascii_case(requested) {
+        return true;
+    }
+    let Some(p_listed) = listed.rsplit(':').next() else {
+        return false;
+    };
+    let Some(p_req) = requested.rsplit(':').next() else {
+        return false;
+    };
+    listed.starts_with("win:")
+        && requested.starts_with("win:")
+        && p_listed == p_req
+        && p_listed.chars().all(|c| c.is_ascii_digit())
+}
+
 async fn resolve_tab(slot: &mut SessionSlot, tab_id: Option<String>) -> Result<String, VcuError> {
     if let Some(t) = tab_id {
         return Ok(t);
@@ -1717,7 +1733,7 @@ async fn ensure_tab_writable(slot: &mut SessionSlot, tab_id: &str) -> Result<(),
     let tabs = slot.backend.list_tabs().await?;
     let tab = tabs
         .iter()
-        .find(|t| t.tab_id == tab_id || t.tab_id.eq_ignore_ascii_case(tab_id))
+        .find(|t| desktop_tab_ids_equiv(&t.tab_id, tab_id))
         .ok_or_else(|| VcuError::coded(ErrorCode::TabNotFound, format!("tab {tab_id}")))?;
     if tab.agent_owned {
         return Ok(());

@@ -88,6 +88,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_160.ps1
+      - name: windows vcu desktop settings observe (CU-D-170)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_170.ps1
 
   package-macos:
     needs: test
