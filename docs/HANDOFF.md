@@ -4,9 +4,8 @@
 
 ## 本轮
 
-- CU-D-043 **真机通过**：System Settings Scene 观察；click `FocusPolicyViolation` observe-only；doctor 无 tccutil / 不打开偏好窗。未改 TCC。
-- 单测：AccessibilityDenied / crop hint 含「系统设置」；System Settings click 拒绝。
+- CU-D-050 **完成**：HUD 文案 `VCU 正在使用这台 Mac` / `Esc 取消`；禁止 ChatGPT/Codex 用户文案（单测）。真机 desktop session abort → `hud=false`、会话消失。
 
 ## 下一刀
 
-CU-D-050 Stage 文案「VCU 正在使用这台 Mac」+ Abort。不使用 ChatGPT/Codex 文案。
+CU-D-051 Guide 与浏览器虚拟光标同一套短三角+柔光。不宣称官方动画复刻。

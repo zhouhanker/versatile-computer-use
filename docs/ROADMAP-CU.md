@@ -141,7 +141,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 
 | ID | 工作 | 说明 |
 | --- | --- | --- |
-| CU-D-050 | Stage 文案「VCU 正在使用这台 Mac」+ Abort | 不使用 ChatGPT/Codex 文案 |
+| CU-D-050 | Stage 文案「VCU 正在使用这台 Mac」+ Abort | **完成** native/JXA HUD 文案锁定；真机 `session abort` `hud=false`。无 ChatGPT/Codex 用户文案 |
 | CU-D-051 | Guide 与浏览器虚拟光标同一套短三角+柔光 | 已有造型；桌面复用；不宣称官方动画复刻 |
 | CU-D-052 | 会话审计：做了什么窗、什么 source | 可关 |
 

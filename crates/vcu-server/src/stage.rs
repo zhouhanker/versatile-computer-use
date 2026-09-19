@@ -583,6 +583,23 @@ mod tests {
     }
 
     #[test]
+    fn hud_copy_is_vcu_not_chatgpt_or_codex() {
+        assert!(BANNER.contains("VCU 正在使用这台 Mac"));
+        assert!(BANNER.contains("Escape") || BANNER.contains("Esc"));
+        for banned in ["ChatGPT", "Using your Mac", "Codex is using"] {
+            assert!(!BANNER.contains(banned), "{BANNER}");
+            assert!(!STAGE_JXA.contains(banned), "jxa");
+        }
+        assert!(STAGE_JXA.contains("VCU 正在使用这台 Mac"));
+        assert!(STAGE_JXA.contains("Esc 取消"));
+        let swift = include_str!("../../../helpers/vcu-stage/main.swift");
+        assert!(swift.contains(r#"let hudTitle = "VCU 正在使用这台 Mac""#));
+        assert!(swift.contains(r#"let hudSub = "Esc 取消""#));
+        assert!(!swift.contains(r#"let hudTitle = "ChatGPT"#));
+        assert!(!swift.contains("Codex is using"));
+    }
+
+    #[test]
     fn resolve_stage_bin_prefers_explicit_file() {
         let dir = tempfile::tempdir().unwrap();
         let bin = dir.path().join("vcu-stage");

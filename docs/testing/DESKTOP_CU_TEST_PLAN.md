@@ -119,6 +119,13 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-047 | 只读观察 System Settings | **通过** `scripts/poc_desktop_settings.py` |
 | TC-D-048 | 不自动改 TCC | **通过** click 拒绝；doctor 无 tccutil |
 
+## 7.5 Stage HUD（CU-D-050）
+
+| ID | 标题 | 期望 |
+| --- | --- | --- |
+| TC-D-050 | HUD 文案为 VCU | **通过** `hud_copy_is_vcu_not_chatgpt_or_codex` |
+| TC-D-051 | Abort 拆 HUD | **通过** 真机 abort `hud=false` |
+
 ## 8. 未通过不得宣称完成
 
 - TC-B-040 通用 AX 网页像素真点（浏览器计划已延期）  
