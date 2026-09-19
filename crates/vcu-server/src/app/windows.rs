@@ -241,8 +241,30 @@ while ($q.Count -gt 0 -and $n -lt $max) {{
     }} catch {{}}
   }}
   $cls = ($el.Current.ClassName -replace '[\r\n\|]', ' ')
+  $val = ''
+  try {{
+    $vp = $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+    $val = [string]$vp.Current.Value
+  }} catch {{}}
+  if ([string]::IsNullOrWhiteSpace($val)) {{
+    $nh = [int64]$el.Current.NativeWindowHandle
+    if ($nh -ne 0) {{
+      if (-not ("Vcu.VcuGetText190" -as [type])) {{
+        $sig = @'
+[DllImport("user32.dll", CharSet=CharSet.Unicode)]
+public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+'@
+        Add-Type -MemberDefinition $sig -Name VcuGetText190 -Namespace Vcu | Out-Null
+      }}
+      $sb = New-Object System.Text.StringBuilder 512
+      [void][Vcu.VcuGetText190]::GetWindowText([IntPtr]$nh, $sb, 512)
+      $val = $sb.ToString()
+    }}
+  }}
+  $val = ($val -replace '[\r\n\|]', ' ')
+  if ($val.Length -gt 200) {{ $val = $val.Substring(0, 200) }}
   $r = $el.Current.BoundingRectangle
-  '{{0}}|{{1}}|{{2}}|{{3}},{{4}},{{5}},{{6}}|{{7}}' -f ("e$n"), $ct, $nm, [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height, $cls
+  '{{0}}|{{1}}|{{2}}|{{3}},{{4}},{{5}},{{6}}|{{7}}|{{8}}' -f ("e$n"), $ct, $nm, [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height, $cls, $val
   if ($n -ge $max) {{ break }}
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
   foreach ($k in $kids) {{ $q.Enqueue($k) }}
@@ -514,6 +536,7 @@ pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
         let name = sp.next().unwrap_or("").trim().to_string();
         let fr = sp.next().unwrap_or("").trim();
         let class = sp.next().unwrap_or("").trim();
+        let value = sp.next().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
         if eref.is_empty() {
             continue;
         }
@@ -542,7 +565,7 @@ pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
             r#ref: eref.to_string(),
             role,
             name,
-            value: None,
+            value,
             frame,
         });
     }
@@ -1221,12 +1244,13 @@ mod tests {
     #[test]
     fn parse_uia_tree_and_scripts_are_pattern_not_hid() {
         let els = parse_uia_element_lines(
-            "e1|ControlType.Window|Notepad|10,10,800,600\ne2|ControlType.Button|Save|20,40,80,24\nMISSING\ne3|ControlType.Pane||10,40,780,540|Edit\n"        );
+            "e1|ControlType.Window|Notepad|10,10,800,600\ne2|ControlType.Button|Save|20,40,80,24\nMISSING\ne3|ControlType.Pane||10,40,780,540|Edit|VCU-D-190\n"        );
         assert_eq!(els.len(), 3);
         assert_eq!(els[0].r#ref, "e1");
         assert_eq!(els[1].name, "Save");
         assert_eq!(els[1].frame, Some([20.0, 40.0, 80.0, 24.0]));
         assert_eq!(els[2].role, "ControlType.Pane/Edit");
+        assert_eq!(els[2].value.as_deref(), Some("VCU-D-190"));
         let tree = uia_tree_script(4242, 80);
         assert!(tree.contains("UIAutomationClient"));
         assert!(tree.contains("FromHandle"));
@@ -1235,6 +1259,8 @@ mod tests {
         assert!(tree.contains("VcuHwndResolve"));
         assert!(tree.contains("AutomationId"));
         assert!(tree.contains("LegacyIAccessiblePattern"));
+        assert!(tree.contains("ValuePattern"));
+        assert!(tree.contains("GetWindowText"));
         assert!(!tree.to_ascii_lowercase().contains("sendinput"));
         let inv = uia_invoke_script(4242, "e2");
         assert!(inv.contains("InvokePattern"));
@@ -1372,6 +1398,11 @@ mod tests {
         let l160 = s160.to_ascii_lowercase();
         assert!(!l160.contains("sendinput("));
         assert!(!l160.contains("[system.windows.forms.sendkeys"));
+        let p190 = root.join("scripts/poc_cu_d_190.ps1");
+        let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
+        assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
+        let l190 = s190.to_ascii_lowercase();
+        assert!(!l190.contains("sendinput("));
         let p180 = root.join("scripts/poc_cu_d_180.ps1");
         let s180 = std::fs::read_to_string(&p180).unwrap_or_default();
         assert!(s180.contains("SCROLL_OK"), "{}", p180.display());

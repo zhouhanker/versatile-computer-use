@@ -1,12 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-180 CI 绿。
+更新：2026-09-20。CU-D-190 extract 脚本已加，待 CI。
 
 ## 本轮
 
-- run `35471497693`：`SCROLL_OK path=wm_vscroll os_cursor_used=False`；`CU-D-180 OK`。
-- 不是 ScrollPattern。无 SendInput / mouse_event。
+- UIA scene 带 ValuePattern / GetWindowText。
+- POC：type 标记后 extract 必须 count>=1。
 
 ## 下一刀
 
-不是完整 Windows 产品 CU。不要假绿双浏览器 / 跨源 iframe。
+看 CI `EXTRACT_OK`。未绿不得宣称 190 完成。

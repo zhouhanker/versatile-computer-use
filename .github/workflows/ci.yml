@@ -96,6 +96,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_180.ps1
+      - name: windows vcu desktop notepad extract (CU-D-190)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_190.ps1
 
   package-macos:
     needs: test
