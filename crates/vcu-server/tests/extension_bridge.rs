@@ -205,8 +205,35 @@ async fn list_tabs_merged_from_two_clients() {
         tabs.iter().find(|t| t["tab_id"] == "c1").unwrap()["browser"],
         "chrome"
     );
+    assert_eq!(merged["browser_count"], 2);
+    let names = merged["browsers"].as_array().unwrap();
+    assert!(names.iter().any(|v| v == "edge"));
+    assert!(names.iter().any(|v| v == "chrome"));
     edge_w.await.unwrap();
     chrome_w.await.unwrap();
+}
+
+#[tokio::test]
+async fn list_tabs_single_client_still_reports_browser_count() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge
+        .mark_hello_client(true, Some("edge".into()), Some("edge".into()))
+        .await;
+    let edge = bridge.clone();
+    let worker = tokio::spawn(async move {
+        let cmd = edge.poll_for(2000, Some("edge".into())).await.expect("list");
+        assert_eq!(cmd.method, "list_tabs");
+        edge.submit_result(
+            &cmd.id,
+            json!({"ok": true, "tabs": [{"tab_id": "e1", "window_id": "ew", "title": "Edge", "url": "https://e.example/", "agent_owned": false, "borrowed_by": null}], "groups": []}),
+        )
+        .await;
+    });
+    let merged = bridge.list_tabs_merged().await.unwrap();
+    assert_eq!(merged["browser_count"], 1);
+    assert_eq!(merged["browsers"][0], "edge");
+    assert_eq!(merged["tabs"].as_array().unwrap().len(), 1);
+    worker.await.unwrap();
 }
 
 #[tokio::test]

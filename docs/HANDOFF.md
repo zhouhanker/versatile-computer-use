@@ -1,12 +1,14 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-110 CI 已过。
+更新：2026-09-20。CU-B-010：tabs/health 报告已连接浏览器。
 
 ## 本轮
 
-- CU-D-110 run `35466641180` @ `62487a7`：`SHOT_OK bytes=10984 width=768 height=519`；`CU-D-110 OK`
-- PrintWindow 经 `vcu screenshot`，无 CopyFromScreen / SendInput。
+- `list_tabs_merged` 单客户端也返回 `browser_count`/`browsers`。
+- health：`extension_browsers` / `extension_browser_count`。
+- 真机：当前只有 Edge 在轮询；Chrome 进程未连上 lens（reload 只打到 1 个 client）。**双浏览器 tabs 复检未过**。
+- 跨源 iframe / trusted / TC-B-040 仍明确不在范围内（已有 Node 拒绝测试）。
 
 ## 下一刀
 
-不要宣称完整 Codex CU。可开浏览器 P2（跨源仍拒绝）或更多 App。禁止微信 / HID。
+双浏览器需 Chrome SW 轮询后再复检。不要宣称 P2 完成。禁止改用户组 1/3。

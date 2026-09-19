@@ -80,10 +80,14 @@ pub async fn build_report(paths: &VcuPaths, live: Option<&AppState>) -> DoctorRe
         if state.extension_bridge.likely_user_profile().await {
             ext_profile = "user";
         }
+        let ext_browsers = state.extension_bridge.active_browsers().await;
         let (ext_status, ext_detail, ext_hint) = if ext_poll && ext_profile == "user" {
             (
                 "pass",
-                "VCU extension polling in the USER browser (login-state DOM lens)".into(),
+                format!(
+                    "VCU extension polling in the USER browser (login-state DOM lens); browsers={}",
+                    if ext_browsers.is_empty() { "unknown".into() } else { ext_browsers.join(",") }
+                ),
                 None,
             )
         } else if ext_poll && ext_profile == "agent" {

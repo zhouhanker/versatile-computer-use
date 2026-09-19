@@ -114,6 +114,20 @@ impl ExtensionBridge {
             .collect()
     }
 
+    pub async fn active_browsers(&self) -> Vec<String> {
+        let g = self.inner.lock().await;
+        let now = now_ms();
+        let mut names: Vec<String> = g
+            .clients
+            .iter()
+            .filter(|(_, c)| now.saturating_sub(c.last_poll_ms) < 15_000)
+            .map(|(_, c)| c.browser.clone())
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    }
+
     pub async fn likely_user_profile(&self) -> bool {
         self.inner.lock().await.likely_user_profile
     }
@@ -282,8 +296,14 @@ impl ExtensionBridge {
 
     pub async fn list_tabs_merged(&self) -> VcuResult<serde_json::Value> {
         let ids = self.active_client_ids().await;
+        let browsers = self.active_browsers().await;
         if ids.len() <= 1 {
-            return self.call("list_tabs", serde_json::json!({})).await;
+            let mut v = self.call("list_tabs", serde_json::json!({})).await?;
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("browser_count".into(), serde_json::json!(ids.len()));
+                obj.insert("browsers".into(), serde_json::json!(browsers));
+            }
+            return Ok(v);
         }
         let mut tabs = Vec::new();
         let mut groups = Vec::new();
@@ -335,6 +355,7 @@ impl ExtensionBridge {
             "tabs": tabs,
             "groups": groups,
             "browser_count": ids.len(),
+            "browsers": browsers,
         }))
     }
 

@@ -149,6 +149,8 @@ async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         "pid": std::process::id(),
         "extension_connected": state.extension_bridge.is_connected().await,
         "extension_polling": state.extension_bridge.is_polling().await,
+        "extension_browsers": state.extension_bridge.active_browsers().await,
+        "extension_browser_count": state.extension_bridge.active_client_ids().await.len(),
         "last_poll_age_ms": state.extension_bridge.last_poll_age_ms().await,
         "extension_pending": state.extension_bridge.pending_len().await,
         "extension_waiters": state.extension_bridge.waiter_len().await,
