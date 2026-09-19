@@ -73,7 +73,7 @@ impl WindowsAppBackend {
 pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Vec<AppTarget> {
     let mut out = Vec::new();
     for (idx, line) in raw.lines().enumerate() {
-        let mut parts = line.split('\t');
+        let mut parts = if line.contains('|') { line.split('|') } else { line.split('\t') };
         let name = parts.next().unwrap_or("").trim();
         let pid = parts.next().and_then(|s| s.trim().parse().ok());
         let title = parts.next().unwrap_or(name).trim();
@@ -460,7 +460,7 @@ impl AppBackend for WindowsAppBackend {
         {
             let script = r#"
 Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
-  ForEach-Object { '{0}`t{1}`t{2}' -f $_.ProcessName, $_.Id, ($_.MainWindowTitle -replace '[\r\n\t]',' ') }
+  ForEach-Object { '{0}|{1}|{2}' -f $_.ProcessName, $_.Id, ($_.MainWindowTitle -replace '[\r\n\t]',' ') }
 "#;
             let raw = Self::run_powershell(script)?;
             Ok(parse_process_list_lines(&raw, |n| self.allowed(n)))
