@@ -40,6 +40,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/browser/login-state", get(browser_login_state))
         .route("/v1/browser/install-lens", post(browser_install_lens))
         .route("/v1/browser/click", post(browser_click))
+        .route("/v1/browser/hover", post(browser_hover))
         .route("/v1/browser/type", post(browser_type))
         .route("/v1/browser/scroll", post(browser_scroll))
         .route("/v1/browser/wait", post(browser_wait))
@@ -437,6 +438,68 @@ struct BrowserTypeReq {
     app_id: Option<String>,
     #[serde(default)]
     tab_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct BrowserHoverReq {
+    #[serde(default)]
+    selector: Option<String>,
+    #[serde(default)]
+    tab_id: Option<String>,
+    #[serde(default)]
+    dry_run: bool,
+}
+
+async fn browser_hover(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BrowserHoverReq>,
+) -> impl IntoResponse {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    let Some(selector) = req.selector.as_deref().filter(|s| !s.is_empty()) else {
+        return err_response(VcuError::coded(ErrorCode::InvalidInput, "hover requires selector"));
+    };
+    if !state.extension_bridge.is_polling().await {
+        return err_response(VcuError::coded(
+            ErrorCode::ExtensionDisconnected,
+            "USER browser extension is not polling; cannot hover via DOM selector",
+        ));
+    }
+    if !state.extension_bridge.likely_user_profile().await {
+        return err_response(VcuError::coded(
+            ErrorCode::ActionFailed,
+            "extension_profile is not user; refusing Agent Edge hover",
+        ));
+    }
+    let mut params = json!({
+        "selector": selector,
+        "dry_run": req.dry_run,
+    });
+    if let Some(id) = req.tab_id.as_deref() {
+        if let Ok(n) = id.parse::<i64>() {
+            params["tab_id"] = json!(n);
+        } else {
+            params["tab_id"] = json!(id);
+        }
+    }
+    match state.extension_bridge.call_timeout("hover", params, 8).await {
+        Ok(v) => Json(Envelope::ok(json!({
+            "login_state": true,
+            "hud": false,
+            "hovered": v.get("hovered").cloned().unwrap_or(json!(false)),
+            "dry_run": req.dry_run,
+            "selector": selector,
+            "source": "extension_dom",
+            "tab_id": v.get("tab_id").cloned().unwrap_or(json!(req.tab_id)),
+            "page_url": v.get("page_url").cloned().unwrap_or(json!(null)),
+            "os_cursor_used": false,
+            "never_click_allow": true,
+            "extension": v,
+        }))).into_response(),
+        Err(e) => err_response(e),
+    }
 }
 
 async fn browser_type(
@@ -1079,7 +1142,28 @@ async fn browser_tab_command(state: Arc<AppState>, headers: HeaderMap, method: &
 }
 
 async fn browser_tabs(State(state): State<Arc<AppState>>, headers: HeaderMap) -> impl IntoResponse {
-    browser_tab_command(state, headers, "list_tabs", json!({})).await
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if !state.extension_bridge.is_polling().await {
+        return err_response(VcuError::coded(ErrorCode::ExtensionDisconnected, "USER browser extension is not polling"));
+    }
+    if !state.extension_bridge.likely_user_profile().await {
+        return err_response(VcuError::coded(ErrorCode::ActionFailed, "extension_profile is not user; refusing Agent browser operation"));
+    }
+    match state.extension_bridge.list_tabs_merged().await {
+        Ok(mut value) => {
+            if !value.is_object() {
+                return err_response(VcuError::coded(ErrorCode::ActionFailed, "invalid extension response"));
+            }
+            value["source"] = json!("extension_tabs");
+            value["login_state"] = json!(true);
+            value["hud"] = json!(false);
+            value["os_cursor_used"] = json!(false);
+            Json(Envelope::ok(value)).into_response()
+        }
+        Err(e) => err_response(e),
+    }
 }
 async fn browser_select(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
     browser_tab_command(state, headers, "select_tab", params).await
@@ -2129,6 +2213,8 @@ fn _ensure(slot: &SessionSlot, tab: &str) {
 struct ExtPollQuery {
     #[serde(default = "default_wait")]
     wait_ms: u64,
+    #[serde(default)]
+    client_id: Option<String>,
 }
 fn default_wait() -> u64 { 5000 }
 
@@ -2204,6 +2290,10 @@ struct ExtHelloReq {
     likely_user_profile: bool,
     #[serde(default)]
     hosts: Vec<String>,
+    #[serde(default)]
+    client_id: Option<String>,
+    #[serde(default)]
+    browser: Option<String>,
 }
 
 async fn extension_hello(
@@ -2215,7 +2305,7 @@ async fn extension_hello(
         return err_response(e);
     }
     let _ = req.hosts;
-    state.extension_bridge.mark_hello(req.likely_user_profile).await;
+    state.extension_bridge.mark_hello_client(req.likely_user_profile, req.client_id, req.browser).await;
     Json(Envelope::ok(json!({"connected": true}))).into_response()
 }
 
@@ -2227,7 +2317,7 @@ async fn extension_poll(
     if let Err(e) = require_auth(&headers, &state).await {
         return err_response(e);
     }
-    match state.extension_bridge.poll(q.wait_ms).await {
+    match state.extension_bridge.poll_for(q.wait_ms, q.client_id).await {
         Some(cmd) => Json(Envelope::ok(cmd)).into_response(),
         None => Json(Envelope::ok(json!({"empty": true}))).into_response(),
     }

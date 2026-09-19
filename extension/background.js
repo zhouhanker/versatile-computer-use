@@ -4,6 +4,15 @@ const DEFAULT_GROUP_COLOR = "purple";
 const TAB_GROUP_COLORS = new Set([
   "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange",
 ]);
+
+function currentBrowser() {
+  try {
+    const ua = (globalThis.navigator && globalThis.navigator.userAgent) || "";
+    return /Edg\//.test(ua) ? "edge" : "chrome";
+  } catch (_) {
+    return "chrome";
+  }
+}
 let agentWindowId = null;
 let pairingToken = null;
 let endpoint = DEFAULT_ENDPOINT;
@@ -192,10 +201,16 @@ async function hello() {
       }
     } catch (_) {}
     const likely_user_profile = hosts.some((h) => h && !h.endsWith("msn.com"));
+    const browser = currentBrowser();
     await fetchJson(endpoint + "/v1/extension/hello", {
       method: "POST",
       headers: { "X-Vcu-Token": pairingToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ likely_user_profile, hosts }),
+      body: JSON.stringify({
+        likely_user_profile,
+        hosts,
+        client_id: chrome.runtime.id,
+        browser,
+      }),
     }, 5000);
   } catch (e) {
     lastError = "hello_failed:" + String(e);
@@ -260,6 +275,7 @@ async function listTabsState() {
       group_id: groupId,
       group: groupId ? (groupById.get(groupId) || null) : null,
       agent_owned: String(t.windowId) === String(agentWindowId),
+      browser: currentBrowser(),
     };
   });
   return { tabs, groups };
@@ -348,7 +364,7 @@ function startPollLoop() {
     try {
       while (gen === pollGen && pairingToken) {
         try {
-          const body = await fetchJson(endpoint + "/v1/extension/poll?wait_ms=4000", {
+          const body = await fetchJson(endpoint + "/v1/extension/poll?wait_ms=4000&client_id=" + encodeURIComponent(chrome.runtime.id || ""), {
             headers: { "X-Vcu-Token": pairingToken },
           }, 10000);
           const cmd = body && body.data;
@@ -713,10 +729,10 @@ async function handleCommand(cmd) {
         if (!resolved || !resolved.tab.active) return { ok: false, error: "select the target tab before taking a viewport screenshot" };
         const ready = await ensureContent(resolved.id, 1500, 500);
         if (!ready.ok) return ready;
-        const before = await sendToTab(resolved.id, { type: "vcu_viewport" }, 700);
+        const before = await sendToTab(resolved.id, { type: "vcu_viewport", keep_cursor: true }, 700);
         if (!before?.ok || !before.viewport) return { ok: false, error: "viewport metadata unavailable; refresh the page" };
         const dataUrl = await captureVisiblePng(Number(resolved.tab.window_id));
-        const after = await sendToTab(resolved.id, { type: "vcu_viewport" }, 700);
+        const after = await sendToTab(resolved.id, { type: "vcu_viewport", keep_cursor: true }, 700);
         const current = await chrome.tabs.get(resolved.id);
         if (!after?.ok || !current.active || current.url !== before.viewport.url || JSON.stringify(before.viewport) !== JSON.stringify(after.viewport)) {
           return { ok: false, error: "page changed during screenshot; capture again" };
@@ -827,15 +843,17 @@ async function handleCommand(cmd) {
       }
       case "hover": {
         const params = cmd.params || {};
-        const tabId = tabIdNumber(params.tab_id);
-        if (tabId === null) return { ok: false, error: "invalid tab_id" };
-        const ref = params.ref == null ? null : String(params.ref);
-        return actionViaContent(
-          tabId,
+        const resolved = await resolveHttpTabState(params.tab_id);
+        const mismatch = wrongBrowserOrMissing(resolved);
+        if (mismatch) return mismatch;
+        let selector = params.selector || null;
+        if (!selector && params.ref) selector = '[data-vcu-ref="' + params.ref + '"]';
+        if (!selector) return { ok: false, error: "hover requires selector or ref" };
+        const result = await actionViaContent(
+          resolved.id,
           {
             type: "vcu_hover",
-            ref,
-            selector: params.selector || (ref ? '[data-vcu-ref="' + ref + '"]' : null),
+            selector,
             dry_run: !!params.dry_run,
           },
           "hover",
@@ -843,6 +861,7 @@ async function handleCommand(cmd) {
           900,
           400,
         );
+        return Object.assign(tabActionState(resolved.tab), result || { ok: false, error: "no result" });
       }
       case "keypress": {
         const [{ result }] = await chrome.scripting.executeScript({

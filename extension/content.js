@@ -4,7 +4,7 @@
 (() => {
 
 const VCU_CURSOR_ID = "vcu-virtual-cursor";
-const VCU_CONTENT_VERSION = "0.2.6";
+const VCU_CONTENT_VERSION = "0.2.7";
 const VCU_CURSOR_HIDE_MS = 520;
 const VCU_HALO_MS = 240;
 const VCU_LAYOUT_MAX_NODES = 1000;
@@ -26,6 +26,8 @@ let cursorRoot = null;
 let cursorHalo = null;
 let cursorArrow = null;
 let cursorZoom = 1;
+let lastCursorPoint = null;
+const VCU_CURSOR_REST_DEG = Math.atan2(10, 18) * 180 / Math.PI;
 const cursorTimers = new Set();
 
 // The previous bridge used a boolean sentinel and an anonymous listener. If
@@ -59,7 +61,7 @@ if (!vcuLegacyListener && !vcuSameVersion) {
         else if (msg.type === "vcu_click") sendResponse(clickDom(msg.selector, msg.dry_run));
         else if (msg.type === "vcu_hover") sendResponse(hoverDom(msg.selector, msg.dry_run));
         else if (msg.type === "vcu_scroll") sendResponse(scrollDom(msg.dy, msg.dry_run));
-        else if (msg.type === "vcu_viewport") sendResponse(viewportSnapshot());
+        else if (msg.type === "vcu_viewport") sendResponse(viewportSnapshot(msg));
         else if (msg.type === "vcu_click_point") sendResponse(clickPoint(msg.x, msg.y, msg.expected_viewport, msg.dry_run));
         else sendResponse(extractDom(msg.selector || "a"));
       } catch (e) {
@@ -86,17 +88,18 @@ function pingPage() {
   };
 }
 
-function viewportSnapshot() {
-  // Flush mutations that were queued before the request. The cursor is then
-  // removed, and a second flush proves that removing our own overlay did not
-  // make the page snapshot stale.
+function viewportSnapshot(options = {}) {
+  // Layout ignores the cursor host. Screenshots keep the overlay so agents
+  // can see the dart; tests can still pass keep_cursor=false to hide it.
   flushMutationRecords();
   const before = currentViewport();
-  hideVirtualCursor();
-  flushMutationRecords();
+  if (!options.keep_cursor) {
+    hideVirtualCursor();
+    flushMutationRecords();
+  }
   const after = currentViewport();
   vcuState.last_viewport_stable = JSON.stringify(before) === JSON.stringify(after);
-  return { ok: true, source: "extension_dom", viewport: after };
+  return { ok: true, source: "extension_dom", viewport: after, cursor_visible: !!options.keep_cursor };
 }
 
 function clickPoint(x, y, expectedViewport, dryRun) {
@@ -112,13 +115,22 @@ function clickPoint(x, y, expectedViewport, dryRun) {
   if (!pointInViewport(point)) return invalidPoint("point is outside the current CSS viewport");
   if (typeof document.elementFromPoint !== "function") return reject("elementFromPoint unavailable");
 
-  const hit = document.elementFromPoint(point.x, point.y);
+  let hit = document.elementFromPoint(point.x, point.y);
   if (!hit) return reject("point is not hit-testable");
-  const tag = String(hit.tagName || "").toUpperCase();
-  if (tag === "IFRAME" || tag === "FRAME" || tag === "CANVAS" || tag === "OBJECT") {
-    return reject("point target requires trusted input: " + tag.toLowerCase(), "unsupported_point_target");
+  let tag = String(hit.tagName || "").toUpperCase();
+  let innerPoint = point;
+  if (tag === "IFRAME" || tag === "FRAME") {
+    const inner = sameOriginIframeHit(hit, point);
+    if (!inner.ok) return inner;
+    hit = inner.element;
+    innerPoint = inner.point;
+    tag = String(hit.tagName || "").toUpperCase();
   }
-  const target = closestInteractiveElement(hit) || hit;
+  if (tag === "OBJECT") {
+    return reject("point target requires trusted input: object", "unsupported_point_target");
+  }
+  const canvasTarget = tag === "CANVAS" ? hit : null;
+  const target = canvasTarget || closestInteractiveElement(hit) || hit;
   const capturedHere = expectedViewport.layout_signature?.nodes?.filter(node =>
     point.x >= node.left && point.y >= node.top && point.x < node.left + node.width && point.y < node.top + node.height
   ) || [];
@@ -135,7 +147,7 @@ function clickPoint(x, y, expectedViewport, dryRun) {
     dry_run: !!dryRun,
     css_point: { x: point.x, y: point.y },
     rectangle: rect,
-    input_path: "dom_point_click",
+    input_path: canvasTarget ? "dom_point_click_canvas" : "dom_point_click",
     trusted: false,
     os_cursor_used: false,
     tag: target.tagName,
@@ -146,13 +158,38 @@ function clickPoint(x, y, expectedViewport, dryRun) {
 
   showVirtualCursor(point, { pulse: true });
   try {
-    const dispatched = target.dispatchEvent(makeMouseEvent("click", point));
+    const seqPoint = canvasTarget ? innerPoint : point;
+    if (canvasTarget) {
+      for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+        target.dispatchEvent(makeMouseEvent(type, seqPoint));
+      }
+    } else {
+      target.dispatchEvent(makeMouseEvent("click", seqPoint));
+    }
     result.pressed = true;
-    result.default_prevented = dispatched === false;
     return result;
   } catch (e) {
     hideVirtualCursor();
     return reject("could not dispatch point click: " + String(e));
+  }
+}
+
+function sameOriginIframeHit(frame, point) {
+  try {
+    const doc = frame.contentDocument;
+    if (!doc || typeof doc.elementFromPoint !== "function") {
+      return reject("cross-origin iframe requires trusted input", "unsupported_point_target");
+    }
+    const rect = frame.getBoundingClientRect ? frame.getBoundingClientRect() : rectOf(frame);
+    const inner = {
+      x: point.x - (rect.left || 0),
+      y: point.y - (rect.top || 0),
+    };
+    const el = doc.elementFromPoint(inner.x, inner.y);
+    if (!el) return reject("iframe point is not hit-testable");
+    return { ok: true, element: el, point: inner };
+  } catch (_) {
+    return reject("cross-origin iframe requires trusted input", "unsupported_point_target");
   }
 }
 
@@ -929,14 +966,28 @@ function showVirtualCursor(point, options = {}) {
   clearCursorTimers();
   cursorRoot.style.left = point.x + "px";
   cursorRoot.style.top = point.y + "px";
-  cursorRoot.style.transform = `scale(${1 / cursorZoom})`;
+  let deg = VCU_CURSOR_REST_DEG;
+  if (lastCursorPoint) {
+    const dx = point.x - lastCursorPoint.x;
+    const dy = point.y - lastCursorPoint.y;
+    if (Math.hypot(dx, dy) > 8) deg = Math.atan2(dy, dx) * 180 / Math.PI;
+  }
+  lastCursorPoint = { x: point.x, y: point.y };
+  const rot = deg - VCU_CURSOR_REST_DEG;
+  cursorRoot.style.transform = `scale(${1 / cursorZoom}) rotate(${rot}deg)`;
+  cursorRoot.style.transformOrigin = "0 0";
   cursorRoot.setAttribute("data-css-point", point.x + "," + point.y);
+  cursorRoot.setAttribute("data-heading", String(Math.round(deg)));
   cursorHalo.classList.remove("pulse");
+  cursorArrow.classList.remove("click");
   if (options.pulse) {
-    // Force a fresh animation when two clicks happen in quick succession.
     void cursorHalo.offsetWidth;
     cursorHalo.classList.add("pulse");
-    scheduleCursor(() => cursorHalo?.classList.remove("pulse"), VCU_HALO_MS);
+    cursorArrow.classList.add("click");
+    scheduleCursor(() => {
+      cursorHalo?.classList.remove("pulse");
+      cursorArrow?.classList.remove("click");
+    }, VCU_HALO_MS);
   }
   scheduleCursor(() => hideVirtualCursor(), VCU_CURSOR_HIDE_MS);
 }
@@ -1007,6 +1058,12 @@ function ensureVirtualCursor() {
       }
       .vcu-arrow polygon { fill: #5a6068; fill-opacity: .96; stroke: #fff; stroke-opacity: .92; stroke-width: 1.5;
         stroke-linejoin: round; }
+      .vcu-arrow.click { animation: vcu-arrow-click 180ms ease-out both; }
+      @keyframes vcu-arrow-click {
+        0% { transform: scale(1, 1); }
+        40% { transform: scale(.92, 1.06); }
+        100% { transform: scale(1, 1); }
+      }
       @keyframes vcu-halo-pulse {
         0% { opacity: .95; transform: scale(.92); }
         55% { opacity: 1; transform: scale(1.12); }

@@ -159,6 +159,14 @@ fn tool_defs() -> Vec<Value> {
                 "dry_run":{"type":"boolean","default":false}
             }
         })),
+        tool("vcu_browser_hover", "Hover a unique CSS selector on a USER tab via extension DOM. Synthetic mouseover; trusted=false; dry_run does not dispatch.", json!({
+            "type":"object","required":["selector"],
+            "properties":{
+                "selector":{"type":"string"},
+                "tab_id":{"type":"string"},
+                "dry_run":{"type":"boolean","default":false}
+            }
+        })),
         tool("vcu_browser_scroll", "Scroll USER tab via extension DOM. Explicit tab never falls back to AX. dry_run does not scroll.", json!({
             "type":"object","properties":{
                 "dy":{"type":"integer","default":600},
@@ -473,6 +481,14 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(sel) = args.get("selector") { body["selector"] = sel.clone(); }
             if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
             client.post("/v1/browser/type", body).await?
+        }
+        "vcu_browser_hover" => {
+            let mut body = json!({
+                "selector": req_str(&args, "selector")?,
+                "dry_run": args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false)
+            });
+            if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
+            client.post("/v1/browser/hover", body).await?
         }
         "vcu_browser_scroll" => {
             client.post("/v1/browser/scroll", json!({

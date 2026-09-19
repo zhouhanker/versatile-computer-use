@@ -4,7 +4,7 @@
 
 ## 当前节点
 
-**浏览器版 Bridge 0.2.6。** 0.2.5 节点门禁仍有效。本轮补完光标同背景对照、Chrome 真机、原生 popup、双扩展 retry。README 已按边界与已知问题更新。总体产品目标仍是浏览器 CU，不是全桌面 CU。
+**浏览器版 Bridge 0.2.7。** 0.2.5/0.2.6 门禁仍有效。本轮补完光标朝向/点击压缩、截图保留光标、双浏览器合并 tabs、CLI hover、同源 iframe 与 canvas 合成点击。README 已按测试证据重写边界。总体产品目标仍是浏览器 CU，不是全桌面 CU。
 
 额度规则：用户已重置总额度。旧“周额度不足10%”提示无效；今后按重置后的**总额度剩10%**要求写交接，不能把goal token计数当账户余额。
 
@@ -25,7 +25,7 @@
 | PARITY-002 | 精确tab与DOM动作 | 完成 | 失效ID不fallback、唯一/可编辑/无遮挡目标、无mutation重放；真机DOM通过 |
 | PARITY-003 | 原生标签组与网页选择 | 完成 | 命名、折叠/展开、选择自动展开、解除分组；CLI/MCP和真实窗口POC |
 | PARITY-004 | Codex光标外观对齐 | 同背景终验已做并修 halo | 浅色同页对照 native/DOM/Guide；放大光晕至约66px 圆雾。不宣称逐像素动画或官方资源复刻 |
-| PARITY-005 | 最终整体验收 | Chrome 真机 + 原生 popup 已过 | 36 Node；Chrome extract/click/type source=extension_dom，counter 0→1；原生 popup 跨窗禁选。双扩展错路由会 retryable |
+| PARITY-005 | 最终整体验收 | Chrome 真机 + 原生 popup 已过 | 40 Node；Chrome extract/click/type source=extension_dom，counter 0→1；原生 popup 跨窗禁选。双扩展错路由会 retryable |
 | PARITY-006 | 绑定截图的网页坐标点击 | 完成 | capture绑定文档/布局、60秒过期、一次消费；真实点选counter0→1 |
 | PARITY-007 | 多窗口与面板约束 | **本节点完成** | 后台开窗不抢焦点、跨窗拒绝无副作用、组显式保留所属窗口；面板按窗口分区/跨窗禁选 |
 | PARITY-008 | 布局变化与截图可靠性 | **本节点完成** | CSSOM移动/遮挡、input事件、JSON排序往返、截图频率控制、大PNG回执；正向/反向测试均通过 |
@@ -48,7 +48,8 @@
 - [x] **P1 / PARITY-004**：同背景浅色页对照 native/DOM/Guide 的 idle/click/move；DOM 按 tab zoom 逆缩放。发现 halo 过小过淡后已加大圆雾并统一 Guide。约束仍有效：不再向用户索要截图；不退回长箭尾/硬圆环；仅 mismatch 时改代码；可参考开源/公开技术；不修改私有安装。
 - [x] **P1 / PARITY-005**：Chrome 真机 DOM extract/click/type 已过（counter 0→1，input=chrome-live，遮挡拒绝）。原生 popup 已过。用户 1/3 组未改。
 - [x] **P2 / PARITY-005（定版提交）**：工作树已定版提交 `d8ee9ad` 并准备推送 origin/main。AWR 证据绑定该 SHA；光标终验与 Chrome 真机仍未完成。
-- [ ] **P2 后续体验**：根据真实反馈继续打磨旧页面扩展升级提示、复杂动态页与资源回收。没有新证据时不扩大重构，也不把未测试能力写成完成。
+- [x] **P2 / 0.2.7 体验补丁**：光标朝向与点击压缩、viewport 截图保留光标、合并 Edge+Chrome tabs、CLI/MCP hover、同源 iframe 内层点选、canvas 合成点击。证据：40 Node + 桥接单测。
+- [ ] **P2 后续**：跨源 iframe / trusted 手势 / TC-B-040 AX 网页像素仍不在范围内。双浏览器真机复检、本机 Reload 0.2.7 lens。没有新证据时不扩大重构。
 
 ## 操作入口
 

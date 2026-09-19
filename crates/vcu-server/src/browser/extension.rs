@@ -36,6 +36,13 @@ struct BridgeState {
     pending: Vec<PendingCmd>,
     waiters: HashMap<String, oneshot::Sender<serde_json::Value>>,
     likely_user_profile: bool,
+    clients: HashMap<String, ExtensionClient>,
+}
+
+struct ExtensionClient {
+    browser: String,
+    last_poll_ms: u64,
+    tab_ids: Vec<String>,
 }
 
 struct PendingCmd {
@@ -44,6 +51,7 @@ struct PendingCmd {
     params: serde_json::Value,
     leased_until: Option<u64>,
     retries: u8,
+    target_client: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -66,12 +74,44 @@ impl ExtensionBridge {
     }
 
     pub async fn mark_hello(&self, likely_user_profile: bool) {
+        self.mark_hello_client(likely_user_profile, None, None)
+            .await;
+    }
+
+    pub async fn mark_hello_client(
+        &self,
+        likely_user_profile: bool,
+        client_id: Option<String>,
+        browser: Option<String>,
+    ) {
         let mut g = self.inner.lock().await;
         g.connected = true;
         g.last_seen_ms = now_ms();
         if likely_user_profile {
             g.likely_user_profile = true;
         }
+        if let Some(id) = client_id.filter(|s| !s.is_empty()) {
+            let browser = browser
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "browser".into());
+            let entry = g.clients.entry(id).or_insert_with(|| ExtensionClient {
+                browser: browser.clone(),
+                last_poll_ms: now_ms(),
+                tab_ids: Vec::new(),
+            });
+            entry.browser = browser;
+            entry.last_poll_ms = now_ms();
+        }
+    }
+
+    pub async fn active_client_ids(&self) -> Vec<String> {
+        let g = self.inner.lock().await;
+        let now = now_ms();
+        g.clients
+            .iter()
+            .filter(|(_, c)| now.saturating_sub(c.last_poll_ms) < 15_000)
+            .map(|(id, _)| id.clone())
+            .collect()
     }
 
     pub async fn likely_user_profile(&self) -> bool {
@@ -106,20 +146,52 @@ impl ExtensionBridge {
     }
 
     pub async fn poll(&self, wait_ms: u64) -> Option<ExtensionCommand> {
+        self.poll_for(wait_ms, None).await
+    }
+
+    pub async fn poll_for(
+        &self,
+        wait_ms: u64,
+        client_id: Option<String>,
+    ) -> Option<ExtensionCommand> {
         let deadline = tokio::time::Instant::now() + Duration::from_millis(wait_ms.max(1));
         loop {
             {
                 let mut g = self.inner.lock().await;
                 g.last_seen_ms = now_ms();
                 g.last_poll_ms = now_ms();
+                if let Some(id) = client_id.as_deref() {
+                    g.clients
+                        .entry(id.to_string())
+                        .or_insert_with(|| ExtensionClient {
+                            browser: "browser".into(),
+                            last_poll_ms: 0,
+                            tab_ids: Vec::new(),
+                        })
+                        .last_poll_ms = now_ms();
+                }
                 let now = now_ms();
                 let lease = self.lease_ms;
                 if let Some(cmd) = g.pending.iter_mut().find(|c| {
+                    let client_ok = match (&c.target_client, &client_id) {
+                        (None, _) => true,
+                        (Some(target), Some(id)) => target == id,
+                        (Some(_), None) => false,
+                    };
+                    if !client_ok {
+                        return false;
+                    }
                     // A lost reply does not mean a mutation failed. Replaying a click,
                     // type or open can produce a second user-visible side effect.
-                    c.leased_until.map(|t| t <= now && matches!(c.method.as_str(),
-                        "ping" | "list_tabs" | "extract" | "snapshot" | "screenshot"
-                    )).unwrap_or(true)
+                    c.leased_until
+                        .map(|t| {
+                            t <= now
+                                && matches!(
+                                    c.method.as_str(),
+                                    "ping" | "list_tabs" | "extract" | "snapshot" | "screenshot"
+                                )
+                        })
+                        .unwrap_or(true)
                 }) {
                     cmd.leased_until = Some(now.saturating_add(lease));
                     return Some(ExtensionCommand {
@@ -154,11 +226,13 @@ impl ExtensionBridge {
         }
     }
 
-    pub async fn call(&self, method: &str, params: serde_json::Value) -> VcuResult<serde_json::Value> {
-        self.call_timeout(method, params, 30).await
-    }
-
-    pub async fn call_timeout(&self, method: &str, params: serde_json::Value, timeout_secs: u64) -> VcuResult<serde_json::Value> {
+    pub async fn call_timeout_for(
+        &self,
+        target_client: Option<String>,
+        method: &str,
+        params: serde_json::Value,
+        timeout_secs: u64,
+    ) -> VcuResult<serde_json::Value> {
         if !self.is_connected().await {
             return Err(VcuError::coded(
                 ErrorCode::ExtensionDisconnected,
@@ -176,6 +250,7 @@ impl ExtensionBridge {
                 params,
                 leased_until: None,
                 retries: 0,
+                target_client,
             });
         }
         match tokio::time::timeout(Duration::from_secs(timeout_secs.max(1)), rx).await {
@@ -204,6 +279,127 @@ impl ExtensionBridge {
             }
         }
     }
+
+    pub async fn list_tabs_merged(&self) -> VcuResult<serde_json::Value> {
+        let ids = self.active_client_ids().await;
+        if ids.len() <= 1 {
+            return self.call("list_tabs", serde_json::json!({})).await;
+        }
+        let mut tabs = Vec::new();
+        let mut groups = Vec::new();
+        let mut ok_clients = 0u32;
+        for id in &ids {
+            let browser = self
+                .client_browser(id)
+                .await
+                .unwrap_or_else(|| "browser".into());
+            match self
+                .call_timeout_for(Some(id.clone()), "list_tabs", serde_json::json!({}), 8)
+                .await
+            {
+                Ok(v) => {
+                    ok_clients += 1;
+                    let mut seen = Vec::new();
+                    if let Some(arr) = v.get("tabs").and_then(|x| x.as_array()) {
+                        for t in arr {
+                            let mut tab = t.clone();
+                            if tab
+                                .get("browser")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .is_empty()
+                            {
+                                tab["browser"] = serde_json::json!(browser.clone());
+                            }
+                            if let Some(tab_id) = json_id(tab.get("tab_id")) {
+                                seen.push(tab_id);
+                            }
+                            tabs.push(tab);
+                        }
+                    }
+                    self.store_client_tabs(id, seen).await;
+                    if let Some(arr) = v.get("groups").and_then(|x| x.as_array()) {
+                        groups.extend(arr.iter().cloned());
+                    }
+                }
+                Err(_) => {
+                    self.store_client_tabs(id, Vec::new()).await;
+                }
+            }
+        }
+        if ok_clients == 0 {
+            return self.call("list_tabs", serde_json::json!({})).await;
+        }
+        Ok(serde_json::json!({
+            "ok": true,
+            "tabs": tabs,
+            "groups": groups,
+            "browser_count": ids.len(),
+        }))
+    }
+
+    async fn client_browser(&self, id: &str) -> Option<String> {
+        let g = self.inner.lock().await;
+        g.clients.get(id).map(|c| c.browser.clone())
+    }
+
+    async fn store_client_tabs(&self, id: &str, tab_ids: Vec<String>) {
+        let mut g = self.inner.lock().await;
+        if let Some(c) = g.clients.get_mut(id) {
+            c.tab_ids = tab_ids;
+        }
+    }
+
+    async fn unique_client_for_tab(&self, tab_id: &str) -> Option<String> {
+        let g = self.inner.lock().await;
+        let now = now_ms();
+        let mut found = None;
+        for (id, c) in &g.clients {
+            if now.saturating_sub(c.last_poll_ms) >= 15_000 {
+                continue;
+            }
+            if c.tab_ids.iter().any(|t| t == tab_id) {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(id.clone());
+            }
+        }
+        found
+    }
+
+    pub async fn call(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> VcuResult<serde_json::Value> {
+        self.call_timeout(method, params, 30).await
+    }
+
+    pub async fn call_timeout(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+        timeout_secs: u64,
+    ) -> VcuResult<serde_json::Value> {
+        let target = match json_id(params.get("tab_id")) {
+            Some(id) => self.unique_client_for_tab(&id).await,
+            None => None,
+        };
+        self.call_timeout_for(target, method, params, timeout_secs)
+            .await
+    }
+}
+
+fn json_id(value: Option<&serde_json::Value>) -> Option<String> {
+    value
+        .and_then(|v| {
+            v.as_str()
+                .map(str::to_string)
+                .or_else(|| v.as_i64().map(|n| n.to_string()))
+                .or_else(|| v.as_u64().map(|n| n.to_string()))
+        })
+        .filter(|s| !s.is_empty())
 }
 
 fn now_ms() -> u64 {
@@ -254,7 +450,7 @@ impl BrowserBackend for ExtensionBackend {
     }
 
     async fn list_tabs(&self) -> VcuResult<Vec<TabInfo>> {
-        let v = self.bridge.call("list_tabs", serde_json::json!({})).await?;
+        let v = self.bridge.list_tabs_merged().await?;
         let tabs = v.get("tabs").cloned().unwrap_or(serde_json::json!([]));
         serde_json::from_value(tabs).map_err(|e| {
             VcuError::with_detail(ErrorCode::ActionFailed, "tabs decode", e.to_string())
@@ -325,7 +521,10 @@ impl BrowserBackend for ExtensionBackend {
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
             screenshot_png: None,
-            truncated: v.get("truncated").and_then(|x| x.as_bool()).unwrap_or(false),
+            truncated: v
+                .get("truncated")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false),
             webview: false,
             webview_ref: None,
             webview_png: None,
@@ -458,20 +657,34 @@ impl BrowserBackend for ExtensionBackend {
                 })
             }
             "scroll" => {
-                let dy = action.args.get("dy").and_then(|v| v.as_i64()).unwrap_or(400);
+                let dy = action
+                    .args
+                    .get("dy")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(400);
                 let v = self
                     .bridge
                     .call("scroll", serde_json::json!({"tab_id": tab_id, "dy": dy}))
                     .await?;
-                Ok(ActionResultDetail { ok: true, detail: v })
+                Ok(ActionResultDetail {
+                    ok: true,
+                    detail: v,
+                })
             }
             "wait" => {
-                let ms = action.args.get("ms").and_then(|v| v.as_u64()).unwrap_or(100);
+                let ms = action
+                    .args
+                    .get("ms")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(100);
                 let v = self
                     .bridge
                     .call("wait", serde_json::json!({"tab_id": tab_id, "ms": ms}))
                     .await?;
-                Ok(ActionResultDetail { ok: true, detail: v })
+                Ok(ActionResultDetail {
+                    ok: true,
+                    detail: v,
+                })
             }
             "hover" => {
                 let r = action
@@ -485,7 +698,10 @@ impl BrowserBackend for ExtensionBackend {
                     .bridge
                     .call("hover", serde_json::json!({"tab_id": tab_id, "ref": r}))
                     .await?;
-                Ok(ActionResultDetail { ok: true, detail: v })
+                Ok(ActionResultDetail {
+                    ok: true,
+                    detail: v,
+                })
             }
             "keypress" => {
                 let key = action
@@ -502,7 +718,10 @@ impl BrowserBackend for ExtensionBackend {
                         serde_json::json!({"tab_id": tab_id, "key": key}),
                     )
                     .await?;
-                Ok(ActionResultDetail { ok: true, detail: v })
+                Ok(ActionResultDetail {
+                    ok: true,
+                    detail: v,
+                })
             }
             other => Err(VcuError::coded(
                 ErrorCode::NotImplemented,

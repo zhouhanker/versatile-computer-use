@@ -33,6 +33,7 @@ vcu browser ungroup --tabs <tab_id>,<tab_id>
 vcu browser extract --tab <id> --selector 'a'
 vcu browser click --tab <id> --selector '#continue' --dry-run
 vcu browser click --tab <id> --selector '#continue'
+vcu browser hover --tab <id> --selector '#continue'
 vcu browser type --tab <id> --selector 'input[name=q]' --text 'hello'
 vcu browser scroll --tab <id> --dy 600
 ```
@@ -41,7 +42,7 @@ DOM 操作必须 `source=extension_dom`；标签管理为 `source=extension_tabs
 
 selector 多个匹配、隐藏、禁用或被遮挡时应修正目标；输入只接受可编辑节点。DOM 事件为非 trusted，无法替代网站要求的原生用户手势；不要靠重试伪造成功。超时可能发生在动作已经执行之后，应先重新观察，不盲目重复动作。
 
-## 网页截图坐标点击（Bridge 0.2.5）
+## 网页截图坐标点击（Bridge 0.2.7）
 
 ```sh
 vcu browser select --tab <id>
@@ -55,7 +56,7 @@ viewport PNG 由扩展直接截取目标页面，返回 `source=extension_viewpo
 
 capture 绑定 tab、document、URL、尺寸、滚动、缩放和 DOM revision，60 秒过期。页面变化时必须重新截图；真实点击消费 capture，即使回执失败也不能盲重试。用户切换标签不会把动作重定向到新标签或抢回焦点，目标仍是截图绑定的原标签。
 
-坐标动作 `source=extension_dom`、`input_path=dom_point_click`、`trusted=false`；iframe/canvas/object 等需原生输入的点目标明确拒绝。成功后再 extract/observe 核验业务结果。
+坐标动作 `source=extension_dom`、`trusted=false`。同源 iframe 点内层节点；canvas 走 `dom_point_click_canvas` 合成序列；跨源 iframe / object 明确拒绝。成功后再 extract/observe 核验业务结果。
 
 ## 浏览器整窗与 Guide（AX）
 

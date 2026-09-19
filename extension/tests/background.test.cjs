@@ -27,7 +27,7 @@ function makeHarness(options = {}) {
     nextTabId: options.nextTabId || 100,
     nextGroupId: options.nextGroupId || 10,
     storage: Object.assign({}, options.storage),
-    sendMessage: options.sendMessage || (() => Promise.resolve({ ok: true, pong: true, version: "0.2.6" })),
+    sendMessage: options.sendMessage || (() => Promise.resolve({ ok: true, pong: true, version: "0.2.7" })),
     executeScript: options.executeScript || (() => Promise.resolve([{}])),
   };
   if (!state.tabs.some((tab) => tab.active && tab.windowId === state.focusedWindowId)) {
@@ -59,7 +59,7 @@ function makeHarness(options = {}) {
       onInstalled: { addListener() {} },
       onStartup: { addListener() {} },
       onMessage: { addListener: (listener) => state.listeners.push(listener) },
-      getManifest: () => ({ version: "0.2.6" }),
+      getManifest: () => ({ version: "0.2.7" }),
       getURL: (file) => "chrome-extension://vcu-extension-id/" + file,
       getContexts: async () => [],
       reload() {},
@@ -226,6 +226,7 @@ test("list tabs exposes native group metadata and select_tab expands and focuses
   assert.equal(listed.ok, true);
   assert.deepEqual(JSON.parse(JSON.stringify(listed.groups)), [{ group_id: "7", window_id: "2", title: "Research", color: "blue", collapsed: true }]);
   assert.equal(listed.tabs.find((tab) => tab.tab_id === "11").group_id, "7");
+  assert.equal(listed.tabs[0].browser, "chrome");
   const selected = await api.handleCommand({ method: "select_tab", params: { tab_id: "11" } });
   assert.equal(selected.ok, true);
   assert.equal(selected.tab_id, "11");
@@ -289,7 +290,7 @@ test("mutation action does not replay an existing ok:false response", async () =
   const { api, state } = makeHarness({
     tabs: [{ id: 1, windowId: 1, url: "https://user.example/", active: true }],
     sendMessage: async (_id, payload) => {
-      if (payload.type === "vcu_ping_page") return { ok: true, pong: true, version: "0.2.6" };
+      if (payload.type === "vcu_ping_page") return { ok: true, pong: true, version: "0.2.7" };
       if (payload.type === "vcu_click") {
         actionCalls += 1;
         return { ok: false, error: "page rejected click", detail: "preserve me" };
@@ -321,7 +322,7 @@ test("send timeout injects then sends the mutation once", async () => {
   const { api, state } = makeHarness({
     tabs: [{ id: 1, windowId: 1, url: "https://user.example/", active: true }],
     sendMessage: async (_id, payload) => {
-      if (payload.type === "vcu_ping_page") return ++pingCalls > 1 ? { ok: true, pong: true, version: "0.2.6" } : null;
+      if (payload.type === "vcu_ping_page") return ++pingCalls > 1 ? { ok: true, pong: true, version: "0.2.7" } : null;
       if (payload.type === "vcu_type") {
         actionCalls += 1;
         return { ok: true, typed: true };
@@ -380,7 +381,7 @@ test("viewport screenshot binds the active tab and rejects changes during captur
   const viewport = {document_id:"doc-1",url:"https://example.com/",width:100,height:80,revision:1};
   let calls = 0;
   const h = makeHarness({tabs:[{id:1,windowId:4,url:viewport.url,active:true}], sendMessage: async (_id,msg) => {
-    if (msg.type === "vcu_ping_page") return {ok:true,version:"0.2.6"};
+    if (msg.type === "vcu_ping_page") return {ok:true,version:"0.2.7"};
     if (msg.type === "vcu_viewport") { calls++; return {ok:true,viewport:{...viewport,revision:calls <= 2 ? 1 : calls}}; }
     return {ok:true,pressed:true};
   }});
@@ -388,6 +389,8 @@ test("viewport screenshot binds the active tab and rejects changes during captur
   assert.equal(shot.ok,true);
   assert.equal(shot.tab_id,"1");
   assert.equal(shot.viewport.document_id,"doc-1");
+  const viewportMsg = h.state.calls.filter(c=>c.method === "sendMessage" && c.payload && c.payload.type === "vcu_viewport").at(-1).payload;
+  assert.equal(viewportMsg.keep_cursor, true);
   const changed = await h.api.handleCommand({method:"capture_tab",params:{tab_id:"1"}});
   assert.equal(changed.ok,false);
   assert.match(changed.error,/changed/);
@@ -436,7 +439,7 @@ test("drawing zoom travels with the exact tab without changing action coordinate
 
 test("screenshot bursts respect the browser capture quota", async () => {
   const viewport={document_id:"doc-rate",url:"https://example.com/",width:100,height:80,revision:0};
-  const h=makeHarness({tabs:[{id:1,windowId:4,url:viewport.url,active:true}],sendMessage:async (_id,msg)=>msg.type==='vcu_ping_page'?{ok:true,version:'0.2.6'}:{ok:true,viewport}});
+  const h=makeHarness({tabs:[{id:1,windowId:4,url:viewport.url,active:true}],sendMessage:async (_id,msg)=>msg.type==='vcu_ping_page'?{ok:true,version:'0.2.7'}:{ok:true,viewport}});
   for(let i=0;i<3;i++) {
     const result=await h.api.handleCommand({method:'capture_tab',params:{tab_id:'1'}});
     assert.equal(result.ok,true,result.error);
@@ -453,4 +456,23 @@ test("explicit tab owned by another browser is retryable instead of a hard miss"
   assert.equal(result.ok, false);
   assert.equal(result.error, "wrong_extension_browser");
   assert.equal(result.retryable, true);
+});
+
+test("hover uses focused injectable tab and retryable mismatch", async () => {
+  const h = makeHarness({
+    tabs: [{ id: 1, windowId: 4, url: "https://example.com/", active: true }],
+    sendMessage: async (_id, msg) => {
+      if (msg.type === "vcu_ping_page") return { ok: true, pong: true, version: "0.2.7" };
+      if (msg.type === "vcu_hover") return { ok: true, hovered: true, input_path: "dom_hover", trusted: false };
+      return { ok: true };
+    },
+  });
+  const hovered = await h.api.handleCommand({ method: "hover", params: { selector: "#x" } });
+  assert.equal(hovered.ok, true, hovered.error);
+  assert.equal(hovered.hovered, true);
+  assert.equal(hovered.tab_id, "1");
+  const miss = await h.api.handleCommand({ method: "hover", params: { tab_id: "99", selector: "#x" } });
+  assert.equal(miss.ok, false);
+  assert.equal(miss.error, "wrong_extension_browser");
+  assert.equal(miss.retryable, true);
 });

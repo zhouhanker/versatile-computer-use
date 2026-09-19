@@ -287,7 +287,7 @@ test("repeated content-script execution is versioned and listener-idempotent", (
   assert.equal(context.__vcuContent.document_id, firstDocumentId, "same document keeps its identity");
   let response;
   listeners[0]({ type: "vcu_ping_page" }, null, (value) => { response = value; });
-  assert.equal(response.version, "0.2.6");
+  assert.equal(response.version, "0.2.7");
 
   const legacyListeners = [];
   const legacyContext = {
@@ -532,7 +532,7 @@ test("point click preserves supplied hotspot, activates a button around a span, 
   assert.equal(span.dispatches.length, 0);
 });
 
-test("point click refuses iframe and canvas targets that need trusted input", () => {
+test("point click refuses cross-origin iframe; canvas gets synthetic untrusted events", () => {
   const iframe = new FakeElement("IFRAME", { left: 5, top: 5, width: 40, height: 40 });
   const document = new FakeDocument({}, iframe);
   installPage(document, true);
@@ -545,9 +545,30 @@ test("point click refuses iframe and canvas targets that need trusted input", ()
   const canvas = new FakeElement("CANVAS", { left: 5, top: 5, width: 40, height: 40 });
   document.hit = canvas;
   const canvasResult = content.clickPoint(20, 20, snapshot, false);
-  assert.equal(canvasResult.ok, false);
-  assert.equal(canvasResult.error_code, "unsupported_point_target");
+  assert.equal(canvasResult.ok, true);
+  assert.equal(canvasResult.pressed, true);
+  assert.equal(canvasResult.trusted, false);
+  assert.equal(canvasResult.input_path, "dom_point_click_canvas");
+  assert.ok(canvas.dispatches.some((event) => event.type === "click"));
 });
+
+test("same-origin iframe point click targets the inner element", () => {
+  const inner = new FakeElement("BUTTON", { left: 0, top: 0, width: 20, height: 20 });
+  inner.innerText = "inner";
+  const innerDoc = new FakeDocument({}, inner);
+  innerDoc.hit = inner;
+  const iframe = new FakeElement("IFRAME", { left: 5, top: 5, width: 40, height: 40 });
+  iframe.contentDocument = innerDoc;
+  iframe.getBoundingClientRect = () => ({ left: 5, top: 5, width: 40, height: 40 });
+  const document = new FakeDocument({}, iframe);
+  installPage(document, true);
+  const snapshot = content.viewportSnapshot().viewport;
+  const result = content.clickPoint(20, 20, snapshot, false);
+  assert.equal(result.ok, true);
+  assert.equal(result.pressed, true);
+  assert.equal(inner.dispatches.some((event) => event.type === "click"), true);
+});
+
 
 test("click rejects ambiguous, hidden, disabled, inert, and occluded selectors", () => {
   const ambiguousA = new FakeElement("BUTTON", { left: 10, top: 10, width: 20, height: 20 });
@@ -705,6 +726,42 @@ test("type only edits writable controls and uses the native value setter", () =>
   assert.equal(body.textContent, "");
 });
 
+
+test("viewport snapshot keeps the virtual cursor when asked", () => {
+  const button = new FakeElement("BUTTON", { left: 20, top: 30, width: 20, height: 10 });
+  const document = new FakeDocument({ "#keep": [button] }, button);
+  installPage(document, true);
+  hoverDom("#keep", false);
+  assert.ok(document.getElementById(constants.VCU_CURSOR_ID));
+  const hidden = content.viewportSnapshot();
+  assert.equal(hidden.cursor_visible, false);
+  assert.equal(document.getElementById(constants.VCU_CURSOR_ID), null);
+  hoverDom("#keep", false);
+  const kept = content.viewportSnapshot({ keep_cursor: true });
+  assert.equal(kept.ok, true);
+  assert.equal(kept.cursor_visible, true);
+  assert.ok(document.getElementById(constants.VCU_CURSOR_ID), "capture should leave the dart in the page");
+});
+
+test("cursor heading rotates toward the next move and click squash is applied", () => {
+  const a = new FakeElement("BUTTON", { left: 10, top: 10, width: 10, height: 10 });
+  const b = new FakeElement("BUTTON", { left: 70, top: 10, width: 10, height: 10 });
+  const document = new FakeDocument({ "#a": [a], "#b": [b] }, a);
+  installPage(document, true);
+  hoverDom("#a", false);
+  const root = document.getElementById(constants.VCU_CURSOR_ID).shadowRoot.querySelector(".vcu-cursor");
+  const rest = Number(root.getAttribute("data-heading"));
+  assert.ok(Number.isFinite(rest));
+  document.hit = b;
+  const clicked = clickDom("#b", false);
+  assert.equal(clicked.ok, true);
+  const moved = document.getElementById(constants.VCU_CURSOR_ID).shadowRoot.querySelector(".vcu-cursor");
+  assert.equal(moved.getAttribute("data-heading"), "0");
+  assert.match(String(moved.style.transform), /rotate\(/);
+  const arrow = document.getElementById(constants.VCU_CURSOR_ID).shadowRoot.querySelector(".vcu-arrow");
+  assert.equal(arrow.classList.contains("click"), true);
+});
+
 test("cursor drawing compensates webpage zoom while preserving its target hotspot", () => {
   const button = new FakeElement("BUTTON", {left:20,top:30,width:20,height:10});
   const document = new FakeDocument({"#zoom-target":[button]},button);
@@ -716,7 +773,7 @@ test("cursor drawing compensates webpage zoom while preserving its target hotspo
     const root=document.getElementById(constants.VCU_CURSOR_ID).shadowRoot.querySelector('.vcu-cursor');
     assert.equal(root.style.left,'30px');
     assert.equal(root.style.top,'35px');
-    assert.equal(root.style.transform,`scale(${scale})`);
+    assert.match(String(root.style.transform), new RegExp('scale\\(' + scale + '\\)'));
   }
   content.__vcuTest.setCursorZoom(1);
 });

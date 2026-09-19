@@ -388,6 +388,15 @@ enum BrowserCmd {
         #[arg(long, default_value_t = false)]
         guide: bool,
     },
+    /// Hover a unique DOM selector via the USER extension (synthetic, trusted=false).
+    Hover {
+        #[arg(long)]
+        selector: String,
+        #[arg(long)]
+        tab: Option<String>,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
     /// Type into USER browser. Default: AX address bar. `--selector` uses USER extension DOM.
     Type {
         #[arg(long)]
@@ -1148,6 +1157,15 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                     }),
                 )
                 .await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            BrowserCmd::Hover { selector, tab, dry_run } => {
+                let mut body = json!({ "selector": selector, "dry_run": dry_run });
+                if let Some(id) = tab {
+                    body["tab_id"] = json!(id);
+                }
+                let v = api_post(&paths, "/v1/browser/hover", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
