@@ -139,7 +139,8 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-110 | vcu screenshot PrintWindow | **通过** run `35466641180` `SHOT_OK` 768x519 PNG |
 | TC-D-120 | vcu open_path Explorer | **通过** run `35467498771` `OPEN_OK path=explorer_open` |
 | TC-D-130 | vcu reveal Explorer | **通过** run `35467970349` `REVEAL_OK path=explorer_reveal` |
-| TC-D-140 | cmd type without Return | **未过** `echo-not-run`；换行 FocusPolicyViolation |
+| TC-D-140 | cmd type without Return | **通过** run `35469208163` `TYPE_OK path=clipboard_paste`；`NEWLINE_DENIED`；无 SendInput |
+| TC-D-150 | Windows playbook names clipboard_paste | **通过** `playbooks/desktop.md` 含 `clipboard_paste` / `win:cmd:`；无 SendInput |
 
 ## 8. 未通过不得宣称完成
 

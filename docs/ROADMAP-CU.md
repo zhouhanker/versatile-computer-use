@@ -159,7 +159,8 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-110 | 经 `vcu screenshot` 的 PrintWindow | **完成（CI 真机）** run `35466641180`：`SHOT_OK bytes=10984 width=768 height=519`。无 CopyFromScreen / SendInput。 |
 | CU-D-120 | 经 `vcu act open_path` 打开 Explorer 目录 | **完成（CI 真机）** run `35467498771`：`OPEN_OK path=explorer_open`。无 SendInput。 |
 | CU-D-130 | 经 `vcu act reveal` 在 Explorer 中选中文件 | **完成（CI 真机）** run `35467970349`：`REVEAL_OK path=explorer_reveal`。无 SendInput。 |
-| CU-D-140 | cmd 无换行输入；换行拒绝 | **进行中** 抛弃型 cmd.exe；无 Return；无 SendInput。 |
+| CU-D-140 | cmd 无换行输入；换行拒绝 | **完成（CI 真机）** run `35469208163` @ `af2fcde`：`SNAP_OK ref=e1`；`TYPE_OK path=clipboard_paste os_cursor_used=False`；`NEWLINE_DENIED`。HWND 经 conhost/AttachConsole，不是 MainWindowHandle。无 SendInput；未执行命令。 |
+| CU-D-150 | Windows playbook 最短环 | **完成** `playbooks/desktop.md`：cmd `clipboard_paste`、禁换行、无 SendInput。单测读 playbook。不是产品 Windows CU。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -183,6 +184,7 @@ CU-D-000 文档
     → CU-D-120 vcu Windows explorer open_path
     → CU-D-130 vcu Windows explorer reveal
     → CU-D-140 vcu Windows cmd type
+    → CU-D-150 Windows playbook
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

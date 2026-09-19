@@ -1215,6 +1215,14 @@ mod tests {
         let l140 = s140.to_ascii_lowercase();
         assert!(!l140.contains("sendinput("));
         assert!(!l140.contains("[system.windows.forms.sendkeys"));
+        let book = root.join("playbooks/desktop.md");
+        let play = std::fs::read_to_string(&book).unwrap_or_default();
+        assert!(play.contains("clipboard_paste"), "{}", book.display());
+        assert!(play.contains("win:cmd:"));
+        assert!(play.contains("FocusPolicyViolation"));
+        let lplay = play.to_ascii_lowercase();
+        assert!(!lplay.contains("sendinput("));
+        assert!(!lplay.contains("[system.windows.forms.sendkeys"));
     }
 
     #[cfg(not(windows))]

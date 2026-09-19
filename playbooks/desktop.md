@@ -1,6 +1,6 @@
 # Desktop surface（最短环）
 
-登录态网页仍走 Browser Bridge。这段只用于 **macOS 真窗口**（TextEdit / Notes / Finder），不搬物理鼠标。
+登录态网页仍走 Browser Bridge。macOS 真窗口（TextEdit / Notes / Finder）与 Windows CI 切片（Notepad / Explorer / cmd）都不搬物理鼠标。
 
 ```sh
 vcu daemon start
@@ -46,3 +46,21 @@ vcu type --session <sid> --tab proc:Terminal:<pid> --ref w1 --text 'echo-not-run
 飞书客户端（CU-D-042）：只观察已打开的窗。消息在 Electron webview，AX 列不出气泡。禁止点发送 / 盲目 Return。
 
 系统设置（CU-D-043）：只观察。缺辅助功能时看 `vcu doctor` 的 hint（系统设置 → 隐私与安全），不要让 agent 去勾选。
+
+
+## Windows（CU-D-090…140，CI 真机，不是产品会话）
+
+Server 2022 上的诚实路径：Notepad 写入是 `wm_settext`（Edit 常是 `ControlType.Pane`，**不是** ValuePattern）；按钮是 `bm_click`（**不是** InvokePattern）；Explorer 是 `explorer_open` / `explorer_reveal`；cmd 是 `clipboard_paste`。禁止 SendInput / SendKeys。
+
+cmd 的可见窗在 conhost 上，`Get-Process.MainWindowHandle` 经常是 0。Scene 往往没有 Edit，用窗口 ref。
+
+```sh
+# 抛弃型 cmd：scripts/poc_cu_d_140.ps1
+vcu session start --surface desktop --app-id win:cmd:<pid> --json
+vcu snapshot --session <sid> --tab win:cmd:<pid> --json
+# source=uia_scene；选窗口 ref（常见 e1），不要假报 Edit
+vcu type --session <sid> --tab win:cmd:<pid> --ref e1 --text echo-not-run --json
+# input_path=clipboard_paste  os_cursor_used=false
+```
+
+换行或 Return 无 `confirm_send` → FocusPolicyViolation。不要把这段写成已执行命令，也不要写成完整 Windows 产品 CU。
