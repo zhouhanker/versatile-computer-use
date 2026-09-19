@@ -10,7 +10,8 @@ use vcu_core::{
 
 use super::{ActionResultDetail, BrowserBackend, ScreenshotData, SnapshotData};
 use crate::app::{
-    ax_point_from_pixel, is_webview_like, smallest_ref_at_point, webview_crop_frame, AppBackend,
+    ax_point_from_pixel, is_editable_ax_role, is_webview_like, smallest_ref_at_point,
+    webview_crop_frame, AppBackend,
 };
 use crate::stage::StageHandle;
 
@@ -322,6 +323,14 @@ impl DesktopBackend {
         false
     }
 
+    fn cached_role(&self, tab_id: &str, target_ref: &str) -> Option<String> {
+        let cache = self.last_refs.lock().ok()?;
+        let refs = cache.get(tab_id)?;
+        refs.iter()
+            .find(|r| r.r#ref == target_ref)
+            .map(|r| r.role.clone())
+    }
+
 }
 
 #[async_trait]
@@ -532,14 +541,27 @@ impl BrowserBackend for DesktopBackend {
         let r = target_ref.ok_or_else(|| {
             VcuError::coded(ErrorCode::InvalidInput, "desktop type requires target ref")
         })?;
+        if let Some(role) = self.cached_role(tab_id, r) {
+            let textedit = tab_id.to_ascii_lowercase().contains("textedit");
+            if !is_editable_ax_role(&role) && !textedit {
+                return Err(VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    format!(
+                        "desktop type ref {r} is {role}; need AXTextArea/AXTextField (not scroll area)"
+                    ),
+                ));
+            }
+        }
         let mut app = self.app.write().await;
-        let detail = app.set_value(tab_id, r, text).await?;
+        let mut detail = app.set_value(tab_id, r, text).await?;
         if detail.get("os_cursor_used").and_then(|v| v.as_bool()) == Some(true) {
             return Err(VcuError::coded(
                 ErrorCode::OsCursorDenied,
                 "desktop actuator attempted OS cursor warp",
             ));
         }
+        detail["os_cursor_used"] = serde_json::json!(false);
+        detail["tab_id"] = serde_json::json!(tab_id);
         Ok(ActionResultDetail { ok: true, detail })
     }
 
@@ -975,6 +997,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(typed.detail["input_path"], "ax_set_value");
+        assert_eq!(typed.detail["os_cursor_used"], false);
+        let fs_typed_btn = b
+            .type_text(&feishu.tab_id, "hello", Some("e1"))
+            .await
+            .unwrap_err();
+        assert_eq!(fs_typed_btn.code(), ErrorCode::InvalidInput);
         let err = b.snapshot(&wechat.tab_id, SnapshotMode::A11y, 2000).await.unwrap_err();
         assert_eq!(err.code(), ErrorCode::AppDenied);
         let err = b

@@ -30,9 +30,8 @@ cargo test -p vcu-server app::
 阶段 2 起受控真机（需辅助功能）：
 
 ```sh
-# 计划中的脚本名，落地时再实现；未落地前不得把真机当绿
-# bash scripts/poc_desktop_textedit.sh
-# bash scripts/poc_desktop_abort.sh
+bash scripts/poc_desktop_textedit.sh   # CU-D-023 TextEdit 真写入
+bash scripts/poc_desktop_notes.sh      # CU-D-023 Notes AXPress（勿点添加/新建）
 ```
 
 现有相关：
@@ -68,7 +67,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | ID | 标题 | 前置 | 期望 |
 | --- | --- | --- | --- |
 | TC-D-020 | AXPress 非零不得成功 | 单测 | `ax_ref_press_succeeded` 拒绝 ok-click / 非零码 |
-| TC-D-021 | TextEdit live 写入一行 | 用户已授辅助功能 | 文档出现约定字符串；os_cursor_used=false |
+| TC-D-021 | TextEdit live 写入一行 | 用户已授辅助功能 | **通过** 2026-09-20：标记在文档内；os_cursor_used=false；脚本 `scripts/poc_desktop_textedit.sh` |
 | TC-D-022 | AXPress 非零 | mock | 失败，不 pressed=true |
 | TC-D-023 | 像素点 WebArea | 浏览器窗 | hit 为 WebArea 或明确失败，不报 extension_dom |
 | TC-D-024 | Guide overlay | live | overlay true；不移动物理鼠标 |

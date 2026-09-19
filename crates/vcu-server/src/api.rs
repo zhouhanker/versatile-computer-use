@@ -1695,11 +1695,15 @@ async fn resolve_tab(slot: &mut SessionSlot, tab_id: Option<String>) -> Result<S
         return Ok(t);
     }
     let tabs = slot.backend.list_tabs().await?;
+    // Prefer the session's active tab/app. The first agent-owned window is often
+    // USER Edge on a real Mac, which made desktop `type` miss TextEdit (CU-D-023).
+    if let Some(active) = slot.session.active_tab_id.clone() {
+        if tabs.iter().any(|t| t.tab_id == active) {
+            return Ok(active);
+        }
+    }
     if let Some(t) = tabs.iter().find(|t| t.agent_owned) {
         return Ok(t.tab_id.clone());
-    }
-    if let Some(t) = slot.session.active_tab_id.clone() {
-        return Ok(t);
     }
     tabs.into_iter()
         .next()
@@ -2016,6 +2020,10 @@ async fn type_text(
         .await
     {
         Ok(detail) => {
+            slot.session.active_tab_id = Some(tab.clone());
+            if matches!(slot.session.surface, SurfaceKind::Desktop) {
+                slot.session.active_app_id = Some(tab.clone());
+            }
             slot.session.revision += 1;
             let ar = ActionResult {
                 action_id: new_id(),

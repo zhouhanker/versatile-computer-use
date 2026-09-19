@@ -344,8 +344,16 @@ fn ax_wants_enhanced(process: &str) -> bool {
         || process.contains("飞书")
 }
 
+fn ax_prefer_text_kids(process: &str) -> bool {
+    process.eq_ignore_ascii_case("TextEdit")
+}
+
+fn ax_is_notes(process: &str) -> bool {
+    process.eq_ignore_ascii_case("Notes") || process.contains("备忘录")
+}
+
 fn ax_bfs_max_depth(process: &str) -> i32 {
-    if process.to_ascii_lowercase().contains("finder") {
+    if process.to_ascii_lowercase().contains("finder") || ax_is_notes(process) {
         4
     } else if ax_wants_enhanced(process) {
         14
@@ -355,7 +363,7 @@ fn ax_bfs_max_depth(process: &str) -> i32 {
 }
 
 fn ax_bfs_max_nodes(process: &str) -> i32 {
-    if process.to_ascii_lowercase().contains("finder") {
+    if process.to_ascii_lowercase().contains("finder") || ax_is_notes(process) {
         AX_BFS_MAX_NODES
     } else if ax_wants_enhanced(process) {
         AX_BFS_BROWSER_NODES
@@ -365,7 +373,9 @@ fn ax_bfs_max_nodes(process: &str) -> i32 {
 }
 
 fn ax_bfs_timeout_ms(process: &str) -> u64 {
-    if ax_wants_enhanced(process) {
+    if ax_is_notes(process) {
+        4000
+    } else if ax_wants_enhanced(process) {
         AX_BFS_BROWSER_TIMEOUT_MS
     } else {
         AX_BFS_TIMEOUT_MS
@@ -487,13 +497,14 @@ fn ax_bfs_script(process: &str, on_match: &str, not_found: &str) -> String {
                         if r contains "static text" then set vcuLeaf to true
                         if r contains "Splitter" then set vcuLeaf to true
                         if r contains "splitter" then set vcuLeaf to true
+{notes_leaf}
                         if r contains "WebArea" then set vcuLeaf to false
                         if vcuLeaf is false then
                           try
                             set vcuKids to UI elements of el
                             set vcuKidMax to 16
-                            if r contains "WebArea" then set vcuKidMax to 32
-                            if r contains "WebArea" then
+                            if r contains "WebArea"{web_pref} then set vcuKidMax to 32
+                            if r contains "WebArea"{web_pref} then
                               set vcuPref to {{}}
                               repeat with vcuKidIdx from 1 to (count of vcuKids)
                                 if vcuKidIdx > vcuKidMax then exit repeat
@@ -527,6 +538,18 @@ fn ax_bfs_script(process: &str, on_match: &str, not_found: &str) -> String {
         read_el = ax_read_el_snippet(),
         on_match = on_match,
         not_found = not_found,
+        web_pref = if ax_prefer_text_kids(process) {
+            r#" or r contains "ScrollArea" or r contains "scroll area" or r contains "TextArea" or r contains "text area""#
+        } else {
+            ""
+        },
+        notes_leaf = if ax_is_notes(process) {
+            r#"                        if r contains "SplitGroup" then set vcuLeaf to true
+                        if r contains "split group" then set vcuLeaf to true
+"#
+        } else {
+            ""
+        },
     ), process)
 }
 
@@ -847,18 +870,72 @@ fn ax_invoke_script(process: &str, eref: &str) -> String {
     )
 }
 
+fn ax_textedit_document_script(val: &str) -> String {
+    format!(
+        r#"
+            tell application "System Events"
+              tell process "TextEdit"
+                try
+                  set ta to text area 1 of window 1
+                  try
+                    set focused of ta to true
+                  end try
+                  set value of ta to "{val}"
+                  return "ok-textedit-textarea"
+                on error errMsg
+                  return "error:" & errMsg
+                end try
+              end tell
+            end tell
+            "#
+    )
+}
+
 fn ax_set_value_script(process: &str, eref: &str, val: &str) -> String {
     ax_bfs_script(
         process,
         &format!(
             r#"                        if ("e" & n) is "{eref}" then
+                          set vcuTarget to el
+                          set vcuRole to r
+                          if (r does not contain "TextArea") and (r does not contain "text area") and (r does not contain "TextField") and (r does not contain "text field") and (r does not contain "SearchField") and (r does not contain "ComboBox") and (r is not "text") then
+                            try
+                              set vcuKids to UI elements of el
+                              repeat with vcuKidIdx from 1 to (count of vcuKids)
+                                set vcuKid to item vcuKidIdx of vcuKids
+                                set vcuKr to ""
+                                try
+                                  set vcuKr to role of vcuKid as text
+                                end try
+                                if (vcuKr contains "TextArea") or (vcuKr contains "text area") or (vcuKr contains "TextField") or (vcuKr contains "text field") then
+                                  set vcuTarget to vcuKid
+                                  set vcuRole to vcuKr
+                                  exit repeat
+                                end if
+                              end repeat
+                            end try
+                          end if
+                          set vcuOkRole to false
+                          if vcuRole contains "TextArea" then set vcuOkRole to true
+                          if vcuRole contains "text area" then set vcuOkRole to true
+                          if vcuRole contains "TextField" then set vcuOkRole to true
+                          if vcuRole contains "text field" then set vcuOkRole to true
+                          if vcuRole contains "SearchField" then set vcuOkRole to true
+                          if vcuRole contains "ComboBox" then set vcuOkRole to true
+                          if vcuRole is "text" then set vcuOkRole to true
+                          if vcuOkRole is false then
+                            return "error:not-text:" & vcuRole
+                          end if
                           try
-                            set value of el to "{val}"
-                            return "ok"
+                            set focused of vcuTarget to true
+                          end try
+                          try
+                            set value of vcuTarget to "{val}"
+                            return "ok:" & vcuRole
                           on error
                             try
-                              set value of attribute "AXValue" of el to "{val}"
-                              return "ok-axvalue"
+                              set value of attribute "AXValue" of vcuTarget to "{val}"
+                              return "ok-axvalue:" & vcuRole
                             on error errMsg
                               return "error:" & errMsg
                             end try
@@ -1144,7 +1221,18 @@ impl AppBackend for MacosAppBackend {
         let name = Self::process_name_from_id(id);
         self.ensure_operable(&name)?;
         let script = ax_set_value_script(&Self::as_literal(&name), &Self::as_literal(element_ref), &Self::as_literal(value));
-        let out = Self::run_osascript_timeout(&script, AX_BFS_TIMEOUT_MS)?;
+        let mut out = Self::run_osascript_timeout(&script, AX_BFS_TIMEOUT_MS)?;
+        if (out.to_ascii_lowercase().starts_with("error:") || out == "not-found")
+            && name.eq_ignore_ascii_case("TextEdit")
+        {
+            // TextEdit document lives in `text area 1`; toolbar/scroll refs are not editable.
+            let fallback = ax_textedit_document_script(&Self::as_literal(value));
+            if let Ok(alt) = Self::run_osascript_timeout(&fallback, 2500) {
+                if !alt.to_ascii_lowercase().starts_with("error:") && alt != "not-found" {
+                    out = alt;
+                }
+            }
+        }
         if out.to_ascii_lowercase().starts_with("error:") || out == "not-found" {
             return Err(VcuError::with_detail(ErrorCode::ActionFailed, "ax set_value failed", out));
         }
@@ -1426,6 +1514,23 @@ mod tests {
         assert!(!inv.contains("CGWarp"));
         assert!(setv.contains("AXValue"));
         assert!(setv.contains("hello"));
+        assert!(setv.contains("not-text"));
+        assert!(setv.contains("TextArea"));
+        let te_doc = ax_textedit_document_script("hello");
+        assert!(te_doc.contains("text area 1"));
+        assert!(te_doc.contains("ok-textedit-textarea"));
+        assert!(!te_doc.to_ascii_lowercase().contains("mouse"));
+        let te = ax_snapshot_script("TextEdit");
+        assert!(te.contains("ScrollArea"));
+        assert!(te.contains("text area"));
+        assert!(ax_prefer_text_kids("TextEdit"));
+        assert!(!ax_prefer_text_kids("Finder"));
+        assert!(!ax_prefer_text_kids("Notes"));
+        let notes = ax_snapshot_script("Notes");
+        assert!(notes.contains("vcuDepth <= 4"));
+        assert!(notes.contains("n < 80"));
+        assert!(notes.contains("SplitGroup"));
+        assert!(!ax_snapshot_script("TextEdit").contains("SplitGroup"));
         let finder = ax_snapshot_script("Finder");
         assert!(finder.contains("vcuDepth <= 4"));
         assert!(finder.contains("n < 80"));

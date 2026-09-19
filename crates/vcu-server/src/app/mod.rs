@@ -259,6 +259,23 @@ pub fn is_webview_like(role: &str, name: &str) -> bool {
         || blob.contains("axwebarea")
 }
 
+/// AX roles that can receive `AXSetValue` / desktop `type`.
+/// `AXScrollArea` contains "area" but is not a text control (CU-D-023 e1 miss).
+pub fn is_editable_ax_role(role: &str) -> bool {
+    let r = role.to_ascii_lowercase();
+    if r.contains("scroll") || r.contains("static") || r.contains("webarea") {
+        return false;
+    }
+    r.contains("textarea")
+        || r.contains("text area")
+        || r.contains("textfield")
+        || r.contains("text field")
+        || r.contains("searchfield")
+        || r.contains("combo")
+        || r.contains("axtext")
+        || r == "text"
+}
+
 /// Prefer the largest WebView/messenger frame so chat pane wins over the sidebar strip.
 pub fn webview_hint(elements: &[AppElement]) -> (bool, Option<String>) {
     let mut best: Option<(f64, String)> = None;
@@ -625,6 +642,14 @@ mod tests {
         assert_eq!(r.as_deref(), Some("e15"));
         assert!(!is_webview_like("AXButton", "关闭按钮"));
         assert!(is_webview_like("AXWebArea", "bilibili"));
+        assert!(is_editable_ax_role("AXTextArea"));
+        assert!(is_editable_ax_role("text area"));
+        assert!(is_editable_ax_role("AXTextField"));
+        assert!(is_editable_ax_role("text"));
+        assert!(!is_editable_ax_role("AXScrollArea"));
+        assert!(!is_editable_ax_role("scroll area"));
+        assert!(!is_editable_ax_role("AXButton"));
+        assert!(!is_editable_ax_role("AXStaticText"));
         assert_eq!(
             element_wait_match(&els, None, Some("messenger-chat"), None).as_deref(),
             Some("e15")

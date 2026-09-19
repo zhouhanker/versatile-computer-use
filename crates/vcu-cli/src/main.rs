@@ -94,6 +94,8 @@ enum Commands {
         text: String,
         #[arg(long = "ref")]
         target_ref: Option<String>,
+        #[arg(long)]
+        tab: Option<String>,
     },
     Extract {
         #[arg(long)]
@@ -778,10 +780,14 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
             session,
             text,
             target_ref,
+            tab,
         } => {
             let mut body = json!({"text": text});
             if let Some(r) = target_ref {
                 body["ref"] = json!(r);
+            }
+            if let Some(t) = tab {
+                body["tab_id"] = json!(t);
             }
             let v = api_post(&paths, &format!("/v1/session/{session}/type"), body).await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());

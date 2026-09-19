@@ -110,7 +110,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 | CU-D-020 | AXPress 按 Scene ref；非零错误码如实返回 | **完成（单测）** `ax_ref_press_succeeded`；去掉 System Events `click el` 回退；非 `axpress:0` 失败 |
 | CU-D-021 | AXSetValue / 键盘；Return 仍要 confirm_send | **完成（单测）** `desktop_key_policy_gates_return_and_escape`；type 走 `ax_set_value` |
 | CU-D-022 | Guide 画在目标 AX 点；`os_cursor_used=false` | **完成（单测）** click/hover/pixel `guide.overlay=true` 且 `os_cursor_used=false` |
-| CU-D-023 | 受控真机：TextEdit 输入一行字，Notes 点按钮类控件 | **未通过** 2026-09-20：session/snapshot 绿，type 回 ok，但文档文本未出现标记（ref 可能不是文本区）。脚本 `scripts/poc_desktop_textedit.py` |
+| CU-D-023 | 受控真机：TextEdit 输入一行字，Notes 点按钮类控件 | **完成（真机）** TextEdit `e8` AXTextArea 写入标记，`os_cursor_used=false`，`input_path=ax_set_value`；Notes `AXPress` `axpress:0` + Guide overlay。脚本 `scripts/poc_desktop_textedit.py` / `poc_desktop_notes.py`。证据 `.local/desktop-cu/`（不入库） |
 | CU-D-024 | 像素 click `space=window`：像素→AX，命中 WebArea 只报 WebArea | **完成（单测）** webview 像素 `hit_ref=e15` 且 `input_path != extension_dom` |
 
 ### 阶段 3 — 浏览器 + 桌面统一循环（约 1 周）

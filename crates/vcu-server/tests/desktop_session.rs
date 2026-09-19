@@ -392,3 +392,54 @@ async fn session_abort_removes_desktop_session() {
     let arr = listed["data"].as_array().unwrap();
     assert!(arr.iter().all(|s| s["session_id"] != sid), "{listed}");
 }
+
+#[tokio::test]
+async fn type_without_tab_uses_active_app_not_first_window() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = VcuPaths::from_root(dir.path());
+    let mut cfg = UserConfig::default();
+    cfg.daemon_port = 0;
+    paths.save_config(&cfg).unwrap();
+    let token = cfg.pairing_token.clone();
+    let handle = vcu_server::start_daemon(paths, cfg).await.unwrap();
+    {
+        let mut b = handle.state.app_backend.write().await;
+        *b = Box::new(MockAppBackend::default());
+    }
+    let base = format!("http://{}", handle.addr);
+    let client = reqwest::Client::new();
+    let auth = |r: reqwest::RequestBuilder| r.header("X-Vcu-Token", &token);
+
+    // First agent-owned mock window is TextEdit; pin Feishu via app_id.
+    let started: serde_json::Value = auth(client.post(format!("{base}/v1/session/start")))
+        .json(&json!({"surface":"desktop","app_id":"proc:Feishu:3"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(started["ok"], true, "{started}");
+    let sid = started["data"]["session_id"].as_str().unwrap().to_string();
+    assert!(
+        started["data"]["active_app_id"]
+            .as_str()
+            .unwrap()
+            .contains("Feishu"),
+        "{started}"
+    );
+
+    let typed: serde_json::Value = auth(client.post(format!("{base}/v1/session/{sid}/type")))
+        .json(&json!({"text":"hello","ref":"e1"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(typed["ok"], true, "{typed}");
+    assert_eq!(typed["data"]["detail"]["process"], "Feishu", "{typed}");
+    assert_eq!(typed["data"]["detail"]["os_cursor_used"], false);
+    handle.join.abort();
+}
+

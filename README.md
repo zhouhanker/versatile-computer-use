@@ -16,9 +16,9 @@
 | --- | --- |
 | Browser Bridge | **0.2.8** |
 | Runtime package | **0.1.0** |
-| 范围 | 仅浏览器：USER Edge / Chrome + `~/.vcu/lens-extension` |
+| 范围 | 浏览器 Bridge **0.2.8 冻结**（USER Edge / Chrome + `~/.vcu/lens-extension`）。桌面对标 Codex CU 史诗进行中：TextEdit 真机 AX 输入已过，**还不是**完整桌面 CU。 |
 
-VCU 是独立的登录态浏览器操作层，**不是** Codex 官方桌面 Computer Use，也不是通用 OS 键鼠。
+VCU 是独立的登录态浏览器操作层，**不是** Codex 官方桌面 Computer Use，也不是通用 OS 键鼠。桌面路径见 [`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md)。
 
 ## 能做什么
 
