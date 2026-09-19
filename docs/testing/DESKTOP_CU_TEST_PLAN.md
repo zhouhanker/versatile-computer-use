@@ -135,7 +135,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-070 | CI Notepad 写入并读回 | **通过** run `35463098806` `SETVALUE_OK path=wm_settext`；无 SendInput；非 ValuePattern |
 | TC-D-080 | backend set_value 接受 wm_settext | **通过（单测）** `input_path=wm_settext` `os_cursor_used=false` |
 | TC-D-090 | vcu desktop Notepad type | **通过** run `35465535542` `STAGE_OK` + `SNAP_OK source=uia_scene` + `TYPE_OK path=wm_settext` |
-| TC-D-100 | vcu click InvokePattern | **未过** 抛弃型按钮；`INVOKE_OK path=uia_invoke`；无 SendInput |
+| TC-D-100 | vcu click 抛弃型按钮 | **通过** run `35466230837` `INVOKE_OK path=bm_click`；无 SendInput；非 InvokePattern |
 
 ## 8. 未通过不得宣称完成
 
