@@ -170,7 +170,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-220 | Notepad Return/key 拒绝 | **完成（CI 真机）** run `35473210457` @ `e47cf24`：`KEY_DENIED`；`FocusPolicyViolation` `Return/Enter is gated`；`CU-D-220 OK`。无 SendInput。 |
 | CU-D-230 | PowerShell 无换行输入 | **完成（CI 真机）** run `35473547564` @ `5f9ead0`：`TYPE_OK path=clipboard_paste os_cursor_used=False`；`NEWLINE_DENIED`；tab `win:powershell:6700`。无 SendInput；未执行命令。 |
 | CU-D-240 | Windows Abort 拆 HUD | **完成（CI 真机）** run `35473997888` @ `ae96695`：`HUD_UP count=1`；`ABORT_OK hud=false`；`LIST_EMPTY`；`ACT_DENIED`；`HUD_GONE`；`STAGE_OK2`；`CU-D-240 OK`。无 SendInput。 |
-| CU-D-250 | Windows Guide hover | **进行中** Notepad `act hover` → `guide_hover` overlay；control JSON 含 guide.x/y；`os_cursor_used=false`。无 SendInput。 |
+| CU-D-250 | Windows Guide hover | **完成（CI 真机）** run `35474340766` @ `cf4a803`：`HOVER_OK path=guide_hover overlay=True os_cursor_used=False`；`GUIDE_FILE_OK x=462 y=347.5`；`CU-D-250 OK`。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
