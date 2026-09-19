@@ -6,7 +6,7 @@
 
 **已发布：浏览器版 Bridge 0.2.8。** 浏览器门禁仍有效。
 
-**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 已过。CU-D-060 CI 真机列窗+PrintWindow 已过（run `35462329205`）。CU-D-070 CI `SETVALUE_OK path=wm_settext`（非 ValuePattern）。CU-D-080 单测已过。CU-D-090 CI 已过。CU-D-100 CI 已过。CU-D-110 CI 已过。CU-D-120 CI 已过。CU-D-130 CI 已过。CU-D-140 CI 已过（`TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED`）。未宣称完整 Windows 产品 CU。CU-D-140/150/160/170/180/190/200/210/220/230 已过。CU-D-230 CI `TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED` run `35473547564`。CU-D-240 CI `ABORT_OK hud=false` / `HUD_GONE` run `35473997888`。CU-D-250 CI `HOVER_OK path=guide_hover` run `35474340766`。CU-D-260 CI `HOVER_OK` then `INVOKE_OK path=bm_click` run `35474689948`。CU-D-270 CI `SCOPE_OK` / `BACKEND_OK` run `35475108584`。下一刀 **CU-D-280** MCP desktop hover/wait/abort。未宣称完整 Windows 产品 CU / 完整 Codex CU。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
+**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 已过。CU-D-060 CI 真机列窗+PrintWindow 已过（run `35462329205`）。CU-D-070 CI `SETVALUE_OK path=wm_settext`（非 ValuePattern）。CU-D-080 单测已过。CU-D-090 CI 已过。CU-D-100 CI 已过。CU-D-110 CI 已过。CU-D-120 CI 已过。CU-D-130 CI 已过。CU-D-140 CI 已过（`TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED`）。未宣称完整 Windows 产品 CU。CU-D-140/150/160/170/180/190/200/210/220/230 已过。CU-D-230 CI `TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED` run `35473547564`。CU-D-240 CI `ABORT_OK hud=false` / `HUD_GONE` run `35473997888`。CU-D-250 CI `HOVER_OK path=guide_hover` run `35474340766`。CU-D-260 CI `HOVER_OK` then `INVOKE_OK path=bm_click` run `35474689948`。CU-D-270 CI `SCOPE_OK` / `BACKEND_OK` run `35475108584`。CU-D-280 CI `TOOLS_OK` / `CU-D-280 OK` run `35476413803`。下一刀 **CU-D-290** MCP tools/call live hover。未宣称完整 Windows 产品 CU / 完整 Codex CU。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
 
 本地对照实现在 gitignore 的 `/reference/computer-use/`：可反编译作结构参考，笔记进 `docs/research/`，自有代码进仓库；`.app` / 反编译源码 / 官方素材不上传。
 
@@ -93,7 +93,8 @@
 - [x] **CU-D-250**：CI `HOVER_OK path=guide_hover overlay=True os_cursor_used=False` / `GUIDE_FILE_OK x=462 y=347.5` / `CU-D-250 OK` run `35474340766`。无 SendInput。
 - [x] **CU-D-260**：CI `HOVER_OK path=guide_hover` / `INVOKE_OK path=bm_click os_cursor_used=False` / `CU-D-260 OK` run `35474689948`。无 SendInput。
 - [x] **CU-D-270**：CI `SCOPE_OK` / `BACKEND_OK` / `STAGE_OK` / `CU-D-270 OK` run `35475108584`。doctor warn 不是产品 Windows CU；无 AXPress 假绿。
-- [ ] **CU-D-280**：MCP `vcu_hover` / wait `value` / `vcu_session_abort`（待 CI）。
+- [x] **CU-D-280**：CI `TOOLS_OK hover=vcu_hover abort=vcu_session_abort wait.value=true` / `CU-D-280 OK` run `35476413803`。tools/list only。无 SendInput。
+- [ ] **CU-D-290**：MCP `tools/call` live `vcu_hover`（及 abort）对 Windows desktop session。不是 tools/list。
 
 
 ## 操作入口
