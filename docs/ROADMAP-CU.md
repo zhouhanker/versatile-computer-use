@@ -10,7 +10,9 @@
 
 ### 要对齐什么
 
-Codex Computer Use 是「长驻助手 + 真窗口 + 辅助功能观察 + 虚拟指针 + 可见叠加层」。VCU 对齐的是**这个结构**，不是抄官方资源、类名或私有安装。
+Codex Computer Use 是「长驻助手 + 真窗口 + 辅助功能观察 + 虚拟指针 + 可见叠加层」。VCU 做 **对照官方公开行为的独立实现**（reference implementation）：可以读公开文档、开源实现、以及本机运行时的可见行为，用自有代码/资源复现能力。
+
+这不是把 `~/.codex/computer-use/` 里的私有包（二进制、Lens PNG、AppInstructions 原文）提交进本仓库。那是别人的安装物，不是「参考实现」。
 
 VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP）。浏览器路径（USER Edge/Chrome + lens）已经可用，作为网页 HTML 的主路径保留。桌面路径补上「任意允许名单内的真窗口」。
 
@@ -29,11 +31,20 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
         用户真窗口：Edge/Chrome、Finder、Notes、TextEdit、终端、飞书客户端…
 ```
 
-### 明确不抄、不做
+### 参考边界
+
+**可以、应该做的参考**
+
+- OpenAI / Codex **公开** Computer Use 文档与公开仓库
+- 本机 Codex CU **运行时可见行为**（光标外形、HUD 结构、AX 流程）——用自有 SVG/AppKit/文案复现
+- 公开技术（Accessibility、CGWindow、Chrome tabGroups）
+
+**仍然禁止**
 
 | 禁止 | 原因 |
 | --- | --- |
-| 修改 / 复制 `~/.codex/computer-use/` | 私有安装与资源 |
+| 把 `~/.codex/computer-use/` 的文件拷进 git | 私有安装包，不是公开参考实现 |
+| 改 / 卸用户机器上的 Codex CU | 破坏其产品；本仓库也不依赖那份文件 |
 | `CGWarpMouseCursorPosition` / HID 当主路径 | 硬约束；Guide ≠ 系统光标 |
 | 点击 Edge「允许调试」 | CDP Allow 已抛弃 |
 | 自动化微信 | 硬 denylist |
