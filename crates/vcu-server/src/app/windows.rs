@@ -1472,6 +1472,17 @@ mod tests {
         assert!(s280.contains("CU-D-280 OK"));
         let l280 = s280.to_ascii_lowercase();
         assert!(!l280.contains("sendinput("));
+        let p290 = root.join("scripts/poc_cu_d_290.ps1");
+        let s290 = std::fs::read_to_string(&p290).unwrap_or_default();
+        assert!(s290.contains("HOVER_OK"), "{}", p290.display());
+        assert!(s290.contains("ABORT_OK"));
+        assert!(s290.contains("mcp_tools_call"));
+        assert!(s290.contains("vcu_hover"));
+        assert!(s290.contains("CU-D-290 OK"));
+        let l290 = s290.to_ascii_lowercase();
+        assert!(!l290.contains("sendinput("));
+        assert!(!l290.contains("[system.windows.forms.sendkeys"));
+        assert!(!l290.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
