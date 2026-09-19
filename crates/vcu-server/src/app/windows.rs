@@ -485,6 +485,20 @@ Start-Process -FilePath explorer.exe -ArgumentList $path | Out-Null
     )
 }
 
+/// PowerShell: select a file in Explorer. No SendInput.
+pub fn explorer_reveal_script(path: &str) -> String {
+    let p = path.replace('\'', "''");
+    format!(
+        r#"
+$path = '{p}'
+if (-not (Test-Path -LiteralPath $path)) {{ 'error:missing'; exit 1 }}
+Start-Process -FilePath explorer.exe -ArgumentList ('/select,' + $path) | Out-Null
+'ok:explorer_reveal'
+"#,
+        p = p
+    )
+}
+
 #[async_trait]
 impl AppBackend for WindowsAppBackend {
     fn platform(&self) -> &str { "windows" }
@@ -621,6 +635,41 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
         }
     }
 
+    async fn reveal_path(&mut self, id: &str, path: &str) -> VcuResult<serde_json::Value> {
+        let name = id
+            .strip_prefix("win:")
+            .and_then(|rest| rest.split(':').next())
+            .map(|s| s.replace('_', " "))
+            .unwrap_or_else(|| id.to_string());
+        if is_denied_app(&name) {
+            return Err(VcuError::coded(ErrorCode::AppDenied, format!("app '{name}' is denied by VCU policy")));
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = path;
+            Err(VcuError::coded(ErrorCode::NotImplemented, "Windows reveal_path only runs on Windows hosts"))
+        }
+        #[cfg(windows)]
+        {
+            if path.chars().any(|c| matches!(c, '"' | '`' | '\n' | '\r' | '{' | '}')) {
+                return Err(VcuError::coded(ErrorCode::InvalidInput, "Windows reveal_path path has forbidden characters"));
+            }
+            let out = Self::run_powershell(&explorer_reveal_script(path))?;
+            if !out.contains("ok:explorer_reveal") {
+                return Err(VcuError::with_detail(ErrorCode::ActionFailed, "explorer reveal failed", out));
+            }
+            Ok(serde_json::json!({
+                "ok": true,
+                "process": name,
+                "path": path,
+                "result": out,
+                "input_path": "explorer_reveal",
+                "os_cursor_used": false,
+                "hid_injected": false
+            }))
+        }
+    }
+
     async fn capture_window(&self, id: &str) -> VcuResult<Option<super::AppCapture>> {
         #[cfg(not(windows))]
         {
@@ -684,6 +733,17 @@ mod tests {
         assert!(open_script.contains("explorer.exe"));
         assert!(open_script.contains("ok:explorer_open"));
         assert!(!open_script.to_ascii_lowercase().contains("sendinput("));
+        let denied = b.reveal_path("win:WeChat:2", "C:\\Temp\\x.txt").await.unwrap_err();
+        assert_eq!(denied.code(), ErrorCode::AppDenied);
+        let err = b.reveal_path("win:notepad:1", "C:\\vcu-no-such-file.txt").await.unwrap_err();
+        #[cfg(not(windows))]
+        assert_eq!(err.code(), ErrorCode::NotImplemented);
+        #[cfg(windows)]
+        assert_eq!(err.code(), ErrorCode::ActionFailed);
+        let rev = explorer_reveal_script(r"C:\Temp\x.txt");
+        assert!(rev.contains("/select,"));
+        assert!(rev.contains("ok:explorer_reveal"));
+        assert!(!rev.to_ascii_lowercase().contains("sendinput("));
         let err = b.set_value("win:notepad:1", "e1", "hi").await.unwrap_err();
         #[cfg(not(windows))]
         assert_eq!(err.code(), ErrorCode::NotImplemented);
@@ -816,6 +876,12 @@ mod tests {
         assert!(s120.contains("open_path"));
         let l120 = s120.to_ascii_lowercase();
         assert!(!l120.contains("sendinput("));
+        let p130 = root.join("scripts/poc_cu_d_130.ps1");
+        let s130 = std::fs::read_to_string(&p130).unwrap_or_default();
+        assert!(s130.contains("REVEAL_OK"), "{}", p130.display());
+        assert!(s130.contains("explorer_reveal"));
+        let l130 = s130.to_ascii_lowercase();
+        assert!(!l130.contains("sendinput("));
     }
 
     #[cfg(not(windows))]

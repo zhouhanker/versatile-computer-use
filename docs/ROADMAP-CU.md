@@ -158,6 +158,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-100 | 经 `vcu click` 点抛弃型按钮 | **完成（CI 真机）** run `35466230837`：`INVOKE_OK path=bm_click`（非 InvokePattern；按钮是 ControlType.Pane）。无 SendInput。 |
 | CU-D-110 | 经 `vcu screenshot` 的 PrintWindow | **完成（CI 真机）** run `35466641180`：`SHOT_OK bytes=10984 width=768 height=519`。无 CopyFromScreen / SendInput。 |
 | CU-D-120 | 经 `vcu act open_path` 打开 Explorer 目录 | **完成（CI 真机）** run `35467498771`：`OPEN_OK path=explorer_open`。无 SendInput。 |
+| CU-D-130 | 经 `vcu act reveal` 在 Explorer 中选中文件 | **进行中** 抛弃型 MARKER.txt；`explorer_reveal`；无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -179,6 +180,7 @@ CU-D-000 文档
     → CU-D-100 vcu Windows invoke
     → CU-D-110 vcu Windows screenshot
     → CU-D-120 vcu Windows explorer open_path
+    → CU-D-130 vcu Windows explorer reveal
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。
