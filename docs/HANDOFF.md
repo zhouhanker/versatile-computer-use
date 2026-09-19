@@ -1,12 +1,12 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-130 脚本已加，待 CI。
+更新：2026-09-20。CU-D-130 CI 已过。
 
 ## 本轮
 
-- Windows `reveal_path` → `explorer /select,`，`input_path=explorer_reveal`。
-- 双浏览器仍未过。
+- CU-D-130 run `35467970349` @ `468117d`：`REVEAL_OK path=explorer_reveal os_cursor_used=False`；`CU-D-130 OK`
+- 对照 Finder reveal。无 SendInput。未杀 explorer。
 
 ## 下一刀
 
-看 CI `REVEAL_OK`。未绿不得宣称 130 完成。禁止杀 explorer、禁止 SendInput。
+P2 双浏览器仍未过。不要宣称完整 Codex CU。
