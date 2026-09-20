@@ -64,6 +64,39 @@ pub struct ExtensionCommand {
 
 const CLIENT_LIVE_MS: u64 = 45_000;
 
+fn split_client_key(id: &str) -> Option<(&str, &str)> {
+    let (browser, rest) = id.split_once(':')?;
+    let browser = named_browser(browser)?;
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    Some((browser, rest))
+}
+
+fn open_extension_reload_page(browser: &str, runtime_id: &str) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let app = match browser {
+            "edge" => "Microsoft Edge",
+            "chrome" => "Google Chrome",
+            _ => return false,
+        };
+        let url = format!("chrome-extension://{runtime_id}/reload.html");
+        std::process::Command::new("open")
+            .args(["-a", app, &url])
+            .status()
+            .map(|st| st.success())
+            .unwrap_or(false)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (browser, runtime_id);
+        false
+    }
+}
+
+
 fn named_browser(name: &str) -> Option<&str> {
     match name.trim().to_ascii_lowercase().as_str() {
         "chrome" => Some("chrome"),
@@ -477,7 +510,25 @@ impl ExtensionBridge {
             reloaded.extend(self.fire_reload_commands(None, 2).await);
         } else {
             for id in ids {
-                reloaded.extend(self.fire_reload_commands(Some(id), 1).await);
+                let rows = self.fire_reload_commands(Some(id.clone()), 1).await;
+                let ok = rows
+                    .iter()
+                    .any(|v| v.get("ok").and_then(|x| x.as_bool()) == Some(true));
+                if ok {
+                    reloaded.extend(rows);
+                    continue;
+                }
+                if let Some((browser, rid)) = split_client_key(&id) {
+                    let opened = open_extension_reload_page(browser, rid);
+                    reloaded.push(serde_json::json!({
+                        "ok": opened,
+                        "page_reload": opened,
+                        "browser": browser,
+                        "error": rows.first().and_then(|v| v.get("error")).cloned().unwrap_or(serde_json::json!("reload_self timeout")),
+                    }));
+                } else {
+                    reloaded.extend(rows);
+                }
             }
         }
         let ok_n = reloaded
@@ -505,7 +556,7 @@ impl ExtensionBridge {
     ) -> Vec<serde_json::Value> {
         if n <= 1 {
             return vec![match self
-                .call_timeout_for(target, "reload_self", serde_json::json!({}), 35)
+                .call_timeout_for(target, "reload_self", serde_json::json!({}), 3)
                 .await
             {
                 Ok(v) => v,
@@ -955,5 +1006,21 @@ impl BrowserBackend for ExtensionBackend {
                 format!("extension action not implemented: {other}"),
             )),
         }
+    }
+}
+
+
+#[cfg(test)]
+mod client_key_tests {
+    use super::*;
+
+    #[test]
+    fn split_client_key_parses_edge_runtime() {
+        assert_eq!(
+            split_client_key("edge:cedlbclnijpladccmmfpihhgkeeldfhc"),
+            Some(("edge", "cedlbclnijpladccmmfpihhgkeeldfhc"))
+        );
+        assert_eq!(split_client_key("browser:x"), None);
+        assert_eq!(split_client_key("edge:"), None);
     }
 }

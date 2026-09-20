@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""CU-D-520: dual-browser tabs include Edge while lens is alive.
+"""CU-D-520: same tabs call includes Chrome and Edge.
 
-If Edge worker is only hellos (not a poll loop), open one throwaway 127.0.0.1
-tab in the existing USER Edge window to start polling, then close it.
-Does not touch USER groups titled 1 / 3. Never clicks Allow. Never warps OS cursor.
+If Edge worker is stale, open the unpacked reload.html in USER Edge once,
+then close it. Does not touch groups titled 1 / 3. Never Allow / OS cursor.
 """
 from __future__ import annotations
 
@@ -11,16 +10,15 @@ import json
 import os
 import subprocess
 import sys
-import threading
 import time
 from collections import Counter
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 PROTECTED = {"1", "3"}
 OUT = Path(".local/desktop-cu/cu-d-520.json")
 VCU = os.environ.get("VCU", "vcu")
-WAKE_PATH = "/vcu-d-520-wake"
+EXT_ID = "cedlbclnijpladccmmfpihhgkeeldfhc"
+RELOAD_URL = "chrome-extension://%s/reload.html" % EXT_ID
 
 
 def vcu(args):
@@ -55,54 +53,25 @@ def browsers_of(tabs_resp):
     return Counter(str(t.get("browser") or "missing") for t in tabs)
 
 
-def osascript(script):
-    try:
-        subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=6)
-    except Exception:
-        pass
-
-
-def open_tab(app, url):
-    subprocess.run(["open", "-a", app, url], capture_output=True, text=True, check=False)
-
-
-def close_tab(app, url):
-    nl = chr(10)
-    script = nl.join([
-        'tell application "' + app + '"',
-        '  set theUrl to "' + url + '"',
-        "  repeat with w in windows",
-        "    set tabList to tabs of w",
-        "    repeat with t in tabList",
-        "      try",
-        "        if (URL of t) starts with theUrl then",
-        "          close t",
-        "        end if",
-        "      end try",
-        "    end repeat",
-        "  end repeat",
-        "end tell",
-        "",
-    ])
-    osascript(script)
-
-
-class Wake(BaseHTTPRequestHandler):
-    def do_GET(self):
-        body = b"<html><body>vcu-d-520</body></html>"
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, fmt, *args):
-        return
+def close_reload_tab():
+    script = """tell application "Microsoft Edge"
+  set theUrl to "%s"
+  repeat with w in windows
+    set tabList to tabs of w
+    repeat with t in tabList
+      try
+        if (URL of t) starts with theUrl then
+          close t
+        end if
+      end try
+    end repeat
+  end repeat
+end tell
+""" % RELOAD_URL
+    subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=6)
 
 
 def main():
-    httpd = None
-    wake_url = None
     steps = []
     before = vcu(["browser", "tabs"])
     prot_before = protected_snapshot(before)
@@ -112,52 +81,48 @@ def main():
         "tabs_before": True,
         "counts": dict(counts),
         "browser_count": bd.get("browser_count"),
+        "browsers_ok": bd.get("browsers_ok"),
         "browsers_failed": bd.get("browsers_failed"),
+        "dt_note": "first merge",
     })
-
-    if counts.get("edge", 0) < 1:
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Wake)
-        port = httpd.server_address[1]
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        wake_url = "http://127.0.0.1:%s%s" % (port, WAKE_PATH)
-        open_tab("Microsoft Edge", wake_url)
-        steps.append({"wake_open": True, "url": wake_url})
-        time.sleep(3)
+    woke = False
+    if counts.get("edge", 0) < 1 or counts.get("chrome", 0) < 1:
+        subprocess.run(["open", "-a", "Microsoft Edge", RELOAD_URL], capture_output=True)
+        woke = True
+        steps.append({"page_reload": True, "url": RELOAD_URL})
+        time.sleep(2)
         before = vcu(["browser", "tabs"])
         counts = browsers_of(before)
         bd = data(before)
         steps.append({
-            "tabs_after_wake": True,
+            "tabs_after_reload": True,
             "counts": dict(counts),
-            "browsers_failed": bd.get("browsers_failed"),
             "browser_count": bd.get("browser_count"),
+            "browsers_ok": bd.get("browsers_ok"),
+            "browsers_failed": bd.get("browsers_failed"),
         })
-
+        close_reload_tab()
+        steps.append({"reload_tab_closed": True})
     chrome_n = int(counts.get("chrome") or 0)
     edge_n = int(counts.get("edge") or 0)
     merge_ok = (
-        int(bd.get("browser_count") or 0) >= 2
+        before.get("ok") is True
+        and int(bd.get("browser_count") or 0) >= 2
         and chrome_n >= 1
         and edge_n >= 1
+        and not (bd.get("browsers_failed") or [])
     )
-    after = vcu(["browser", "tabs"]) if wake_url else before
+    after = vcu(["browser", "tabs"])
     prot_after = protected_snapshot(after)
     groups_ok = prot_before == prot_after
-    if wake_url:
-        close_tab("Microsoft Edge", wake_url)
-        if httpd:
-            httpd.shutdown()
-        steps.append({"wake_closed": True, "url": wake_url})
-        prot_closed = protected_snapshot(vcu(["browser", "tabs"]))
-        groups_ok = groups_ok and prot_before == prot_closed
-        prot_after = prot_closed
-    ok = merge_ok and groups_ok and (before.get("ok") is True)
+    ok = merge_ok and groups_ok
     report = {
         "ok": ok,
         "CHROME_TABS_OK": chrome_n >= 1,
         "EDGE_TABS_OK": edge_n >= 1,
         "MERGE_OK": merge_ok,
         "GROUPS_OK": groups_ok,
+        "woke": woke,
         "chrome_tabs": chrome_n,
         "edge_tabs": edge_n,
         "protected": prot_after,
@@ -165,22 +130,13 @@ def main():
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(report, indent=2))
-    if chrome_n >= 1:
-        print("CHROME_TABS_OK count=%s" % chrome_n)
-    else:
-        print("CHROME_TABS_MISSING")
-    if edge_n >= 1:
-        print("EDGE_TABS_OK count=%s" % edge_n)
-    else:
-        print("EDGE_TABS_MISSING failed=%s" % (bd.get("browsers_failed"),))
+    print("CHROME_TABS_OK count=%s" % chrome_n if chrome_n >= 1 else "CHROME_TABS_MISSING")
+    print("EDGE_TABS_OK count=%s" % edge_n if edge_n >= 1 else "EDGE_TABS_MISSING")
     if merge_ok:
-        print("MERGE_OK browser_count=%s" % bd.get("browser_count"))
+        print("MERGE_OK browser_count=%s chrome=%s edge=%s" % (bd.get("browser_count"), chrome_n, edge_n))
     else:
-        print("MERGE_FAIL", dict(counts), bd.get("browser_count"), bd.get("browsers_failed"))
-    if groups_ok:
-        print("GROUPS_OK")
-    else:
-        print("GROUPS_CHANGED", prot_before, prot_after)
+        print("MERGE_FAIL", dict(counts), bd.get("browsers_failed"))
+    print("GROUPS_OK" if groups_ok else "GROUPS_CHANGED %s %s" % (prot_before, prot_after))
     if ok:
         print("CU-D-520 OK")
         return 0

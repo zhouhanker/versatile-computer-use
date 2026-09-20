@@ -122,7 +122,7 @@ MCP 工具：`vcu_browser_tabs` / `select` / `open` / `close` / `group` / `group
 ## 限制（已知、不会假装完成）
 
 - 光标：短斜三角 + 柔光；移动会朝向旋转，点击有压缩。不宣称官方逐像素动画
-- Edge 与 Chrome 同时连接时，`tabs` 会尝试合并并带 `browser` 字段；`tab_id` 仍是各浏览器内部数字，可能撞号
+- Edge 与 Chrome 同时连接时，`tabs` 合并并带 `browser` 字段（lens 需在两边 polling；`--reload` 若 Edge worker 睡着会打开一次 `reload.html`）；`tab_id` 仍是各浏览器内部数字，可能撞号
 - 布局扫描上限：1000 个 viewport 可见交互目标 / 5000 候选，超限拒绝
 - DOM 事件一律非 trusted，无法替代网站要求的原生用户手势
 
