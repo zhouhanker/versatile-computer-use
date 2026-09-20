@@ -6,7 +6,7 @@
 
 **已发布：浏览器版 Bridge 0.2.8。** 浏览器门禁仍有效。
 
-**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 已过。CU-D-060 CI 真机列窗+PrintWindow 已过（run `35462329205`）。CU-D-070 CI `SETVALUE_OK path=wm_settext`（非 ValuePattern）。CU-D-080 单测已过。CU-D-090 CI 已过。CU-D-100 CI 已过。CU-D-110 CI 已过。CU-D-120 CI 已过。CU-D-130 CI 已过。CU-D-140 CI 已过（`TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED`）。未宣称完整 Windows 产品 CU。CU-D-140/150/160/170/180/190/200/210/220/230 已过。CU-D-230 CI `TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED` run `35473547564`。CU-D-240 CI `ABORT_OK hud=false` / `HUD_GONE` run `35473997888`。CU-D-250 CI `HOVER_OK path=guide_hover` run `35474340766`。CU-D-260 CI `HOVER_OK` then `INVOKE_OK path=bm_click` run `35474689948`。CU-D-270 CI `SCOPE_OK` / `BACKEND_OK` run `35475108584`。CU-D-280 CI `TOOLS_OK` / `CU-D-280 OK` run `35476413803`。CU-D-290 CI `HOVER_OK path=guide_hover` / `ABORT_OK via=mcp_tools_call` run `35477727787`。CU-D-300 CI `INVOKE_OK path=bm_click` / `CU-D-300 OK` run `35478128021`。下一刀 **CU-D-310** MCP tools/call live wait。未宣称完整 Windows 产品 CU / 完整 Codex CU。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
+**下一史诗（进行中）：** 对标 Codex Computer Use **含桌面**。阶段 1–5 已过。CU-D-060 CI 真机列窗+PrintWindow 已过（run `35462329205`）。CU-D-070 CI `SETVALUE_OK path=wm_settext`（非 ValuePattern）。CU-D-080 单测已过。CU-D-090 CI 已过。CU-D-100 CI 已过。CU-D-110 CI 已过。CU-D-120 CI 已过。CU-D-130 CI 已过。CU-D-140 CI 已过（`TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED`）。未宣称完整 Windows 产品 CU。CU-D-140/150/160/170/180/190/200/210/220/230 已过。CU-D-230 CI `TYPE_OK path=clipboard_paste` + `NEWLINE_DENIED` run `35473547564`。CU-D-240 CI `ABORT_OK hud=false` / `HUD_GONE` run `35473997888`。CU-D-250 CI `HOVER_OK path=guide_hover` run `35474340766`。CU-D-260 CI `HOVER_OK` then `INVOKE_OK path=bm_click` run `35474689948`。CU-D-270 CI `SCOPE_OK` / `BACKEND_OK` run `35475108584`。CU-D-280 CI `TOOLS_OK` / `CU-D-280 OK` run `35476413803`。CU-D-290 CI `HOVER_OK path=guide_hover` / `ABORT_OK via=mcp_tools_call` run `35477727787`。CU-D-300 CI `INVOKE_OK path=bm_click` / `CU-D-300 OK` run `35478128021`。CU-D-310 CI `WAIT_OK path=scene_wait` / `CU-D-310 OK` run `35478526783`。下一刀 **CU-D-320** MCP tools/call live type。未宣称完整 Windows 产品 CU / 完整 Codex CU。总览与编排见 [`ROADMAP-CU.md`](ROADMAP-CU.md)，测试见 [`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。未完成桌面切片前，不得把 VCU 写成已具备完整桌面 CU。
 
 本地对照实现在 gitignore 的 `/reference/computer-use/`：可反编译作结构参考，笔记进 `docs/research/`，自有代码进仓库；`.app` / 反编译源码 / 官方素材不上传。
 
@@ -96,7 +96,8 @@
 - [x] **CU-D-280**：CI `TOOLS_OK hover=vcu_hover abort=vcu_session_abort wait.value=true` / `CU-D-280 OK` run `35476413803`。tools/list only。无 SendInput。
 - [x] **CU-D-290**：CI `HOVER_OK path=guide_hover os_cursor_used=False via=mcp_tools_call` / `ABORT_OK via=mcp_tools_call` / `CU-D-290 OK` run `35477727787`。无 SendInput。
 - [x] **CU-D-300**：CI `INVOKE_OK path=bm_click os_cursor_used=False via=mcp_tools_call` / `CU-D-300 OK` run `35478128021`。无 SendInput。
-- [ ] **CU-D-310**：MCP `tools/call` live `vcu_wait` 转发 `value`，`scene_wait`。不是 HID。
+- [x] **CU-D-310**：CI `WAIT_OK path=scene_wait via=mcp_tools_call` / `CU-D-310 OK` run `35478526783`。无 SendInput。
+- [ ] **CU-D-320**：MCP `tools/call` live `vcu_type` 无换行（常见 `clipboard_paste`）。不是 HID。
 
 
 ## 操作入口

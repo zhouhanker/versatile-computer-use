@@ -176,7 +176,8 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-280 | MCP desktop hover/wait/abort | **完成（CI 真机）** run `35476413803` @ `03f1cc5`：`TOOLS_OK hover=vcu_hover abort=vcu_session_abort wait.value=true`；`CU-D-280 OK`。tools/list；无 SendInput。不是 live tools/call。 |
 | CU-D-290 | MCP tools/call live hover | **完成（CI 真机）** run `35477727787` @ `a6feb7f`：`HOVER_OK path=guide_hover os_cursor_used=False via=mcp_tools_call`；`ABORT_OK via=mcp_tools_call`；`CU-D-290 OK`。无 SendInput。 |
 | CU-D-300 | MCP tools/call live click | **完成（CI 真机）** run `35478128021` @ `6e2fd82`：`INVOKE_OK path=bm_click os_cursor_used=False via=mcp_tools_call`；`CU-D-300 OK`。无 SendInput。 |
-| CU-D-310 | MCP tools/call live wait | **下一刀** 抛弃型 Notepad；MCP `tools/call` `vcu_wait` `value` → `scene_wait` `os_cursor_used=false`。无 SendInput。 |
+| CU-D-310 | MCP tools/call live wait | **完成（CI 真机）** run `35478526783` @ `8320d9f`：`WAIT_OK path=scene_wait via=mcp_tools_call`；`CU-D-310 OK`。无 SendInput。 |
+| CU-D-320 | MCP tools/call live type | **下一刀** 抛弃型 Notepad；MCP `tools/call` `vcu_type` 无换行 → `wm_settext` 或 `clipboard_paste`；`os_cursor_used=false`。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -217,6 +218,7 @@ CU-D-000 文档
     → CU-D-290 MCP tools/call live hover
     → CU-D-300 MCP tools/call live click
     → CU-D-310 MCP tools/call live wait
+    → CU-D-320 MCP tools/call live type
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。
