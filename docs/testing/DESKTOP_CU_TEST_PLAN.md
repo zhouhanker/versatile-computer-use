@@ -155,7 +155,8 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-270 | doctor Windows scope is honest | **通过** run `35475108584` `SCOPE_OK` / `BACKEND_OK`；无 AXPress 假绿 |
 | TC-D-280 | MCP hover/wait value/abort | **通过** run `35476413803` `TOOLS_OK hover=vcu_hover abort=vcu_session_abort wait.value=true`；`CU-D-280 OK`。无 SendInput |
 | TC-D-290 | MCP tools/call live hover | **通过** run `35477727787` `HOVER_OK path=guide_hover os_cursor_used=False via=mcp_tools_call` / `ABORT_OK via=mcp_tools_call` / `CU-D-290 OK`。无 SendInput |
-| TC-D-300 | MCP tools/call live click | **未过** `tools/call` `vcu_click` → `bm_click` `os_cursor_used=false`。无 SendInput |
+| TC-D-300 | MCP tools/call live click | **通过** run `35478128021` `INVOKE_OK path=bm_click os_cursor_used=False via=mcp_tools_call` / `CU-D-300 OK`。无 SendInput |
+| TC-D-310 | MCP tools/call live wait | **未过** `tools/call` `vcu_wait` `value` → `scene_wait`。无 SendInput |
 
 ## 8. 未通过不得宣称完成
 
