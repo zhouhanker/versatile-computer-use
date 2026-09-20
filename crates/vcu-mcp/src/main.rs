@@ -134,7 +134,8 @@ fn tool_defs() -> Vec<Value> {
                 "pixels":{"type":"boolean","default":true},
                 "selector":{"type":"string","description":"Scene extract filter; default *"},
                 "budget":{"type":"integer","default":2500},
-                "tab_id":{"type":"string","description":"Exact USER tab to capture; does not steal OS frontmost"}
+                "tab_id":{"type":"string","description":"Exact USER tab to capture; does not steal OS frontmost"},
+                "browser":{"type":"string","description":"chrome or edge; required when tab_id collides; without tab_id observes that browser's focused tab"}
             }
         })),
         tool("vcu_browser_screenshot", "Capture a USER tab viewport as PNG. Without tab_id, uses last observe tab for 60s. View image before click with space=viewport and capture_id. Expires in 60s; real click consumes capture.", json!({"type":"object","properties":{"tab_id":{"type":"string"}}})),

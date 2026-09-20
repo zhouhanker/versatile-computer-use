@@ -1,18 +1,18 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-620 真机已过。
+更新：2026-09-20。CU-D-630 真机已过。
 
 ## 本轮
 
-- 620：`observe --tab` 后 live `hover --selector` 绑 last observe（hovered=1）。新增 DOM `wait --selector [--text]`，等到 extract 命中；miss 诚实超时。`scripts/poc_cu_d_620.py` CU-D-620 OK。组 1/3 未动。无 SendInput。`make check` 0。
+- 630：`observe --browser chrome|edge` 不依赖 OS 前台，定向该浏览器 focused tab；`--tab` 撞号必须带 `--browser`。真机 Chrome `#who=chrome`、Edge `#who=edge`，extract 无 `--tab` 绑 last observe。`scripts/poc_cu_d_630.py` CU-D-630 OK。组 1/3 未动。无 SendInput。`make check` 0。
 
 ## 测试边界
 
 - 允许：`127.0.0.1` 抛页、dry-run、自己的 tab
 - 禁止：组 1/3、用户站点真点、微信动作、CDP Allow、OS cursor、SendInput
-- 无 `--tab` 的 observe 仅当前台是 USER Chrome/Edge；否则必须 `--tab`
-- click/type/scroll/hover/extract/wait(selector) 无 `--tab` 时绑 60s last observe
+- 无 `--tab`/`--browser` 的 observe 仅当前台是 USER Chrome/Edge
+- tab_id 在 Chrome/Edge 间可能撞号，observe 须 `--browser`
 
 ## 下一刀
 
-CU-D-630 候选：wait 文本尚未出现时的负向真机（已有 HTTP miss）；或双浏览器 `observe --tab` 定向 Chrome vs Edge。停放 P2：TC-B-040 / 跨源 iframe / 产品 Windows CU。不要 claim 完整 Codex CU。不要 claim MAC-NEXT / FEISHU-001。
+CU-D-640 候选：`close`/`select` 同样接受 `--browser` 以免撞号关错标签。停放 P2：TC-B-040 / 跨源 iframe / 产品 Windows CU。不要 claim 完整 Codex CU。不要 claim MAC-NEXT / FEISHU-001。

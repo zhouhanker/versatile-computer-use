@@ -208,6 +208,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-600 | observe requires frontmost browser or --tab | **完成（真机）** 前台非 USER Chrome/Edge 时无 `--tab` 的 observe 失败；`--tab` 仍可用。`poc_cu_d_600.py` OK。无 SendInput。 |
 | CU-D-610 | observe-bind live type/scroll | **完成（真机）** observe 后 type/scroll 无 `--tab` 绑 last observe；输入 `vcu-d-610`、scrollY=900。`poc_cu_d_610.py` OK。无 SendInput。 |
 | CU-D-620 | observe-bind live hover + DOM wait | **完成（真机）** hover `#pad` → hovered=1；wait selector 文本 ready，missing 超时。`poc_cu_d_620.py` OK。无 SendInput。 |
+| CU-D-630 | observe --browser Chrome vs Edge | **完成（真机）** `--browser chrome|edge` 打开并 extract 到对应浏览器；撞号须 `--browser`。`poc_cu_d_630.py` OK。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -279,6 +280,7 @@ CU-D-000 文档
     → CU-D-600 observe requires frontmost browser or --tab
     → CU-D-610 observe-bind live type/scroll
     → CU-D-620 observe-bind live hover + DOM wait
+    → CU-D-630 observe --browser Chrome vs Edge
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

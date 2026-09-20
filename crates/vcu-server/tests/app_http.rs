@@ -196,6 +196,13 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                         "active": false,
                         "focused": false,
                         "browser": "edge"
+                    }, {
+                        "tab_id": "42",
+                        "title": "chrome-live",
+                        "url": "https://chrome.example/live",
+                        "active": true,
+                        "focused": true,
+                        "browser": "chrome"
                     }],
                     "groups": [],
                     "source": "extension_tabs"
@@ -437,6 +444,45 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
         .unwrap();
     assert_eq!(wait_miss["ok"], false, "{wait_miss}");
     assert_eq!(wait_miss["error"]["code"], "ActionFailed", "{wait_miss}");
+
+    let ambiguous: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
+        .json(&json!({"pixels": false, "tab_id": "42"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(ambiguous["ok"], false, "{ambiguous}");
+    assert_eq!(ambiguous["error"]["code"], "InvalidInput", "{ambiguous}");
+    let amsg = ambiguous["error"]["message"].as_str().unwrap_or("");
+    assert!(amsg.contains("ambiguous"), "{ambiguous}");
+    assert!(amsg.contains("--browser"), "{ambiguous}");
+
+    let chrome_obs: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
+        .json(&json!({"pixels": false, "tab_id": "42", "browser": "chrome"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(chrome_obs["ok"], true, "{chrome_obs}");
+    assert_eq!(chrome_obs["data"]["tab_id"], "42");
+    assert_eq!(chrome_obs["data"]["browser"], "chrome");
+    assert_eq!(chrome_obs["data"]["page_url"], "https://chrome.example/live");
+
+    let edge_obs: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
+        .json(&json!({"pixels": false, "tab_id": "42", "browser": "edge"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(edge_obs["ok"], true, "{edge_obs}");
+    assert_eq!(edge_obs["data"]["browser"], "edge");
+    assert_eq!(edge_obs["data"]["page_url"], "https://edge.example/live");
 
     let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true, "tab_id": "99"}))

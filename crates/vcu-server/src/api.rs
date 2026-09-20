@@ -2851,6 +2851,8 @@ struct BrowserObserveReq {
     #[serde(default)]
     tab_id: Option<String>,
     #[serde(default)]
+    browser: Option<String>,
+    #[serde(default)]
     pixels: Option<bool>,
     #[serde(default)]
     selector: Option<String>,
@@ -2872,6 +2874,7 @@ fn observe_envelope(id: String, user: Value, mut snap: Value, extension_profile:
         "page_url": snap.get("page_url").cloned().unwrap_or(Value::Null),
         "tab_id": snap.get("tab_id").cloned().unwrap_or(Value::Null),
         "tab_id_source": snap.get("tab_id_source").cloned().unwrap_or(Value::Null),
+        "browser": snap.get("browser").cloned().unwrap_or(Value::Null),
         "tabs": snap.get("tabs").cloned().unwrap_or(json!([])),
         "tabs_source": snap.get("tabs_source").cloned().unwrap_or(Value::Null),
         "page_url_source": snap.get("page_url_source").cloned().unwrap_or(Value::Null),
@@ -2894,11 +2897,42 @@ fn json_tab_id_value(tab: &Value) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn find_extension_tab(tabs: &Value, want: &str) -> Option<Value> {
-    let arr = tabs.get("tabs")?.as_array()?;
-    arr.iter()
-        .find(|t| json_tab_id_value(t).as_deref() == Some(want))
+fn parse_observe_browser(raw: Option<&str>) -> Result<Option<&'static str>, VcuError> {
+    let Some(raw) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    match raw.to_ascii_lowercase().as_str() {
+        "chrome" | "google chrome" => Ok(Some("chrome")),
+        "edge" | "microsoft edge" => Ok(Some("edge")),
+        _ => Err(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "observe --browser must be chrome or edge",
+        )),
+    }
+}
+
+fn find_extension_tab(tabs: &Value, want: &str, browser: Option<&str>) -> Result<Value, VcuError> {
+    let arr = tabs
+        .get("tabs")
+        .and_then(Value::as_array)
         .cloned()
+        .unwrap_or_default();
+    let hits: Vec<Value> = arr
+        .iter()
+        .filter(|t| json_tab_id_value(t).as_deref() == Some(want))
+        .filter(|t| browser.map(|b| kind_from_tab(t) == Some(b)).unwrap_or(true))
+        .cloned()
+        .collect();
+    if hits.is_empty() {
+        return Err(VcuError::coded(ErrorCode::ActionFailed, "observe tab not found"));
+    }
+    if hits.len() > 1 {
+        return Err(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "tab_id is ambiguous across Chrome/Edge; pass observe --browser",
+        ));
+    }
+    Ok(hits.into_iter().next().unwrap())
 }
 
 fn kind_from_tab(tab: &Value) -> Option<&'static str> {
@@ -2946,22 +2980,36 @@ async fn observe_via_lens(
     extension_profile: &str,
     pixels: bool,
     want_tab: Option<&str>,
+    want_browser: Option<&str>,
 ) -> Result<Value, VcuError> {
     user_extension_ready(state).await?;
     let frontmost = crate::login_state::frontmost_user_browser_name();
     let mut tabs_v = state.extension_bridge.list_tabs_merged().await?;
     let requested = want_tab.map(str::trim).filter(|s| !s.is_empty());
+    let want_kind = parse_observe_browser(want_browser)?;
     let (mut tab, kind) = if let Some(want) = requested {
-        let tab = find_extension_tab(&tabs_v, want).ok_or_else(|| {
-            VcuError::coded(ErrorCode::ActionFailed, "observe tab not found")
-        })?;
-        let kind = kind_from_tab(&tab).or_else(|| kind_from_frontmost(frontmost.as_deref()));
+        let tab = find_extension_tab(&tabs_v, want, want_kind)?;
+        let kind = kind_from_tab(&tab).or(want_kind).or_else(|| kind_from_frontmost(frontmost.as_deref()));
         (tab, kind)
+    } else if let Some(kind) = want_kind {
+        let tab = focused_extension_tab(&tabs_v, Some(kind)).ok_or_else(|| {
+            VcuError::coded(
+                ErrorCode::ActionFailed,
+                "no focused USER tab for observe --browser; pass --tab",
+            )
+        })?;
+        if kind_from_tab(&tab) != Some(kind) {
+            return Err(VcuError::coded(
+                ErrorCode::ActionFailed,
+                "no focused USER tab for observe --browser; pass --tab",
+            ));
+        }
+        (tab, Some(kind))
     } else {
         let kind = kind_from_frontmost(frontmost.as_deref()).ok_or_else(|| {
             VcuError::coded(
                 ErrorCode::InvalidInput,
-                "frontmost is not USER Chrome/Edge; pass observe --tab",
+                "frontmost is not USER Chrome/Edge; pass observe --tab or --browser",
             )
         })?;
         let tab = focused_extension_tab(&tabs_v, Some(kind)).ok_or_else(|| {
@@ -2992,7 +3040,7 @@ async fn observe_via_lens(
             )
             .await?;
         tabs_v = state.extension_bridge.list_tabs_merged().await?;
-        if let Some(fresh) = find_extension_tab(&tabs_v, &tab_id) {
+        if let Ok(fresh) = find_extension_tab(&tabs_v, &tab_id, kind) {
             tab = fresh;
         }
     }
@@ -3022,6 +3070,7 @@ async fn observe_via_lens(
         "page_title": tab.get("title").cloned().unwrap_or(Value::Null),
         "hud": false,
         "source": "extension_viewport",
+        "browser": kind,
     });
     if pixels {
         let captured = state
@@ -3136,7 +3185,7 @@ async fn browser_observe(
                 "observe --tab needs USER lens polling",
             ));
         }
-        return match observe_via_lens(&state, extension_profile, pixels, Some(tab)).await {
+        return match observe_via_lens(&state, extension_profile, pixels, Some(tab), req.browser.as_deref()).await {
             Ok(env) => Json(Envelope::ok(env)).into_response(),
             Err(e) => err_response(e),
         };
@@ -3161,9 +3210,13 @@ async fn browser_observe(
         && state.extension_bridge.is_polling().await
         && state.extension_bridge.likely_user_profile().await
     {
-        match observe_via_lens(&state, extension_profile, pixels, None).await {
+        match observe_via_lens(&state, extension_profile, pixels, None, req.browser.as_deref()).await {
             Ok(env) => return Json(Envelope::ok(env)).into_response(),
-            Err(e) if e.code() == ErrorCode::InvalidInput => return err_response(e),
+            Err(e) if e.code() == ErrorCode::InvalidInput
+                || req.browser.as_deref().map(str::trim).filter(|s| !s.is_empty()).is_some() =>
+            {
+                return err_response(e);
+            }
             Err(_) => {}
         }
     }

@@ -188,6 +188,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-600 | observe without --tab needs frontmost browser | **通过** 前台非 Chrome/Edge 时 InvalidInput「pass observe --tab」；`--tab` 仍绿；`scripts/poc_cu_d_600.py` CU-D-600 OK。组 1/3 未动 |
 | TC-D-610 | observe-bind live type/scroll | **通过** type `vcu-d-610`、scroll y=900、`tab_id_source=last_observe`；`scripts/poc_cu_d_610.py` CU-D-610 OK。组 1/3 未动 |
 | TC-D-620 | observe-bind live hover + DOM wait | **通过** hovered=1、wait `#ready` text ready、`#missing` ActionFailed；`scripts/poc_cu_d_620.py` CU-D-620 OK。组 1/3 未动 |
+| TC-D-630 | observe --browser Chrome vs Edge | **通过** chrome/edge 抛页 `#who` 各绑 last observe；HTTP 撞号 InvalidInput；`scripts/poc_cu_d_630.py` CU-D-630 OK。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 
