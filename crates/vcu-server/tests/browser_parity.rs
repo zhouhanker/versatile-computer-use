@@ -605,16 +605,17 @@ async fn dom_type_and_scroll_forward_explicit_tab_and_dry_run() {
     assert_eq!(scrolled["data"]["tab_id"], "77");
 
     let commands = log.lock().await.clone();
-    assert_eq!(commands.len(), 3, "{commands:?}");
+    assert_eq!(commands.len(), 4, "{commands:?}");
     assert_eq!(commands[0].method, "list_tabs");
     assert_eq!(commands[1].method, "type");
     assert_eq!(
         commands[1].params,
         json!({"selector": "input[name=q]", "text": "hello", "dry_run": true, "tab_id": "77"})
     );
-    assert_eq!(commands[2].method, "scroll");
+    assert_eq!(commands[2].method, "list_tabs");
+    assert_eq!(commands[3].method, "scroll");
     assert_eq!(
-        commands[2].params,
+        commands[3].params,
         json!({"dy": -320, "dry_run": true, "tab_id": "77"})
     );
 
@@ -626,6 +627,10 @@ async fn dom_type_and_scroll_forward_explicit_tab_and_dry_run() {
 async fn dom_scroll_extension_failure_is_returned_without_ax_fallback() {
     let (handle, base, token, _dir) = boot_async().await;
     let mut responses = HashMap::new();
+    responses.insert(
+        "list_tabs".into(),
+        json!({"ok": true, "tabs": [{"tab_id": "77"}], "groups": []}),
+    );
     responses.insert(
         "scroll".into(),
         json!({"ok": false, "error": "content script timeout", "via": "extension_dom"}),
@@ -647,10 +652,16 @@ async fn dom_scroll_extension_failure_is_returned_without_ax_fallback() {
         .contains("content script timeout"));
     assert_eq!(
         log.lock().await.as_slice(),
-        &[CommandRecord {
-            method: "scroll".into(),
-            params: json!({"dy": 600, "dry_run": false, "tab_id": "77"}),
-        }]
+        &[
+            CommandRecord {
+                method: "list_tabs".into(),
+                params: json!({}),
+            },
+            CommandRecord {
+                method: "scroll".into(),
+                params: json!({"dy": 600, "dry_run": false, "tab_id": "77"}),
+            },
+        ]
     );
     worker.abort();
     handle.join.abort();
@@ -704,6 +715,7 @@ async fn viewport_screenshot_binds_pixels_to_one_tab_and_is_consumed_once() {
     let (handle, base, token, dir) = boot_async().await;
     let viewport = json!({"document_id":"doc-1","url":"https://example.com/","width":100,"height":80,"scroll_x":0,"scroll_y":0,"revision":1});
     let (log, worker) = fake_extension(&base, &token, true, HashMap::from([
+        ("list_tabs".into(), json!({"ok":true,"tabs":[{"tab_id":"7"}],"groups":[]})),
         ("capture_tab".into(), json!({"ok":true,"tab_id":"7","viewport":viewport,"png_base64":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1kAAAAASUVORK5CYII="})),
         ("click_point".into(), json!({"ok":true,"pressed":true,"source":"extension_dom","trusted":false})),
     ])).await;

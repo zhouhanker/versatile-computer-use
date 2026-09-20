@@ -138,7 +138,7 @@ fn tool_defs() -> Vec<Value> {
                 "browser":{"type":"string","description":"chrome or edge; required when tab_id collides; without tab_id observes that browser's focused tab"}
             }
         })),
-        tool("vcu_browser_screenshot", "Capture a USER tab viewport as PNG. Without tab_id, uses last observe tab for 60s. View image before click with space=viewport and capture_id. Expires in 60s; real click consumes capture.", json!({"type":"object","properties":{"tab_id":{"type":"string"}}})),
+        tool("vcu_browser_screenshot", "Capture a USER tab viewport as PNG. Without tab_id, uses last observe tab for 60s. View image before click with space=viewport and capture_id. Expires in 60s; real click consumes capture.", json!({"type":"object","properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
         tool("vcu_browser_click", "Click a USER webpage by unique selector or bound viewport screenshot pixels (capture_id required). Without tab_id, selector clicks bind last observe for 60s. window/webview is AX, not DOM. dry_run does not press. Never OS cursor or Allow.", json!({
             "type":"object",
             "properties":{
@@ -168,6 +168,7 @@ fn tool_defs() -> Vec<Value> {
             "properties":{
                 "selector":{"type":"string"},
                 "tab_id":{"type":"string"},
+                "browser":{"type":"string"},
                 "dry_run":{"type":"boolean","default":false}
             }
         })),
@@ -175,6 +176,7 @@ fn tool_defs() -> Vec<Value> {
             "type":"object","properties":{
                 "dy":{"type":"integer","default":600},
                 "tab_id":{"type":"string","description":"Exact tab ID; no fallback if missing"},
+                "browser":{"type":"string"},
                 "dry_run":{"type":"boolean","default":false}
             }
         })),
@@ -195,7 +197,8 @@ fn tool_defs() -> Vec<Value> {
                 "role":{"type":"string"},
                 "selector":{"type":"string","description":"CSS selector; DOM wait via USER extension"},
                 "text":{"type":"string","description":"Optional extract text/value substring"},
-                "tab_id":{"type":"string"}
+                "tab_id":{"type":"string"},
+                "browser":{"type":"string"}
             }
         })),
         tool("vcu_browser_tabs", "List USER browser tabs and native groups, including focus and collapsed state.", json!({"type":"object","properties":{}})),
@@ -481,14 +484,17 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
                 "dry_run": args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false)
             });
             if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
+            if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
             client.post("/v1/browser/hover", body).await?
         }
         "vcu_browser_scroll" => {
-            client.post("/v1/browser/scroll", json!({
+            let mut body = json!({
                 "tab_id": args.get("tab_id"),
                 "dy": args.get("dy").and_then(|v| v.as_i64()).unwrap_or(600),
                 "dry_run": args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false)
-            })).await?
+            });
+            if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
+            client.post("/v1/browser/scroll", body).await?
         }
         "vcu_browser_key" => {
             let mut body = json!({
@@ -509,6 +515,7 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(s) = args.get("selector") { body["selector"] = s.clone(); }
             if let Some(t) = args.get("text") { body["text"] = t.clone(); }
             if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
+            if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
             client.post("/v1/browser/wait", body).await?
         }
         "vcu_browser_tabs" => client.get("/v1/browser/tabs").await?,

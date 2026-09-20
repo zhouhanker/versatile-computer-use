@@ -537,6 +537,8 @@ struct BrowserHoverReq {
     #[serde(default)]
     tab_id: Option<String>,
     #[serde(default)]
+    browser: Option<String>,
+    #[serde(default)]
     dry_run: bool,
 }
 
@@ -567,11 +569,14 @@ async fn browser_hover(
         "selector": selector,
         "dry_run": req.dry_run,
     });
-    let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+    let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+        Ok(v) => v,
+        Err(e) => return err_response(e),
+    };
     if let Some(id) = tab.as_deref() {
         params["tab_id"] = json_tab_param(id);
     }
-    match extension_dom_call(&state, "hover", params, 8).await {
+    match extension_dom_call_for(&state, "hover", params, 8, kind).await {
         Ok(v) => Json(Envelope::ok(json!({
             "login_state": true,
             "hud": false,
@@ -581,6 +586,7 @@ async fn browser_hover(
             "source": "extension_dom",
             "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab)),
             "tab_id_source": tab_src,
+            "browser": kind,
             "page_url": v.get("page_url").cloned().unwrap_or(json!(null)),
             "os_cursor_used": false,
             "never_click_allow": true,
@@ -708,6 +714,8 @@ struct BrowserScrollReq {
     app_id: Option<String>,
     #[serde(default)]
     tab_id: Option<String>,
+    #[serde(default)]
+    browser: Option<String>,
 }
 fn default_scroll_dy() -> i32 { 600 }
 
@@ -737,10 +745,14 @@ async fn browser_scroll(
     });
     if state.extension_bridge.is_polling().await && state.extension_bridge.likely_user_profile().await {
         let mut params = json!({"dy": req.dy, "dry_run": req.dry_run});
-        let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+        let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+            Ok(v) => v,
+            Err(e) => return err_response(e),
+        };
         if let Some(id) = tab.as_deref() { params["tab_id"] = json_tab_param(id); }
         body["tab_id_source"] = json!(tab_src);
-        match extension_dom_call(&state, "scroll", params, 8).await {
+        body["browser"] = json!(kind);
+        match extension_dom_call_for(&state, "scroll", params, 8, kind).await {
             Ok(v) => {
                 body["scrolled"] = v.get("scrolled").cloned().unwrap_or(json!(false));
                 body["source"] = json!("extension_dom");
@@ -795,6 +807,8 @@ struct BrowserWaitReq {
     text: Option<String>,
     #[serde(default)]
     tab_id: Option<String>,
+    #[serde(default)]
+    browser: Option<String>,
 }
 fn default_wait_ms() -> u64 { 200 }
 
@@ -830,7 +844,10 @@ async fn browser_wait(
         if let Err(e) = user_extension_ready(&state).await {
             return err_response(e);
         }
-        let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+        let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+            Ok(v) => v,
+            Err(e) => return err_response(e),
+        };
         let started = std::time::Instant::now();
         let budget = std::time::Duration::from_millis(ms.max(1));
         let needle = req.text.as_deref().map(str::trim).filter(|s| !s.is_empty());
@@ -839,7 +856,7 @@ async fn browser_wait(
             if let Some(id) = tab.as_deref() {
                 params["tab_id"] = json_tab_param(id);
             }
-            match extension_dom_call(&state, "extract", params, 8).await {
+            match extension_dom_call_for(&state, "extract", params, 8, kind).await {
                 Ok(v) => {
                     let matches = v.get("matches").cloned().unwrap_or(json!([]));
                     let count = v.get("count").and_then(Value::as_u64).unwrap_or_else(|| {
@@ -857,6 +874,7 @@ async fn browser_wait(
                             "source": "extension_dom",
                             "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab.clone())),
                             "tab_id_source": tab_src,
+                            "browser": kind,
                             "os_cursor_used": false,
                         }))).into_response();
                     }
@@ -1144,6 +1162,8 @@ async fn browser_ping(
 struct BrowserScreenshotReq {
     #[serde(default)]
     tab_id: Option<String>,
+    #[serde(default)]
+    browser: Option<String>,
 }
 
 async fn user_extension_ready(state: &AppState) -> Result<(), VcuError> {
@@ -1160,11 +1180,14 @@ async fn browser_screenshot(State(state): State<Arc<AppState>>, headers: HeaderM
     if let Err(e) = require_auth(&headers, &state).await { return err_response(e); }
     if let Err(e) = user_extension_ready(&state).await { return err_response(e); }
     let mut params = json!({});
-    let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+    let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+        Ok(v) => v,
+        Err(e) => return err_response(e),
+    };
     if let Some(id) = tab.as_deref() {
         params["tab_id"] = json_tab_param(id);
     }
-    let mut result = match extension_dom_call(&state, "capture_tab", params, 8).await {
+    let mut result = match extension_dom_call_for(&state, "capture_tab", params, 8, kind).await {
         Ok(v) => v, Err(e) => return err_response(e),
     };
     let invalid = || VcuError::coded(ErrorCode::ActionFailed, "extension screenshot must contain a PNG and bound viewport metadata");
@@ -1199,6 +1222,7 @@ async fn browser_screenshot(State(state): State<Arc<AppState>>, headers: HeaderM
     result["coordinate_space"] = json!("viewport");
     result["source"] = json!("extension_viewport");
     result["tab_id_source"] = json!(tab_src);
+    result["browser"] = json!(kind);
     result["vision_handoff"] = json!({"must_view": [path], "serial":true, "rule":"View this image before clicking. Use its capture_id and space=viewport; captures expire after 60s and a real click consumes the capture."});
     Json(Envelope::ok(result)).into_response()
 }

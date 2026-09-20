@@ -387,6 +387,8 @@ enum BrowserCmd {
     Screenshot {
         #[arg(long)]
         tab: Option<String>,
+        #[arg(long)]
+        browser: Option<String>,
     },
     /// Click viewport pixels (--capture) or a unique DOM selector. Without --tab, selector clicks bind last observe for 60s.
     Click {
@@ -415,6 +417,8 @@ enum BrowserCmd {
         selector: String,
         #[arg(long)]
         tab: Option<String>,
+        #[arg(long)]
+        browser: Option<String>,
         #[arg(long, default_value_t = false)]
         dry_run: bool,
     },
@@ -437,6 +441,8 @@ enum BrowserCmd {
     Scroll {
         #[arg(long)]
         tab: Option<String>,
+        #[arg(long)]
+        browser: Option<String>,
         #[arg(long, default_value_t = 600)]
         dy: i32,
         #[arg(long, default_value_t = false)]
@@ -545,6 +551,8 @@ enum BrowserCmd {
         text: Option<String>,
         #[arg(long)]
         tab: Option<String>,
+        #[arg(long)]
+        browser: Option<String>,
     },
 }
 
@@ -1141,9 +1149,10 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Screenshot { tab } => {
+            BrowserCmd::Screenshot { tab, browser } => {
                 let mut body = json!({});
                 if let Some(t) = tab { body["tab_id"] = json!(t); }
+                if let Some(b) = browser { body["browser"] = json!(b); }
                 let v = api_post(&paths, "/v1/browser/screenshot", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
@@ -1178,10 +1187,13 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Hover { selector, tab, dry_run } => {
+            BrowserCmd::Hover { selector, tab, browser, dry_run } => {
                 let mut body = json!({ "selector": selector, "dry_run": dry_run });
                 if let Some(id) = tab {
                     body["tab_id"] = json!(id);
+                }
+                if let Some(b) = browser {
+                    body["browser"] = json!(b);
                 }
                 let v = api_post(&paths, "/v1/browser/hover", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
@@ -1211,11 +1223,15 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Scroll { dy, dry_run, tab } => {
+            BrowserCmd::Scroll { dy, dry_run, tab, browser } => {
+                let mut body = json!({ "dy": dy, "dry_run": dry_run, "tab_id": tab });
+                if let Some(b) = browser {
+                    body["browser"] = json!(b);
+                }
                 let v = api_post(
                     &paths,
                     "/v1/browser/scroll",
-                    json!({ "dy": dy, "dry_run": dry_run, "tab_id": tab }),
+                    body,
                 )
                 .await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
@@ -1314,6 +1330,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 selector,
                 text,
                 tab,
+                browser,
             } => {
                 let mut body = json!({ "ms": ms });
                 if let Some(r) = target_ref {
@@ -1333,6 +1350,9 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 }
                 if let Some(t) = tab {
                     body["tab_id"] = json!(t);
+                }
+                if let Some(b) = browser {
+                    body["browser"] = json!(b);
                 }
                 let v = api_post(&paths, "/v1/browser/wait", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());

@@ -569,6 +569,62 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(clicked_edge["ok"], true, "{clicked_edge}");
     assert_eq!(clicked_edge["data"]["browser"], "edge");
 
+    let hover_amb: serde_json::Value = auth(client.post(format!("{base}/v1/browser/hover")))
+        .json(&json!({"selector": "#who", "tab_id": "42"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(hover_amb["ok"], false, "{hover_amb}");
+    assert!(hover_amb["error"]["message"].as_str().unwrap_or("").contains("ambiguous"), "{hover_amb}");
+
+    let hovered_edge: serde_json::Value = auth(client.post(format!("{base}/v1/browser/hover")))
+        .json(&json!({"selector": "#who", "tab_id": "42", "browser": "edge", "dry_run": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(hovered_edge["ok"], true, "{hovered_edge}");
+    assert_eq!(hovered_edge["data"]["browser"], "edge");
+
+    let scrolled_edge: serde_json::Value = auth(client.post(format!("{base}/v1/browser/scroll")))
+        .json(&json!({"dy": 80, "tab_id": "42", "browser": "edge", "dry_run": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(scrolled_edge["ok"], true, "{scrolled_edge}");
+    assert_eq!(scrolled_edge["data"]["browser"], "edge");
+
+    let waited_edge: serde_json::Value = auth(client.post(format!("{base}/v1/browser/wait")))
+        .json(&json!({"selector": "title", "text": "edge-live", "tab_id": "42", "browser": "edge", "ms": 500}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(waited_edge["ok"], true, "{waited_edge}");
+    assert_eq!(waited_edge["data"]["browser"], "edge");
+
+    let shot_edge: serde_json::Value = auth(client.post(format!("{base}/v1/browser/screenshot")))
+        .json(&json!({"tab_id": "42", "browser": "edge"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(shot_edge["ok"], true, "{shot_edge}");
+    assert_eq!(shot_edge["data"]["browser"], "edge");
+    assert_eq!(shot_edge["data"]["source"], "extension_viewport");
+
     let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true, "tab_id": "99"}))
         .send()
