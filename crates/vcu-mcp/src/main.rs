@@ -153,7 +153,7 @@ fn tool_defs() -> Vec<Value> {
                 "guide":{"type":"boolean","default":false}
             }
         })),
-        tool("vcu_browser_type", "Type on USER browser without HUD. Default AX address bar. selector uses USER extension DOM (source=extension_dom).", json!({
+        tool("vcu_browser_type", "Type on USER browser without HUD. Default AX address bar. selector uses USER extension DOM (source=extension_dom); a native <select> is set by option value or label (input_path=dom_select).", json!({
             "type":"object","properties":{
                 "text":{"type":"string"},
                 "ref":{"type":"string"},

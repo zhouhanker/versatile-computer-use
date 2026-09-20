@@ -40,7 +40,7 @@ vcu browser scroll --tab <id> --dy 600
 
 DOM 操作必须 `source=extension_dom`；标签管理为 `source=extension_tabs`。指针已依据Codex原生CU实测截图改为短斜三角、细白描边和蓝灰柔光。点击有短暂反馈，不移动物理鼠标、不拦截网页事件，结束自动消失。`dry-run` 不滚动、不聚焦、不修改页面。
 
-selector 多个匹配、隐藏、禁用或被遮挡时应修正目标；输入只接受可编辑节点。DOM 事件为非 trusted，无法替代网站要求的原生用户手势；不要靠重试伪造成功。超时可能发生在动作已经执行之后，应先重新观察，不盲目重复动作。
+selector 多个匹配、隐藏、禁用或被遮挡时应修正目标；输入接受可编辑节点，以及原生 `<select>`（按 option 的 value 或可见文本匹配，设置后派发 `input`+`change`，回执 `input_path=dom_select`；匹配不到时诚实报错 `select option not found`）。DOM 事件为非 trusted，无法替代网站要求的原生用户手势；不要靠重试伪造成功。超时可能发生在动作已经执行之后，应先重新观察，不盲目重复动作。
 
 ## 网页截图坐标点击（Bridge 0.2.8）
 

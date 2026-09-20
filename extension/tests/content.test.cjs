@@ -807,3 +807,52 @@ test("stable layout remains valid after Rust JSON object-key ordering roundtrip"
   assert.equal(clicked.pressed,true);
   assert.equal(button.dispatches.length,1);
 });
+
+test("type sets a native select by label or value and reports dom_select", () => {
+  class FakeOption {
+    constructor(value, text) { this.value = value; this.text = text; this.label = text; }
+  }
+  class FakeSelect extends FakeElement {
+    constructor(rect, options) {
+      super("SELECT", rect);
+      this.options = options;
+      this.value = options[0].value;
+    }
+  }
+  const select = new FakeSelect(
+    { left: 15, top: 20, width: 60, height: 16 },
+    [new FakeOption("low", "One"), new FakeOption("normal", "Two")],
+  );
+  const body = new FakeElement("BODY", { left: 0, top: 0, width: 100, height: 100 });
+  const document = new FakeDocument({ "#pick": [select], "body": [body] }, select);
+  document.defaultView = { HTMLInputElement: FakeElement, HTMLTextAreaElement: FakeElement };
+  select.ownerDocument = document;
+  document.body = body;
+  installPage(document);
+
+  const dry = typeDom("#pick", "Two", true);
+  assert.equal(dry.ok, true);
+  assert.equal(dry.typed, false);
+  assert.equal(select.value, "low");
+  assert.equal(select.dispatches.length, 0);
+
+  const byLabel = typeDom("#pick", "Two", false);
+  assert.equal(byLabel.ok, true, byLabel.error);
+  assert.equal(byLabel.input_path, "dom_select");
+  assert.equal(byLabel.selected_value, "normal");
+  assert.equal(byLabel.trusted, false);
+  assert.equal(byLabel.os_cursor_used, false);
+  assert.equal(select.value, "normal");
+  const kinds = select.dispatches.map((event) => event.type);
+  assert.ok(kinds.includes("input"), kinds.join(","));
+  assert.ok(kinds.includes("change"), kinds.join(","));
+
+  const byValue = typeDom("#pick", "low", false);
+  assert.equal(byValue.ok, true, byValue.error);
+  assert.equal(select.value, "low");
+
+  const missing = typeDom("#pick", "nope", false);
+  assert.equal(missing.ok, false);
+  assert.match(missing.error, /select option not found/);
+  assert.equal(select.value, "low");
+});

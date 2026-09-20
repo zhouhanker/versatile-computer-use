@@ -527,9 +527,10 @@ function typeDom(selector, text, dryRun) {
   if (!resolved.ok) return resolved;
   if (isDocumentContainer(resolved.element)) return reject("document container is not an editable text element");
   const editable = editableKind(resolved.element);
-  if (!editable) return reject("target is not an editable text element");
+  const selectable = !editable && isSelectElement(resolved.element);
+  if (!editable && !selectable) return reject("target is not an editable text element");
 
-  let validation = validateTarget(resolved.element, { editable: true });
+  let validation = validateTarget(resolved.element, { editable: true, select: selectable });
   if (!validation.ok) return reject(validation.error);
   let rect = rectOf(resolved.element);
   let point = pointOf(rect);
@@ -550,7 +551,7 @@ function typeDom(selector, text, dryRun) {
   if (needsScroll || !pointInViewport(point)) {
     const scrolled = scrollTarget(resolved.element);
     if (!scrolled.ok) return reject(scrolled.error);
-    validation = validateTarget(resolved.element, { editable: true });
+    validation = validateTarget(resolved.element, { editable: true, select: selectable });
     if (!validation.ok) return reject(validation.error);
     rect = rectOf(resolved.element);
     point = pointOf(rect);
@@ -567,13 +568,38 @@ function typeDom(selector, text, dryRun) {
   }
 
   // Focus handlers can change layout or put another element above the field.
-  validation = validateTarget(resolved.element, { editable: true });
+  validation = validateTarget(resolved.element, { editable: true, select: selectable });
   if (!validation.ok) return reject(validation.error);
   rect = rectOf(resolved.element);
   point = pointOf(rect);
   if (!pointInViewport(point)) return reject("target point left the viewport");
   const hit = verifyHit(resolved.element, point);
   if (!hit.ok) return reject(hit.error);
+
+  if (selectable) {
+    const wanted = text == null ? "" : String(text);
+    const option = selectOptionFor(resolved.element, wanted);
+    if (!option) return reject("select option not found: " + wanted);
+    showVirtualCursor(point, { pulse: false });
+    try {
+      setNativeValue(resolved.element, option.value);
+      dispatchInput(resolved.element, option.value);
+      dispatchChange(resolved.element);
+    } catch (e) {
+      hideVirtualCursor();
+      return reject("could not set target value: " + String(e));
+    }
+    return actionResult("type", resolved.element, point, rect, {
+      ok: true,
+      typed: true,
+      dry_run: false,
+      input_path: "dom_select",
+      selected_value: String(option.value == null ? "" : option.value),
+      selected_text: String(option.text || "").slice(0, 80),
+      text: wanted.slice(0, 80),
+      needs_scroll: false,
+    });
+  }
 
   showVirtualCursor(point, { pulse: false });
   const value = text == null ? "" : String(text);
@@ -741,7 +767,11 @@ function validateTarget(el, options = {}) {
   if (isHidden(el)) return { ok: false, error: "target is hidden" };
   if (isDisabled(el)) return { ok: false, error: "target is disabled" };
   if (isInert(el)) return { ok: false, error: "target is inert" };
-  if (options.editable && (isDocumentContainer(el) || !editableKind(el))) return { ok: false, error: "target is not editable" };
+  if (options.editable) {
+    const editable = editableKind(el);
+    const selectable = options.select === true && isSelectElement(el);
+    if (isDocumentContainer(el) || (!editable && !selectable)) return { ok: false, error: "target is not editable" };
+  }
   if (options.editable && isReadonly(el)) return { ok: false, error: "target is readonly" };
   const rect = rectOf(el);
   if (!(rect.width > 0 && rect.height > 0)) return { ok: false, error: "target has no visible bounds" };
@@ -801,6 +831,30 @@ function editableKind(el) {
   const type = String(el.type || attr(el, "type") || "text").toLowerCase();
   if (["hidden", "button", "checkbox", "color", "file", "image", "radio", "range", "reset", "submit"].includes(type)) return null;
   return "input";
+}
+
+function isSelectElement(el) {
+  return String((el && el.tagName) || "").toUpperCase() === "SELECT";
+}
+
+// A native <select> is not an editable text control, but it can be set
+// deterministically: match the wanted string against option value first, then
+// against the visible label/text, then assign the value and let the page's
+// own input/change handlers run.
+function selectOptionFor(el, text) {
+  const want = String(text == null ? "" : text);
+  const normalize = (value) => String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+  const options = Array.from(el.options || []);
+  if (options.length === 0) return null;
+  const byValue = options.find((option) => String(option.value) === want);
+  if (byValue) return byValue;
+  const wanted = normalize(want);
+  if (!wanted) return null;
+  return options.find((option) => {
+    const label = normalize(option.label);
+    const visible = normalize(option.text);
+    return (label && label === wanted) || (visible && visible === wanted);
+  }) || null;
 }
 
 function computedStyle(el) {

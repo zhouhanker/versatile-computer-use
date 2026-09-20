@@ -422,7 +422,7 @@ enum BrowserCmd {
         #[arg(long, default_value_t = false)]
         dry_run: bool,
     },
-    /// Type into USER browser. Default: AX address bar. `--selector` uses USER extension DOM.
+    /// Type into USER browser. Default: AX address bar. `--selector` uses USER extension DOM; a native `<select>` is set by option value or label (input_path=dom_select).
     Type {
         #[arg(long)]
         text: Option<String>,
