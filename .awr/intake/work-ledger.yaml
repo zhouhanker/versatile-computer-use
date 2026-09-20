@@ -1180,8 +1180,59 @@ work_items:
     milestone: m-phase1-mvp
     required: false
     priority: P2
-    summary: 辅助功能授权后完整 AX 树；GitHub Releases 托管 dist
-    acceptance: ["可选"]
-    next_action: 配置 release 托管 URL 后用户 curl 安装
-    evidence: []
+    summary: 辅助功能授权后完整 AX 树；GitHub Releases 托管 dist。现场（2026-09-20）：releases 为空 → vcu self update 报 update installer exited non-zero，不透传 stderr；本地通路 VCU_BASE_URL=file://$PWD/dist 已验证 updated=true
+    acceptance:
+      - "GitHub Releases 有 v* 资产后，curl | sh 与不带宽带的 vcu self update 均可用"
+      - "无 Release 时 self update 失败要透传 installer stderr 并提示 VCU_BASE_URL=file://... 本地通路"
+    next_action: 由 CU-D-700 落地（发布 Release 资产 + self update 报错可诊断）；深 AX 部分继续停放
+    evidence: ["docs/RELEASE.md", "docs/INSTALL.md"]
+    depends_on: []
+
+  - id: CU-D-680
+    title: group-update --browser 撞号定向
+    status: ready
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: 工作树已实现（8 文件 +172 行，未提交）：CLI/MCP/HTTP 把 --browser 接进 group 解析，撞号无 --browser 返回 InvalidInput ambiguous；cargo test --workspace 与扩展 45 项全绿
+    acceptance:
+      - "scripts/poc_cu_d_680.py 真机跑绿：无 --browser 拒绝、带 --browser 只改对应浏览器组、组 1/3 未动"
+      - "文档（ROADMAP/PLAN/TEST_PLAN/HANDOFF）记录并提交"
+    next_action: 写真机 POC → 顺带删除 extension/background.js.bak → 提交
+    evidence: ["crates/vcu-server/src/api.rs", "docs/ROADMAP-CU.md"]
+    depends_on: []
+
+  - id: CU-D-690
+    title: extension DOM 支持原生 select
+    status: ready
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P1
+    summary: 现场缺口：type 只认 input/textarea/contenteditable（target is not an editable text element）；点 option 报 target has no visible bounds；key 只出策略 plan 不注入按键。导致 GitHub Support 工单页 Type of Issue 无法选择、工单提交被校验拒绝
+    acceptance:
+      - "抛页原生 select 设置成功：source=extension_dom、input_path=dom_select、trusted=false、os_cursor_used=false，页面收到 input+change"
+      - "真机验收：用 VCU 在 GitHub Support 工单页选 Type of Issue 并成功提交"
+    next_action: extension/content.js 放宽 type / 新增 select 动作（设 value + 派发 input/change）+ 单测 + 抛页 POC
+    evidence: ["extension/content.js", "docs/testing/DESKTOP_CU_TEST_PLAN.md"]
+    depends_on: []
+
+  - id: CU-D-700
+    title: Release 托管与 vcu self update 可用性
+    status: ready
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-phase1-mvp
+    required: false
+    priority: P2
+    summary: 现场：GitHub Releases 为空 → vcu self update 报 update installer exited non-zero（不透传 installer stderr）；本地通路 VCU_BASE_URL=file://$PWD/dist vcu self update 已实测 updated=true
+    acceptance:
+      - "发布 v* Release 资产（macOS arm64/x64、Windows x64、install.sh/ps1）"
+      - "curl -fsSL .../releases/latest/download/install.sh | sh 与 vcu self update 在无 VCU_BASE_URL 时成功"
+      - "失败路径输出 installer stderr 并提示本地 file:// 通路"
+    next_action: 打 tag 触发 release.yml 并做 curl/self update 冒烟；随后更新 MAC-NEXT
+    evidence: ["docs/RELEASE.md", "docs/INSTALL.md", "dist/"]
     depends_on: []

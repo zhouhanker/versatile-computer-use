@@ -213,6 +213,11 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-650 | extract/type/click --browser | **完成（真机）** `#who` chrome/edge 分向；type Chrome；click Edge dry-run。`poc_cu_d_650.py` OK。无 SendInput。 |
 | CU-D-660 | hover/scroll/wait/screenshot --browser | **完成（真机）** hover/scroll Chrome；wait Edge；screenshot 可因遮挡失败。`poc_cu_d_660.py` OK。无 SendInput。 |
 | CU-D-670 | open --browser + group same browser | **完成（真机）** open Chrome/Edge；跨浏览器 group 拒绝；同 Chrome 两抛页 group/ungroup。`poc_cu_d_670.py` OK。无 SendInput。 |
+| CU-D-680 | group-update `--browser`（撞号定向） | **完成（真机）** 组列表带 `browser` 标记；`--browser chrome\|edge` 只改对应组，另一浏览器组不动；id 唯一时无 `--browser` 正确解析；错浏览器（真实 id）与未知 id 均诚实失败且不误改；组清理干净、组 1/3 未动。撞号分支由 `app_http` `upd_amb` 单测覆盖（真机构造不出同号）。`scripts/poc_cu_d_680.py` CU-D-680 OK。无 SendInput。 |
+| CU-D-690 | extension DOM 原生 `<select>` 支持 | **待做（2026-09-20 现场发现）** GitHub Support 工单页「Type of Issue」是原生 `<select>`：`type` 报 `target is not an editable text element`；点 `option` 报 `target has no visible bounds`；`key` 只返回策略 plan（`pressed=false`）。验收见 `testing/DESKTOP_CU_TEST_PLAN.md` TC-D-690。 |
+| CU-D-700 | `vcu self update` + Release 托管 | **待做（2026-09-20 现场发现，对应台账 MAC-NEXT）** GitHub Releases 为空 → `vcu self update` 报 `update installer exited non-zero`（不透传 installer stderr）；本地通路已用 `VCU_BASE_URL=file://$PWD/dist vcu self update` 验证（`updated: true`）。 |
+
+**本轮现场（2026-09-20）：** CU-D-680 已真机通过（`scripts/poc_cu_d_680.py`，见 TC-D-680），并删除仓库残留 `extension/background.js.bak`。待办按序：CU-D-690（extension DOM 原生 `<select>`，真机验收＝用 VCU 提交 GitHub Support 工单）→ CU-D-700（Release 托管 + `vcu self update` 可诊断）。
 
 ## 4. 建议执行顺序（编排）
 
@@ -289,6 +294,9 @@ CU-D-000 文档
     → CU-D-650 extract/type/click --browser
     → CU-D-660 hover/scroll/wait/screenshot --browser
     → CU-D-670 open --browser + group same browser
+    → CU-D-680 group-update --browser（先提交工作树 + 真机 POC + 文档）
+    → CU-D-690 extension DOM 设原生 `<select>`（含 GitHub 工单提交真机验收）
+    → CU-D-700 Release 托管 + self update 可用性
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

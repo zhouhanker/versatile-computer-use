@@ -193,6 +193,9 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-650 | extract/type/click --browser | **通过** extract `#who` 分浏览器；type Chrome；click Edge dry-run；`scripts/poc_cu_d_650.py` CU-D-650 OK。组 1/3 未动 |
 | TC-D-660 | hover/scroll/wait/screenshot --browser | **通过** hover/scroll Chrome、wait Edge `#who`；错浏览器 hover 拒绝；`scripts/poc_cu_d_660.py` CU-D-660 OK。组 1/3 未动 |
 | TC-D-670 | open --browser + group same browser | **通过** open chrome/edge `#who`；跨浏览器 group 拒绝；Chrome 两抛页 group/ungroup；`scripts/poc_cu_d_670.py` CU-D-670 OK。组 1/3 未动 |
+| TC-D-680 | group-update --browser | **通过** 真机：group 列表带 `browser` 标记；`--browser chrome\|edge` 只改对应浏览器的组（title/color/collapsed 生效，另一浏览器组不变）；id 唯一时无 `--browser` 正确解析；用另一浏览器的真实 id + 错 `--browser` → 诚实失败且目标组不变；未知 id → `No group with id`；组清理干净，组 1/3 未动。撞号分支（`ambiguous`）真机无法构造同号 `group_id`（浏览器侧随机大数），由 `cargo test -p vcu-server --test app_http`（`upd_amb`）覆盖。`scripts/poc_cu_d_680.py` CU-D-680 OK。无 SendInput |
+| TC-D-690 | extension DOM 原生 `<select>` | **待做** 抛页放原生 `<select>`：设置成功后回执 `source=extension_dom`、`input_path` 明确（如 `dom_select`）、`trusted=false`、`os_cursor_used=false`；页面 `input`+`change` 都收到；值不存在时诚实报错。**真机验收**：用 VCU 在 GitHub Support 工单页选「Type of Issue」并提交成功 |
+| TC-D-700 | vcu self update / Release 托管 | **待做** 仓库发布 Release 资产后：`curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh \| sh` 与不带 `VCU_BASE_URL` 的 `vcu self update` 成功；否则错误信息必须包含 installer stderr 与 `VCU_BASE_URL=file://$PWD/dist` 本地通路提示 |
 
 ## 8. 未通过不得宣称完成
 
@@ -201,4 +204,5 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 - 任何微信窗口上的动作  
 - Windows `vcu session` 产品路径 / Stage HUD / live Invoke
 - 把 WM_SETTEXT 写成 UIA ValuePattern
-
+- 含原生 `<select>` 的网页表单（TC-D-690 未过前，不得宣称能完成下拉选择）
+- Release 托管（TC-D-700 未过前，不得宣称 `curl | sh` / `vcu self update` 开箱可用）

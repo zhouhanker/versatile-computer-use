@@ -28,3 +28,15 @@ git push origin v0.1.0
 ```bash
 bash scripts/pack-release.sh
 ```
+
+## `vcu self update` 依赖
+
+`vcu self update` 与 `curl | sh` 都指向 `releases/latest/download/`，**没有 Release 资产时两者都不可用**（当前仓库即为此状态，跟踪项 CU-D-700 / 台账 `MAC-NEXT`）。发布后自查：
+
+```bash
+gh release list                                     # 应有 v* 资产
+curl -fsI https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh
+vcu self update                                     # 不带 VCU_BASE_URL 应成功
+```
+
+无 Release 期间用本地通路：`bash scripts/pack-release.sh && VCU_BASE_URL=file://$PWD/dist vcu self update`。

@@ -133,6 +133,10 @@
 - [x] **CU-D-650**：extract/type/click `--browser` 定向；observe 不再把 Chrome tab 的 last_observe 写成 Edge 进程。`poc_cu_d_650.py` OK。组 1/3 未动。无 SendInput。
 - [x] **CU-D-660**：hover/scroll/wait/screenshot `--browser`；撞号无 `--browser` 拒绝。`poc_cu_d_660.py` OK。组 1/3 未动。无 SendInput。
 - [x] **CU-D-670**：`open --browser` 定向 Chrome/Edge；group/ungroup 拒绝跨浏览器 tab。`poc_cu_d_670.py` OK。组 1/3 未动。无 SendInput。
+- [x] **CU-D-680**：`group-update --browser` 真机通过。`scripts/poc_cu_d_680.py` CU-D-680 OK：组列表带 `browser` 标记、唯一 id 无 `--browser` 正确解析、`--browser` 定向只改对应浏览器组、错浏览器/未知 id 诚实失败且不误改、组清理干净、组 1/3 未动。撞号分支由 `app_http` `upd_amb` 单测覆盖。无 SendInput。同时删除仓库残留 `extension/background.js.bak`。
+- [ ] **CU-D-690**：extension DOM 支持原生 `<select>`（现场：`type` 只吃 input/textarea/contenteditable、`option` 无可视边界、`key` 仅出策略 plan）。实现方向：`extension/content.js` 放宽 `type`/新增 select 动作，设置 `select.value` + 派发 `input`/`change`；真机验收用 GitHub Support 工单页「Type of Issue」并完成提交。
+- [ ] **CU-D-700**：Release 托管 + `vcu self update` 可用性（对应台账 MAC-NEXT）。现场：GitHub Releases 为空 → `vcu self update` 报 `update installer exited non-zero` 且不透传 installer stderr；本地通路 `VCU_BASE_URL=file://$PWD/dist vcu self update` 已实测 `updated: true`。
+- [ ] **清理**：删除被 git 跟踪的残留备份 `extension/background.js.bak`（2026-09-17 旧 service worker，2460B）。
 
 
 ## 操作入口
