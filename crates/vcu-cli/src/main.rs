@@ -1829,15 +1829,15 @@ fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i3
     }
     let local_script = script_candidates.into_iter().find(|p| p.exists());
     use std::process::Stdio;
-    let status = if let Some(script) = local_script {
+    let output = if let Some(script) = local_script {
         Command::new("bash")
             .arg(script)
             .env("VCU_VERSION", version)
             .env("VCU_BASE_URL", base)
             .env("VCU_PREFIX", prefix)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
     } else {
         // download install.sh then run
         let tmp = std::env::temp_dir().join("vcu-install.sh");
@@ -1847,9 +1847,18 @@ fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i3
             .output()
             .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "curl install.sh", e.to_string()))?;
         if !body.status.success() {
-            return Err(VcuError::coded(
+            let tail = installer_output_tail(&body.stderr, 4);
+            let detail = if tail.is_empty() {
+                format!("curl exit status {}", body.status)
+            } else {
+                tail
+            };
+            return Err(VcuError::with_detail(
                 ErrorCode::Internal,
-                format!("failed to download install.sh from {url}"),
+                format!(
+                    "failed to download install.sh from {url}; no published release? run `bash scripts/pack-release.sh` then `VCU_BASE_URL=file://$PWD/dist vcu self update`"
+                ),
+                detail,
             ));
         }
         std::fs::write(&tmp, &body.stdout)?;
@@ -1858,12 +1867,12 @@ fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i3
             .env("VCU_VERSION", version)
             .env("VCU_BASE_URL", base)
             .env("VCU_PREFIX", prefix)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
     }
     .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "update failed", e.to_string()))?;
-    if status.success() {
+    if output.status.success() {
         print_ok(
             &json!({
                 "updated": true,
@@ -1875,8 +1884,36 @@ fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i3
         );
         Ok(0)
     } else {
-        Err(VcuError::coded(ErrorCode::Internal, "update installer exited non-zero"))
+        let mut detail = format!("installer {}", output.status);
+        let stderr = installer_output_tail(&output.stderr, 6);
+        let stdout = installer_output_tail(&output.stdout, 6);
+        if !stderr.is_empty() {
+            detail.push_str(&format!("; stderr: {stderr}"));
+        }
+        if !stdout.is_empty() {
+            detail.push_str(&format!("; stdout: {stdout}"));
+        }
+        Err(VcuError::with_detail(
+            ErrorCode::Internal,
+            format!(
+                "update installer exited non-zero (base_url {base}); no published asset? run `bash scripts/pack-release.sh` then `VCU_BASE_URL=file://$PWD/dist vcu self update`"
+            ),
+            detail,
+        ))
     }
+}
+
+/// Keep only the last few non-empty lines of installer output so an error
+/// envelope stays bounded but still explains why the installer failed.
+fn installer_output_tail(bytes: &[u8], max_lines: usize) -> String {
+    let text = String::from_utf8_lossy(bytes);
+    let lines: Vec<&str> = text
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .collect();
+    let start = lines.len().saturating_sub(max_lines);
+    lines[start..].join(" | ")
 }
 
 fn self_uninstall(paths: &VcuPaths, prefix: &str, purge_config: bool) -> Result<i32, VcuError> {
