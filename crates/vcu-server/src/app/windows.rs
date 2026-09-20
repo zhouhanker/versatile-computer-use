@@ -1527,6 +1527,17 @@ mod tests {
         assert!(!l330.contains("sendinput("));
         assert!(!l330.contains("[system.windows.forms.sendkeys"));
         assert!(!l330.contains("mouse_event"));
+        let p340 = root.join("scripts/poc_cu_d_340.ps1");
+        let s340 = std::fs::read_to_string(&p340).unwrap_or_default();
+        assert!(s340.contains("SCROLL_OK"), "{}", p340.display());
+        assert!(s340.contains("wm_vscroll") || s340.contains("uia_scroll"));
+        assert!(s340.contains("mcp_tools_call"));
+        assert!(s340.contains("vcu_scroll"));
+        assert!(s340.contains("CU-D-340 OK"));
+        let l340 = s340.to_ascii_lowercase();
+        assert!(!l340.contains("sendinput("));
+        assert!(!l340.contains("[system.windows.forms.sendkeys"));
+        assert!(!l340.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
