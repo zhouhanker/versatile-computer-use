@@ -1181,11 +1181,7 @@ async fn browser_tab_command(state: Arc<AppState>, headers: HeaderMap, method: &
     if !state.extension_bridge.likely_user_profile().await {
         return err_response(VcuError::coded(ErrorCode::ActionFailed, "extension_profile is not user; refusing Agent browser operation"));
     }
-    let call = if method == "open_tab" {
-        extension_dom_call(&state, method, params, 8).await
-    } else {
-        state.extension_bridge.call_timeout(method, params, 8).await
-    };
+    let call = extension_dom_call(&state, method, params, 8).await;
     match call {
         Ok(mut value) => {
             if !value.is_object() { return err_response(VcuError::coded(ErrorCode::ActionFailed, "invalid extension response")); }
@@ -2022,7 +2018,19 @@ async fn snapshot(
             "source": obs.source,
         }),
     );
-    Json(Envelope::ok_rev(obs, slot.session.revision)).into_response()
+    let rev = slot.session.revision;
+    let mut body = serde_json::to_value(&obs).unwrap_or_else(|_| json!({}));
+    if crate::login_state::browser_kind_from_app_id(&tab).is_some()
+        && state.extension_bridge.is_polling().await
+    {
+        if let Ok(tabs) = state.extension_bridge.list_tabs_merged().await {
+            crate::login_state::attach_extension_tabs_as_browser_tabs(&mut body, &tab, &tabs);
+            if body.get("tab_id").and_then(|v| v.as_str()).is_some() {
+                remember_observe(&state, &tab, &body).await;
+            }
+        }
+    }
+    Json(Envelope::ok_rev(body, rev)).into_response()
 }
 
 #[derive(Deserialize)]

@@ -558,6 +558,36 @@ pub fn bind_app_id(
         .map(|l| l.app_id.clone())
 }
 
+
+/// Attach extension tabs onto a desktop.scene JSON without replacing AX targets/dom_refs.
+pub fn attach_extension_tabs_as_browser_tabs(body: &mut Value, app_id: &str, ext: &Value) {
+    let mut tmp = json!({
+        "tabs": [],
+        "page_url": body.get("page_url").cloned().unwrap_or(Value::Null),
+        "page_title": body.get("page_title").cloned().unwrap_or(Value::Null),
+        "elements": [],
+    });
+    merge_extension_tabs_into_scene(&mut tmp, app_id, ext);
+    if tmp.get("tabs_source").and_then(Value::as_str) != Some("extension_tabs") {
+        return;
+    }
+    body["browser_tabs"] = tmp.get("tabs").cloned().unwrap_or(json!([]));
+    body["tabs_source"] = json!("extension_tabs");
+    if let Some(v) = tmp.get("page_url") {
+        body["page_url"] = v.clone();
+    }
+    if let Some(v) = tmp.get("page_url_source") {
+        body["page_url_source"] = v.clone();
+    }
+    if let Some(v) = tmp.get("tab_id") {
+        body["tab_id"] = v.clone();
+    }
+    if let Some(v) = tmp.get("tab_id_source") {
+        body["tab_id_source"] = v.clone();
+    }
+    body["scene_source"] = json!("ax_scene");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -823,6 +853,29 @@ mod tests {
         assert_eq!(bind_tab_id(None, Some(&stale), now), (None, "implicit"));
         assert_eq!(bind_app_id(None, Some(&last), now).as_deref(), Some("proc:Chrome:1"));
         assert!(bind_app_id(None, Some(&stale), now).is_none());
+    }
+
+    #[test]
+    fn attach_browser_tabs_does_not_replace_ax_targets() {
+        let ext = json!({
+            "tabs": [{"tab_id":"42","url":"https://edge.example/","title":"e","active":true,"browser":"edge"}],
+            "browsers": ["edge"]
+        });
+        let mut body = json!({
+            "kind": "desktop.scene",
+            "source": "ax_scene",
+            "targets": [{"tab_id":"proc:Microsoft_Edge:10"}],
+            "dom_refs": [{"ref":"e_web"}]
+        });
+        attach_extension_tabs_as_browser_tabs(&mut body, "proc:Microsoft_Edge:10", &ext);
+        assert_eq!(body["source"], "ax_scene");
+        assert_eq!(body["targets"][0]["tab_id"], "proc:Microsoft_Edge:10");
+        assert_eq!(body["dom_refs"][0]["ref"], "e_web");
+        assert_eq!(body["browser_tabs"][0]["tab_id"], "42");
+        assert_eq!(body["tabs_source"], "extension_tabs");
+        assert_eq!(body["page_url"], "https://edge.example/");
+        assert_eq!(body["tab_id"], "42");
+        assert_ne!(body.get("source").and_then(|v| v.as_str()), Some("extension_dom"));
     }
 
 }
