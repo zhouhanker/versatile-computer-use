@@ -1516,6 +1516,17 @@ mod tests {
         assert!(!l320.contains("sendinput("));
         assert!(!l320.contains("[system.windows.forms.sendkeys"));
         assert!(!l320.contains("mouse_event"));
+        let p330 = root.join("scripts/poc_cu_d_330.ps1");
+        let s330 = std::fs::read_to_string(&p330).unwrap_or_default();
+        assert!(s330.contains("NEWLINE_DENIED"), "{}", p330.display());
+        assert!(s330.contains("FocusPolicyViolation"));
+        assert!(s330.contains("mcp_tools_call"));
+        assert!(s330.contains("vcu_type"));
+        assert!(s330.contains("CU-D-330 OK"));
+        let l330 = s330.to_ascii_lowercase();
+        assert!(!l330.contains("sendinput("));
+        assert!(!l330.contains("[system.windows.forms.sendkeys"));
+        assert!(!l330.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());

@@ -152,6 +152,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_320.ps1
+      - name: windows mcp live type newline denied (CU-D-330)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_330.ps1
 
   package-macos:
     needs: test
