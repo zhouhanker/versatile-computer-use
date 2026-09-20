@@ -157,7 +157,8 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-290 | MCP tools/call live hover | **通过** run `35477727787` `HOVER_OK path=guide_hover os_cursor_used=False via=mcp_tools_call` / `ABORT_OK via=mcp_tools_call` / `CU-D-290 OK`。无 SendInput |
 | TC-D-300 | MCP tools/call live click | **通过** run `35478128021` `INVOKE_OK path=bm_click os_cursor_used=False via=mcp_tools_call` / `CU-D-300 OK`。无 SendInput |
 | TC-D-310 | MCP tools/call live wait | **通过** run `35478526783` `WAIT_OK path=scene_wait via=mcp_tools_call` / `CU-D-310 OK`。无 SendInput |
-| TC-D-320 | MCP tools/call live type | **未过** `tools/call` `vcu_type` 无换行 → `wm_settext` 或 `clipboard_paste`。无 SendInput |
+| TC-D-320 | MCP tools/call live type | **通过** run `35479050203` `TYPE_OK path=wm_settext os_cursor_used=False via=mcp_tools_call` / `CU-D-320 OK`。无 SendInput |
+| TC-D-330 | MCP tools/call live type newline denied | **未过** `tools/call` `vcu_type` 含换行 → `NEWLINE_DENIED` / `FocusPolicyViolation`。无 SendInput |
 
 ## 8. 未通过不得宣称完成
 
