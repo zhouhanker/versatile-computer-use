@@ -517,6 +517,8 @@ enum BrowserCmd {
         color: Option<String>,
         #[arg(long, action = clap::ArgAction::Set)]
         collapsed: Option<bool>,
+        #[arg(long)]
+        browser: Option<String>,
     },
     /// Remove explicit tabs from groups without closing them.
     Ungroup {
@@ -1301,11 +1303,12 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::GroupUpdate { group, title, color, collapsed } => {
+            BrowserCmd::GroupUpdate { group, title, color, collapsed, browser } => {
                 let mut body = json!({"group_id": group});
                 if let Some(v) = title { body["title"] = json!(v); }
                 if let Some(v) = color { body["color"] = json!(v); }
                 if let Some(v) = collapsed { body["collapsed"] = json!(v); }
+                if let Some(b) = browser { body["browser"] = json!(b); }
                 let v = api_post(&paths, "/v1/browser/group/update", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))

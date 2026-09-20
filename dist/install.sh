@@ -99,9 +99,16 @@ mkdir -p "$VCU_BIN_DIR" "$VCU_SHARE_DIR"
 install -m 755 "$STAGE/bin/vcu" "$VCU_BIN_DIR/vcu"
 install -m 755 "$STAGE/bin/vcu-daemon" "$VCU_BIN_DIR/vcu-daemon"
 install -m 755 "$STAGE/bin/vcu-mcp" "$VCU_BIN_DIR/vcu-mcp"
+if [[ -x "$STAGE/bin/vcu-stage" ]]; then
+  install -m 755 "$STAGE/bin/vcu-stage" "$VCU_BIN_DIR/vcu-stage"
+fi
 rm -rf "$VCU_SHARE_DIR/extension" "$VCU_SHARE_DIR/skills"
 cp -R "$STAGE/extension" "$VCU_SHARE_DIR/" 2>/dev/null || true
 cp -R "$STAGE/skills" "$VCU_SHARE_DIR/" 2>/dev/null || true
+if [[ -d "$STAGE/playbooks" ]]; then
+  mkdir -p "$VCU_SHARE_DIR/playbooks"
+  cp -R "$STAGE/playbooks/." "$VCU_SHARE_DIR/playbooks/"
+fi
 
 # PATH hint
 if ! command -v vcu >/dev/null 2>&1; then
@@ -115,5 +122,8 @@ fi
 "$VCU_BIN_DIR/vcu" init --json || true
 echo "OK: vcu installed to $VCU_BIN_DIR"
 echo "Extension bundle: $VCU_SHARE_DIR/extension"
+if [[ -x "$VCU_BIN_DIR/vcu-stage" ]]; then
+  echo "Stage helper: $VCU_BIN_DIR/vcu-stage"
+fi
 echo "Start daemon: vcu daemon start --foreground"
 echo "MCP config: vcu mcp print-config --json"

@@ -204,7 +204,10 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                         "focused": true,
                         "browser": "chrome"
                     }],
-                    "groups": [],
+                    "groups": [
+                        {"group_id": "7", "title": "edge-g", "browser": "edge"},
+                        {"group_id": "7", "title": "chrome-g", "browser": "chrome"}
+                    ],
                     "source": "extension_tabs"
                 }),
                 "select_tab" => {
@@ -217,6 +220,7 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                 }
                 "open_tab" => json!({"ok": true, "tab_id": "1001", "url": "https://edge.example/new", "source": "extension_tabs"}),
                 "group_tabs" => json!({"ok": true, "group_id": "g1", "source": "extension_tabs"}),
+                "update_group" => json!({"ok": true, "group_id": "7", "source": "extension_tabs"}),
                 "ungroup_tabs" => json!({"ok": true, "source": "extension_tabs"}),
                 "click" => {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!(null));
@@ -660,6 +664,28 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
         .unwrap();
     assert_eq!(opened["ok"], true, "{opened}");
     assert_eq!(opened["data"]["browser"], "edge");
+
+    let upd_amb: serde_json::Value = auth(client.post(format!("{base}/v1/browser/group/update")))
+        .json(&json!({"group_id": "7", "title": "x"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(upd_amb["ok"], false, "{upd_amb}");
+    assert!(upd_amb["error"]["message"].as_str().unwrap_or("").contains("ambiguous"), "{upd_amb}");
+
+    let updated: serde_json::Value = auth(client.post(format!("{base}/v1/browser/group/update")))
+        .json(&json!({"group_id": "7", "title": "renamed", "browser": "edge"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(updated["ok"], true, "{updated}");
+    assert_eq!(updated["data"]["browser"], "edge");
 
     let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true, "tab_id": "99"}))

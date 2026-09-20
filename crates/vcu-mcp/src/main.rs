@@ -210,8 +210,8 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_browser_group", "Group explicit same-window tab IDs in one browser. Rejects Chrome+Edge mixes. Pass browser when tab_id collides.", json!({"type":"object","required":["tab_ids","title"],"properties":{
             "tab_ids":{"type":"array","minItems":1,"items":{"type":"string"}},"title":{"type":"string"},"color":{"type":"string","default":"purple"},"collapsed":{"type":"boolean","default":false},"browser":{"type":"string"}
         }})),
-        tool("vcu_browser_group_update", "Rename, recolor, expand or collapse a native browser group. Does not close tabs.", json!({"type":"object","required":["group_id"],"properties":{
-            "group_id":{"type":"string"},"title":{"type":"string"},"color":{"type":"string"},"collapsed":{"type":"boolean"}
+        tool("vcu_browser_group_update", "Rename, recolor, expand or collapse a native browser group. Pass browser when group_id collides. Does not close tabs.", json!({"type":"object","required":["group_id"],"properties":{
+            "group_id":{"type":"string"},"title":{"type":"string"},"color":{"type":"string"},"collapsed":{"type":"boolean"},"browser":{"type":"string"}
         }})),
         tool("vcu_browser_ungroup", "Ungroup explicit tab IDs without closing their pages. Pass browser when tab_id collides.", json!({"type":"object","required":["tab_ids"],"properties":{"tab_ids":{"type":"array","minItems":1,"items":{"type":"string"}},"browser":{"type":"string"}}})),
         tool("vcu_browser_ping", "Ping USER Edge/Chrome extension SW. Must pong. reload=true copies nothing but chrome.runtime.reload on every connected lens. Never click Allow.", json!({"type":"object","properties":{"reload":{"type":"boolean","default":false}}})),

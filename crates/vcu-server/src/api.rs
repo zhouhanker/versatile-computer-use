@@ -1606,8 +1606,98 @@ async fn browser_group(State(state): State<Arc<AppState>>, headers: HeaderMap, J
     };
     browser_tab_command_hinted(state, headers, "group_tabs", params, kind).await
 }
+fn json_group_id(group: &Value) -> Option<String> {
+    group
+        .get("group_id")
+        .and_then(|id| {
+            id.as_str()
+                .map(|s| s.to_string())
+                .or_else(|| id.as_i64().map(|n| n.to_string()))
+                .or_else(|| id.as_u64().map(|n| n.to_string()))
+        })
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn find_extension_group(
+    listed: &Value,
+    want: &str,
+    browser: Option<&str>,
+) -> Result<Value, VcuError> {
+    let arr = listed
+        .get("groups")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let hits: Vec<Value> = arr
+        .iter()
+        .filter(|g| json_group_id(g).as_deref() == Some(want))
+        .filter(|g| browser.map(|b| kind_from_tab(g) == Some(b)).unwrap_or(true))
+        .cloned()
+        .collect();
+    if hits.len() > 1 {
+        return Err(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "group_id is ambiguous across Chrome/Edge; pass --browser",
+        ));
+    }
+    hits.into_iter()
+        .next()
+        .ok_or_else(|| VcuError::coded(ErrorCode::ActionFailed, "group not found"))
+}
+
+async fn resolve_group_kind(
+    state: &AppState,
+    params: &Value,
+) -> Result<Option<&'static str>, VcuError> {
+    let want = parse_observe_browser(params.get("browser").and_then(Value::as_str))?;
+    let Some(gid) = params
+        .get("group_id")
+        .and_then(|id| {
+            id.as_str()
+                .map(|s| s.to_string())
+                .or_else(|| id.as_i64().map(|n| n.to_string()))
+                .or_else(|| id.as_u64().map(|n| n.to_string()))
+        })
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+    else {
+        return Ok(want);
+    };
+    let listed = state.extension_bridge.list_tabs_merged().await?;
+    match find_extension_group(&listed, &gid, want) {
+        Ok(found) => Ok(kind_from_tab(&found).or(want)),
+        Err(e) => {
+            let msg = e.message();
+            if msg.contains("ambiguous") || msg.contains("browser must be") {
+                return Err(e);
+            }
+            if want.is_some() {
+                return Ok(want);
+            }
+            let last = state.last_observe.read().await.clone();
+            Ok(last
+                .as_ref()
+                .and_then(|l| crate::login_state::browser_kind_from_app_id(&l.app_id)))
+        }
+    }
+}
+
 async fn browser_group_update(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
-    browser_tab_command(state, headers, "update_group", params).await
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if let Err(e) = validate_tab_management("update_group", &params) {
+        return err_response(e);
+    }
+    if let Err(e) = user_extension_ready(&state).await {
+        return err_response(e);
+    }
+    let kind = match resolve_group_kind(&state, &params).await {
+        Ok(k) => k,
+        Err(e) => return err_response(e),
+    };
+    browser_tab_command_hinted(state, headers, "update_group", params, kind).await
 }
 async fn browser_ungroup(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
     if let Err(e) = require_auth(&headers, &state).await {

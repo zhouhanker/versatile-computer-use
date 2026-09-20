@@ -394,6 +394,22 @@ impl ExtensionBridge {
                     })
                     .unwrap_or_default();
                 self.store_client_tabs(id, seen).await;
+                if let Some(browser) = self.client_browser(id).await {
+                    if let Some(arr) = v.get_mut("tabs").and_then(|x| x.as_array_mut()) {
+                        for t in arr {
+                            if t.get("browser").and_then(|x| x.as_str()).unwrap_or("").is_empty() {
+                                t["browser"] = serde_json::json!(browser.clone());
+                            }
+                        }
+                    }
+                    if let Some(arr) = v.get_mut("groups").and_then(|x| x.as_array_mut()) {
+                        for g in arr {
+                            if g.get("browser").and_then(|x| x.as_str()).unwrap_or("").is_empty() {
+                                g["browser"] = serde_json::json!(browser.clone());
+                            }
+                        }
+                    }
+                }
             }
             if let Some(obj) = v.as_object_mut() {
                 obj.insert("browser_count".into(), serde_json::json!(ids.len()));
@@ -447,7 +463,18 @@ impl ExtensionBridge {
                     }
                     self.store_client_tabs(&id, seen).await;
                     if let Some(arr) = v.get("groups").and_then(|x| x.as_array()) {
-                        groups.extend(arr.iter().cloned());
+                        for g in arr {
+                            let mut group = g.clone();
+                            if group
+                                .get("browser")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .is_empty()
+                            {
+                                group["browser"] = serde_json::json!(browser.clone());
+                            }
+                            groups.push(group);
+                        }
                     }
                 }
                 Err(e) => {

@@ -464,7 +464,7 @@ async fn browser_tab_management_preserves_extension_metadata_and_params() {
     }
 
     let commands = log.lock().await.clone();
-    assert_eq!(commands.len(), 9, "{commands:?}");
+    assert_eq!(commands.len(), 10, "{commands:?}");
     assert_eq!(commands[0].method, "list_tabs");
     assert_eq!(commands[1].method, "list_tabs");
     assert_eq!(commands[2].method, "select_tab");
@@ -475,17 +475,18 @@ async fn browser_tab_management_preserves_extension_metadata_and_params() {
         commands[4].params,
         json!({"tab_ids": ["42", "43"], "title": "Sprint", "color": "purple", "collapsed": true})
     );
-    assert_eq!(commands[5].method, "update_group");
+    assert_eq!(commands[5].method, "list_tabs");
+    assert_eq!(commands[6].method, "update_group");
     assert_eq!(
-        commands[5].params,
+        commands[6].params,
         json!({"group_id": "10", "title": "Renamed", "color": "blue", "collapsed": false})
     );
-    assert_eq!(commands[6].method, "list_tabs");
-    assert_eq!(commands[7].method, "ungroup_tabs");
-    assert_eq!(commands[7].params, json!({"tab_ids": ["42", "43"]}));
-    assert_eq!(commands[8].method, "open_tab");
+    assert_eq!(commands[7].method, "list_tabs");
+    assert_eq!(commands[8].method, "ungroup_tabs");
+    assert_eq!(commands[8].params, json!({"tab_ids": ["42", "43"]}));
+    assert_eq!(commands[9].method, "open_tab");
     assert_eq!(
-        commands[8].params,
+        commands[9].params,
         json!({"url": "https://example.com/", "session_name": "Sprint", "active": false})
     );
 
