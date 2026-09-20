@@ -345,6 +345,18 @@ impl ExtensionBridge {
         let browsers = self.active_browsers().await;
         if ids.len() <= 1 {
             let mut v = self.call("list_tabs", serde_json::json!({})).await?;
+            if let Some(id) = ids.first() {
+                let seen = v
+                    .get("tabs")
+                    .and_then(|x| x.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|t| json_id(t.get("tab_id")))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                self.store_client_tabs(id, seen).await;
+            }
             if let Some(obj) = v.as_object_mut() {
                 obj.insert("browser_count".into(), serde_json::json!(ids.len()));
                 obj.insert("browsers".into(), serde_json::json!(browsers));
@@ -530,12 +542,56 @@ impl ExtensionBridge {
         params: serde_json::Value,
         timeout_secs: u64,
     ) -> VcuResult<serde_json::Value> {
-        let target = match json_id(params.get("tab_id")) {
-            Some(id) => self.unique_client_for_tab(&id).await,
-            None => None,
-        };
+        self.call_timeout_hinted(method, params, timeout_secs, None)
+            .await
+    }
+
+    pub async fn call_timeout_hinted(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+        timeout_secs: u64,
+        browser: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        let tab = json_id(params.get("tab_id"));
+        let target = self
+            .target_client_for_action(tab.as_deref(), browser)
+            .await;
         self.call_timeout_for(target, method, params, timeout_secs)
             .await
+    }
+
+    pub async fn target_client_for_action(
+        &self,
+        tab_id: Option<&str>,
+        browser: Option<&str>,
+    ) -> Option<String> {
+        if let Some(tab) = tab_id.map(str::trim).filter(|s| !s.is_empty()) {
+            if let Some(id) = self.unique_client_for_tab(tab).await {
+                return Some(id);
+            }
+        }
+        let kind = named_browser(browser.unwrap_or(""))?;
+        self.client_for_browser(kind).await
+    }
+
+    async fn client_for_browser(&self, kind: &str) -> Option<String> {
+        let g = self.inner.lock().await;
+        let now = now_ms();
+        let mut found = None;
+        for (id, c) in &g.clients {
+            if now.saturating_sub(c.last_poll_ms) >= 15_000 {
+                continue;
+            }
+            if named_browser(&c.browser) != Some(kind) {
+                continue;
+            }
+            if found.is_some() {
+                return None;
+            }
+            found = Some(id.clone());
+        }
+        found
     }
 }
 

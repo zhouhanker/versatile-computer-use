@@ -251,7 +251,7 @@ async fn browser_click(
         if let Some(id) = tab.as_deref() {
             params["tab_id"] = json_tab_param(id);
         }
-        match state.extension_bridge.call_timeout("click", params, 8).await {
+        match extension_dom_call(&state, "click", params, 8).await {
             Ok(v) => {
                 return Json(Envelope::ok(json!({
                     "login_state": true,
@@ -448,6 +448,22 @@ async fn bound_tab(state: &AppState, explicit: Option<&str>) -> (Option<String>,
     crate::login_state::bind_tab_id(explicit, last.as_ref(), std::time::Instant::now())
 }
 
+async fn extension_dom_call(
+    state: &AppState,
+    method: &str,
+    params: Value,
+    timeout: u64,
+) -> Result<Value, VcuError> {
+    let last = state.last_observe.read().await.clone();
+    let kind = last
+        .as_ref()
+        .and_then(|l| crate::login_state::browser_kind_from_app_id(&l.app_id));
+    state
+        .extension_bridge
+        .call_timeout_hinted(method, params, timeout, kind)
+        .await
+}
+
 #[derive(Deserialize)]
 struct BrowserTypeReq {
     #[serde(default)]
@@ -505,7 +521,7 @@ async fn browser_hover(
     if let Some(id) = tab.as_deref() {
         params["tab_id"] = json_tab_param(id);
     }
-    match state.extension_bridge.call_timeout("hover", params, 8).await {
+    match extension_dom_call(&state, "hover", params, 8).await {
         Ok(v) => Json(Envelope::ok(json!({
             "login_state": true,
             "hud": false,
@@ -560,7 +576,7 @@ async fn browser_type(
         let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
         if let Some(id) = tab.as_deref() { params["tab_id"] = json_tab_param(id); }
         let _ = tab_src;
-        match state.extension_bridge.call_timeout("type", params, 8).await {
+        match extension_dom_call(&state, "type", params, 8).await {
             Ok(v) => {
                 return Json(Envelope::ok(json!({
                     "login_state": true,
@@ -671,7 +687,7 @@ async fn browser_scroll(
         let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
         if let Some(id) = tab.as_deref() { params["tab_id"] = json_tab_param(id); }
         body["tab_id_source"] = json!(tab_src);
-        match state.extension_bridge.call_timeout("scroll", params, 8).await {
+        match extension_dom_call(&state, "scroll", params, 8).await {
             Ok(v) => {
                 body["scrolled"] = v.get("scrolled").cloned().unwrap_or(json!(false));
                 body["source"] = json!("extension_dom");
@@ -892,7 +908,7 @@ async fn browser_extract(
         params["tab_id"] = json_tab_param(id);
     }
     let _ = tab_src;
-    match state.extension_bridge.call_timeout("extract", params, 8).await {
+    match extension_dom_call(&state, "extract", params, 8).await {
         Ok(v) => {
             let matches = v.get("matches").cloned().unwrap_or(json!([]));
             let count = v.get("count").and_then(|x| x.as_u64()).unwrap_or_else(|| {
@@ -1074,7 +1090,7 @@ async fn browser_viewport_click(state: Arc<AppState>, req: BrowserClickReq) -> a
         }
     }
     let params = json!({"tab_id": tab, "x":x, "y":y, "expected_viewport":meta["viewport"], "dry_run":req.dry_run});
-    match state.extension_bridge.call_timeout("click_point", params, 8).await {
+    match extension_dom_call(&state, "click_point", params, 8).await {
         Ok(mut v) => {
             v["capture_id"] = json!(id);
             v["coordinate_space"] = json!("viewport");

@@ -1,10 +1,10 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-450 真机已过。
+更新：2026-09-20。CU-D-460 真机已过。
 
 ## 本轮
 
-- 450：observe 后 60s 内，无 tab_id 的 DOM click/type/hover/scroll/extract 绑 last observe tab（`tab_id_source=last_observe`）。显式 tab_id 优先。真机 `body` dry-run 与 observe tab 一致。`poc_login_state.sh` PASS；`make check` 0。组 1/3 未动。无 SendInput。
+- 460：DOM 动作按 last observe 的 Chrome/Edge 定向 lens client；tab 未在 client 登记时也不打到另一套浏览器。`browser_hint_targets_client_when_tab_unknown`。daemon 重启后 poc selector click 仍 PASS。`make check` 0。组 1/3 未动。无 SendInput。
 
 ## 下一刀
 

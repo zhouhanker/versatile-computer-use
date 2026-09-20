@@ -191,6 +191,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-430 | Observe merges extension tabs | **完成（真机）** Chrome AX 空树时 `tabs_source=extension_tabs` tabs=5 `page_url_source=extension_tabs`；不覆盖已有 AX tabs；不写 `source=extension_dom`。不是 TC-B-040。无 SendInput。 |
 | CU-D-440 | Daemon login-state observe | **完成（真机）** `POST /v1/browser/observe`；CLI/MCP 不再各写一套；`tab_id_source=extension_tabs`；可选 `id` 指定窗。不是产品 Windows CU。无 SendInput。 |
 | CU-D-450 | Bind DOM act to last observe | **完成（真机）** 无 tab_id 的 selector 动作绑 60s last observe；显式优先；`tab_id_source=last_observe`。不是跨源 iframe / TC-B-040。无 SendInput。 |
+| CU-D-460 | Target lens by observe browser | **完成（真机）** tab 未登记时用 observe 的 chrome/edge client，避免 `wrong_extension_browser`。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -245,6 +246,7 @@ CU-D-000 文档
     → CU-D-430 observe merges extension tabs
     → CU-D-440 daemon login-state observe
     → CU-D-450 bind DOM act to last observe
+    → CU-D-460 target lens by observe browser
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

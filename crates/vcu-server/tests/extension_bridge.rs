@@ -393,3 +393,48 @@ async fn poll_without_browser_does_not_register_placeholder() {
     assert_eq!(bridge.active_client_ids().await.len(), 2);
     assert!(!names.iter().any(|n| n == "browser"));
 }
+
+#[tokio::test]
+async fn browser_hint_targets_client_when_tab_unknown() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge
+        .mark_hello_client(true, Some("edge".into()), Some("edge".into()))
+        .await;
+    bridge
+        .mark_hello_client(true, Some("chrome".into()), Some("chrome".into()))
+        .await;
+    let edge = bridge.clone();
+    let chrome = bridge.clone();
+    let chrome_w = tokio::spawn(async move {
+        let cmd = chrome
+            .poll_for(2000, Some("chrome".into()), Some("chrome".into()))
+            .await
+            .expect("chrome click");
+        assert_eq!(cmd.method, "click");
+        chrome
+            .submit_result(&cmd.id, json!({"ok": true, "owner": "chrome", "pressed": false}))
+            .await;
+    });
+    let edge_w = tokio::spawn(async move {
+        let stolen = tokio::time::timeout(
+            std::time::Duration::from_millis(300),
+            edge.poll_for(200, Some("edge".into()), Some("edge".into())),
+        )
+        .await
+        .ok()
+        .flatten();
+        assert!(stolen.is_none(), "edge must not receive a chrome-hinted command");
+    });
+    let result = bridge
+        .call_timeout_hinted(
+            "click",
+            json!({"tab_id": "missing-tab", "selector": "body", "dry_run": true}),
+            3,
+            Some("chrome"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result["owner"], "chrome");
+    chrome_w.await.unwrap();
+    edge_w.await.unwrap();
+}
