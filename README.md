@@ -88,6 +88,7 @@ vcu browser wait --selector '#ready' --text ready --ms 2000
 vcu browser screenshot --tab <id> --json
 vcu browser click --space viewport --capture <capture_id> --pixel-x <x> --pixel-y <y>
 vcu browser close --tab <id>
+vcu browser close --tab <id> --browser chrome
 ```
 
 标签组：

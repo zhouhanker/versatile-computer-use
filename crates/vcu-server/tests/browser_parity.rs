@@ -464,26 +464,28 @@ async fn browser_tab_management_preserves_extension_metadata_and_params() {
     }
 
     let commands = log.lock().await.clone();
-    assert_eq!(commands.len(), 6, "{commands:?}");
+    assert_eq!(commands.len(), 7, "{commands:?}");
     assert_eq!(commands[0].method, "list_tabs");
     assert_eq!(commands[0].params, json!({}));
-    assert_eq!(commands[1].method, "select_tab");
-    assert_eq!(commands[1].params, json!({"tab_id": "42"}));
-    assert_eq!(commands[2].method, "group_tabs");
-    assert_eq!(
-        commands[2].params,
-        json!({"tab_ids": ["42", "43"], "title": "Sprint", "color": "purple", "collapsed": true})
-    );
-    assert_eq!(commands[3].method, "update_group");
+    assert_eq!(commands[1].method, "list_tabs");
+    assert_eq!(commands[1].params, json!({}));
+    assert_eq!(commands[2].method, "select_tab");
+    assert_eq!(commands[2].params, json!({"tab_id": "42"}));
+    assert_eq!(commands[3].method, "group_tabs");
     assert_eq!(
         commands[3].params,
+        json!({"tab_ids": ["42", "43"], "title": "Sprint", "color": "purple", "collapsed": true})
+    );
+    assert_eq!(commands[4].method, "update_group");
+    assert_eq!(
+        commands[4].params,
         json!({"group_id": "10", "title": "Renamed", "color": "blue", "collapsed": false})
     );
-    assert_eq!(commands[4].method, "ungroup_tabs");
-    assert_eq!(commands[4].params, json!({"tab_ids": ["42", "43"]}));
-    assert_eq!(commands[5].method, "open_tab");
+    assert_eq!(commands[5].method, "ungroup_tabs");
+    assert_eq!(commands[5].params, json!({"tab_ids": ["42", "43"]}));
+    assert_eq!(commands[6].method, "open_tab");
     assert_eq!(
-        commands[5].params,
+        commands[6].params,
         json!({"url": "https://example.com/", "session_name": "Sprint", "active": false})
     );
 
@@ -495,6 +497,10 @@ async fn browser_tab_management_preserves_extension_metadata_and_params() {
 async fn browser_tab_management_does_not_forge_success_on_extension_error() {
     let (handle, base, token, _dir) = boot_async().await;
     let mut responses = HashMap::new();
+    responses.insert(
+        "list_tabs".into(),
+        json!({"ok": true, "tabs": [{"tab_id": "42"}], "groups": []}),
+    );
     responses.insert(
         "select_tab".into(),
         json!({
@@ -521,10 +527,16 @@ async fn browser_tab_management_does_not_forge_success_on_extension_error() {
     assert!(value["data"].is_null());
     assert_eq!(
         log.lock().await.as_slice(),
-        &[CommandRecord {
-            method: "select_tab".into(),
-            params: json!({"tab_id": "42"}),
-        }]
+        &[
+            CommandRecord {
+                method: "list_tabs".into(),
+                params: json!({}),
+            },
+            CommandRecord {
+                method: "select_tab".into(),
+                params: json!({"tab_id": "42"}),
+            },
+        ]
     );
     worker.abort();
     handle.join.abort();

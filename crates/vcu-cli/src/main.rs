@@ -469,11 +469,17 @@ enum BrowserCmd {
     Select {
         #[arg(long)]
         tab: String,
+        /// chrome or edge when tab_id collides
+        #[arg(long)]
+        browser: Option<String>,
     },
     /// Close exactly the named tab. No default or fallback target.
     Close {
         #[arg(long)]
         tab: String,
+        /// chrome or edge when tab_id collides
+        #[arg(long)]
+        browser: Option<String>,
     },
     /// Group explicitly selected tabs in their current window.
     Group {
@@ -1236,13 +1242,21 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Select { tab } => {
-                let v = api_post(&paths, "/v1/browser/select", json!({"tab_id": tab})).await?;
+            BrowserCmd::Select { tab, browser } => {
+                let mut body = json!({"tab_id": tab});
+                if let Some(b) = browser {
+                    body["browser"] = json!(b);
+                }
+                let v = api_post(&paths, "/v1/browser/select", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Close { tab } => {
-                let v = api_post(&paths, "/v1/browser/close", json!({"tab_id": tab})).await?;
+            BrowserCmd::Close { tab, browser } => {
+                let mut body = json!({"tab_id": tab});
+                if let Some(b) = browser {
+                    body["browser"] = json!(b);
+                }
+                let v = api_post(&paths, "/v1/browser/close", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }

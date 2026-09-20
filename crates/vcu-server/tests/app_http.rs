@@ -211,6 +211,10 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("99"));
                     json!({"ok": true, "tab_id": tab, "source": "extension_tabs", "focused": false})
                 }
+                "close_tab" => {
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    json!({"ok": true, "closed": true, "tab_id": tab, "source": "extension_tabs"})
+                }
                 "click" => {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!(null));
                     json!({"ok": true, "pressed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab, "page_url": "https://edge.example/live", "focused": true})
@@ -483,6 +487,42 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(edge_obs["ok"], true, "{edge_obs}");
     assert_eq!(edge_obs["data"]["browser"], "edge");
     assert_eq!(edge_obs["data"]["page_url"], "https://edge.example/live");
+
+    let close_amb: serde_json::Value = auth(client.post(format!("{base}/v1/browser/close")))
+        .json(&json!({"tab_id": "42"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(close_amb["ok"], false, "{close_amb}");
+    assert_eq!(close_amb["error"]["code"], "InvalidInput", "{close_amb}");
+    assert!(close_amb["error"]["message"].as_str().unwrap_or("").contains("ambiguous"), "{close_amb}");
+
+    let closed: serde_json::Value = auth(client.post(format!("{base}/v1/browser/close")))
+        .json(&json!({"tab_id": "42", "browser": "edge"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(closed["ok"], true, "{closed}");
+    assert_eq!(closed["data"]["closed"], true);
+    assert_eq!(closed["data"]["browser"], "edge");
+
+    let selected: serde_json::Value = auth(client.post(format!("{base}/v1/browser/select")))
+        .json(&json!({"tab_id": "99", "browser": "edge"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(selected["ok"], true, "{selected}");
+    assert_eq!(selected["data"]["tab_id"], "99");
+    assert_eq!(selected["data"]["browser"], "edge");
 
     let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true, "tab_id": "99"}))

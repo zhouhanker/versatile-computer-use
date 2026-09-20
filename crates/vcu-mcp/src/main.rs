@@ -197,8 +197,8 @@ fn tool_defs() -> Vec<Value> {
             }
         })),
         tool("vcu_browser_tabs", "List USER browser tabs and native groups, including focus and collapsed state.", json!({"type":"object","properties":{}})),
-        tool("vcu_browser_select", "Select an exact tab, expand its group and focus its browser window.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"}}})),
-        tool("vcu_browser_close", "Close exactly the explicitly named tab. Use for completed task tabs; never substitutes another tab.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"}}})),
+        tool("vcu_browser_select", "Select an exact tab, expand its group and focus its browser window. Pass browser=chrome|edge when tab_id collides.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
+        tool("vcu_browser_close", "Close exactly the explicitly named tab. Pass browser=chrome|edge when tab_id collides. Never substitutes another tab.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
         tool("vcu_browser_open", "Open a new TAB in the existing USER window from last observe (Chrome vs Edge). new_window=true is opt-in. session_name creates a named native group, group_id joins one. Mutually exclusive.", json!({"type":"object","required":["url"],"properties":{
             "url":{"type":"string"},"session_name":{"type":"string"},"group_id":{"type":"string"},"active":{"type":"boolean","default":true},"new_window":{"type":"boolean","default":false,"description":"Opt-in: open a separate USER-profile window. Default is a new tab in the existing window. Incompatible with group_id"}
         }})),

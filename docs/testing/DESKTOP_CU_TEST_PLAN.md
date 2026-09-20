@@ -189,6 +189,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-610 | observe-bind live type/scroll | **通过** type `vcu-d-610`、scroll y=900、`tab_id_source=last_observe`；`scripts/poc_cu_d_610.py` CU-D-610 OK。组 1/3 未动 |
 | TC-D-620 | observe-bind live hover + DOM wait | **通过** hovered=1、wait `#ready` text ready、`#missing` ActionFailed；`scripts/poc_cu_d_620.py` CU-D-620 OK。组 1/3 未动 |
 | TC-D-630 | observe --browser Chrome vs Edge | **通过** chrome/edge 抛页 `#who` 各绑 last observe；HTTP 撞号 InvalidInput；`scripts/poc_cu_d_630.py` CU-D-630 OK。组 1/3 未动 |
+| TC-D-640 | close/select --browser | **通过** close chrome tab `--browser edge` 拒绝；`--browser chrome` 只关 Chrome 抛页；`scripts/poc_cu_d_640.py` CU-D-640 OK。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 

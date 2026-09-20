@@ -1250,6 +1250,90 @@ fn validate_tab_management(method: &str, params: &Value) -> Result<(), VcuError>
     Ok(())
 }
 
+fn json_param_tab_id(params: &Value) -> Option<String> {
+    params
+        .get("tab_id")
+        .and_then(|id| {
+            id.as_str()
+                .map(|s| s.to_string())
+                .or_else(|| id.as_i64().map(|n| n.to_string()))
+                .or_else(|| id.as_u64().map(|n| n.to_string()))
+        })
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+async fn resolve_tab_command_kind(
+    state: &AppState,
+    params: &Value,
+) -> Result<Option<&'static str>, VcuError> {
+    let want = parse_observe_browser(params.get("browser").and_then(Value::as_str))?;
+    let Some(tab_id) = json_param_tab_id(params) else {
+        return Ok(want);
+    };
+    let tabs = state.extension_bridge.list_tabs_merged().await?;
+    let tab = find_extension_tab(&tabs, &tab_id, want)?;
+    Ok(kind_from_tab(&tab).or(want))
+}
+
+fn strip_browser_param(mut params: Value) -> Value {
+    if let Some(obj) = params.as_object_mut() {
+        obj.remove("browser");
+    }
+    params
+}
+
+async fn browser_tab_command_for_tab(
+    state: Arc<AppState>,
+    headers: HeaderMap,
+    method: &str,
+    params: Value,
+) -> axum::response::Response {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if let Err(e) = validate_tab_management(method, &params) {
+        return err_response(e);
+    }
+    if !state.extension_bridge.is_polling().await {
+        return err_response(VcuError::coded(
+            ErrorCode::ExtensionDisconnected,
+            "USER browser extension is not polling",
+        ));
+    }
+    if !state.extension_bridge.likely_user_profile().await {
+        return err_response(VcuError::coded(
+            ErrorCode::ActionFailed,
+            "extension_profile is not user; refusing Agent browser operation",
+        ));
+    }
+    let kind = match resolve_tab_command_kind(&state, &params).await {
+        Ok(k) => k,
+        Err(e) => return err_response(e),
+    };
+    let params = strip_browser_param(params);
+    match state
+        .extension_bridge
+        .call_timeout_hinted(method, params, 8, kind)
+        .await
+    {
+        Ok(mut value) => {
+            if !value.is_object() {
+                return err_response(VcuError::coded(ErrorCode::ActionFailed, "invalid extension response"));
+            }
+            value["source"] = json!("extension_tabs");
+            value["login_state"] = json!(true);
+            value["hud"] = json!(false);
+            value["os_cursor_used"] = json!(false);
+            if let Some(k) = kind {
+                value["browser"] = json!(k);
+            }
+            Json(Envelope::ok(value)).into_response()
+        }
+        Err(e) => err_response(e),
+    }
+}
+
 async fn browser_tab_command(state: Arc<AppState>, headers: HeaderMap, method: &str, params: Value) -> axum::response::Response {
     if let Err(e) = require_auth(&headers, &state).await { return err_response(e); }
     if let Err(e) = validate_tab_management(method, &params) { return err_response(e); }
@@ -1298,10 +1382,10 @@ async fn browser_tabs(State(state): State<Arc<AppState>>, headers: HeaderMap) ->
     }
 }
 async fn browser_select(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
-    browser_tab_command(state, headers, "select_tab", params).await
+    browser_tab_command_for_tab(state, headers, "select_tab", params).await
 }
 async fn browser_close(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
-    browser_tab_command(state, headers, "close_tab", params).await
+    browser_tab_command_for_tab(state, headers, "close_tab", params).await
 }
 async fn browser_group(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
     browser_tab_command(state, headers, "group_tabs", params).await
@@ -2906,7 +2990,7 @@ fn parse_observe_browser(raw: Option<&str>) -> Result<Option<&'static str>, VcuE
         "edge" | "microsoft edge" => Ok(Some("edge")),
         _ => Err(VcuError::coded(
             ErrorCode::InvalidInput,
-            "observe --browser must be chrome or edge",
+            "browser must be chrome or edge",
         )),
     }
 }
@@ -2924,12 +3008,12 @@ fn find_extension_tab(tabs: &Value, want: &str, browser: Option<&str>) -> Result
         .cloned()
         .collect();
     if hits.is_empty() {
-        return Err(VcuError::coded(ErrorCode::ActionFailed, "observe tab not found"));
+        return Err(VcuError::coded(ErrorCode::ActionFailed, "tab not found"));
     }
     if hits.len() > 1 {
         return Err(VcuError::coded(
             ErrorCode::InvalidInput,
-            "tab_id is ambiguous across Chrome/Edge; pass observe --browser",
+            "tab_id is ambiguous across Chrome/Edge; pass --browser",
         ));
     }
     Ok(hits.into_iter().next().unwrap())
