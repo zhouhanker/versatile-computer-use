@@ -1190,18 +1190,18 @@ work_items:
 
   - id: CU-D-680
     title: group-update --browser 撞号定向
-    status: ready
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-phase1-mvp
     required: false
     priority: P1
-    summary: 工作树已实现（8 文件 +172 行，未提交）：CLI/MCP/HTTP 把 --browser 接进 group 解析，撞号无 --browser 返回 InvalidInput ambiguous；cargo test --workspace 与扩展 45 项全绿
+    summary: 真机通过（scripts/poc_cu_d_680.py CU-D-680 OK）：组列表带 browser 标记；--browser chrome|edge 只改对应组；唯一 id 无 --browser 正确解析；错浏览器真实 id 与未知 id 均诚实失败且不误改；组清理干净、组 1/3 未动。撞号分支由 app_http upd_amb 单测覆盖（真机构造不出同号）。提交 03db63b（feat）+ 1ad02ca（docs）+ fdd76f9（chore 删除 background.js.bak）；cargo test --workspace / 扩展 45 / make check 全 0
     acceptance:
-      - "scripts/poc_cu_d_680.py 真机跑绿：无 --browser 拒绝、带 --browser 只改对应浏览器组、组 1/3 未动"
+      - "scripts/poc_cu_d_680.py 真机跑绿：带 --browser 只改对应浏览器组、错浏览器/未知 id 诚实失败、组 1/3 未动；撞号拒绝由 app_http 单测覆盖"
       - "文档（ROADMAP/PLAN/TEST_PLAN/HANDOFF）记录并提交"
-    next_action: 写真机 POC → 顺带删除 extension/background.js.bak → 提交
-    evidence: ["crates/vcu-server/src/api.rs", "docs/ROADMAP-CU.md"]
+    next_action: 无（下一刀 CU-D-690）
+    evidence: ["scripts/poc_cu_d_680.py", "crates/vcu-server/src/api.rs", "docs/testing/DESKTOP_CU_TEST_PLAN.md"]
     depends_on: []
 
   - id: CU-D-690
