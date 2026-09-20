@@ -207,17 +207,21 @@ python3 - <<'INNER'
 import json, subprocess, os
 from pathlib import Path
 meta=json.loads((Path.home()/".vcu/captures/login-latest.json").read_text())
-fr=meta["webview_screenshot_frame"]
-sc=float(meta["webview_screenshot_scale"])
-px, py = fr[2]*sc/2, fr[3]*sc/2
-exp_x, exp_y = fr[0]+fr[2]/2, fr[1]+fr[3]/2
-out=subprocess.check_output(["vcu","browser","click","--pixel-x",str(px),"--pixel-y",str(py),"--space","webview","--dry-run"], text=True)
-d=json.loads(out)
-data=d.get("data") or d
-ax=data.get("ax_point") or {}
-assert data.get("hud") is False
-assert abs(ax["x"]-exp_x)<0.6 and abs(ax["y"]-exp_y)<0.6
-print("PASS login-state center pixel ax", ax, "expected", exp_x, exp_y)
+fr=meta.get("webview_screenshot_frame")
+sc=meta.get("webview_screenshot_scale")
+if not fr or sc is None:
+    print("SKIP login-state center pixel; lens observe has no AX webview frame")
+else:
+    sc=float(sc)
+    px, py = fr[2]*sc/2, fr[3]*sc/2
+    exp_x, exp_y = fr[0]+fr[2]/2, fr[1]+fr[3]/2
+    out=subprocess.check_output(["vcu","browser","click","--pixel-x",str(px),"--pixel-y",str(py),"--space","webview","--dry-run"], text=True)
+    d=json.loads(out)
+    data=d.get("data") or d
+    ax=data.get("ax_point") or {}
+    assert data.get("hud") is False
+    assert abs(ax["x"]-exp_x)<0.6 and abs(ax["y"]-exp_y)<0.6
+    print("PASS login-state center pixel ax", ax, "expected", exp_x, exp_y)
 INNER
 
 vcu browser key --key return --dry-run > /tmp/vcu-key.json

@@ -256,6 +256,19 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(observed["data"]["tabs_source"], "extension_tabs");
     assert_eq!(observed["data"]["snapshot"]["tab_id"], "42");
 
+    let lens_obs: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
+        .json(&json!({"pixels": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(lens_obs["ok"], true, "{lens_obs}");
+    assert_eq!(lens_obs["data"]["tab_id"], "42");
+    assert_eq!(lens_obs["data"]["tabs_source"], "extension_tabs");
+    assert_eq!(lens_obs["data"]["tab_id_source"], "extension_tabs");
+
     let clicked: serde_json::Value = auth(client.post(format!("{base}/v1/browser/click")))
         .json(&json!({"selector": "a.more", "dry_run": true}))
         .send()

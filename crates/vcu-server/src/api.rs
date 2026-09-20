@@ -2803,6 +2803,147 @@ fn observe_envelope(id: String, user: Value, mut snap: Value, extension_profile:
     })
 }
 
+fn json_tab_id_value(tab: &Value) -> Option<String> {
+    tab.get("tab_id")
+        .and_then(|id| {
+            id.as_str()
+                .map(|s| s.to_string())
+                .or_else(|| id.as_i64().map(|n| n.to_string()))
+                .or_else(|| id.as_u64().map(|n| n.to_string()))
+        })
+        .filter(|s| !s.is_empty())
+}
+
+fn focused_extension_tab(tabs: &Value, kind: Option<&str>) -> Option<Value> {
+    let arr = tabs.get("tabs")?.as_array()?;
+    let matches_kind = |t: &Value| match kind {
+        Some(k) => t.get("browser").and_then(Value::as_str) == Some(k),
+        None => true,
+    };
+    let active = |t: &Value| {
+        t.get("active").and_then(Value::as_bool).unwrap_or(false)
+            || t.get("focused").and_then(Value::as_bool).unwrap_or(false)
+    };
+    arr.iter()
+        .find(|t| matches_kind(t) && active(t))
+        .cloned()
+        .or_else(|| arr.iter().find(|t| kind.is_some() && matches_kind(t)).cloned())
+}
+
+fn kind_from_frontmost(name: Option<&str>) -> Option<&'static str> {
+    let name = name?;
+    if crate::login_state::browser_name_is_frontmost("Microsoft Edge", name) {
+        Some("edge")
+    } else if crate::login_state::browser_name_is_frontmost("Chrome", name) {
+        Some("chrome")
+    } else {
+        None
+    }
+}
+
+async fn observe_via_lens(
+    state: &AppState,
+    extension_profile: &str,
+    pixels: bool,
+) -> Result<Value, VcuError> {
+    user_extension_ready(state).await?;
+    let frontmost = crate::login_state::frontmost_user_browser_name();
+    let kind = kind_from_frontmost(frontmost.as_deref());
+    let tabs_v = state.extension_bridge.list_tabs_merged().await?;
+    let tab = focused_extension_tab(&tabs_v, kind).ok_or_else(|| {
+        VcuError::coded(ErrorCode::ActionFailed, "no focused USER tab for observe")
+    })?;
+    let tab_id = json_tab_id_value(&tab).ok_or_else(|| {
+        VcuError::coded(ErrorCode::ActionFailed, "focused tab missing tab_id")
+    })?;
+    let report = crate::login_state::inspect_login_browsers();
+    let users = crate::login_state::order_user_browsers_frontmost_first(
+        report.user_browsers.clone(),
+        frontmost.as_deref(),
+    );
+    let user = users.iter().find(|u| {
+        let n = u.name.to_ascii_lowercase();
+        match kind {
+            Some("edge") => n.contains("edge"),
+            Some("chrome") => n.contains("chrome") && !n.contains("edge"),
+            _ => true,
+        }
+    }).or(users.first());
+    let app_id = user
+        .map(|u| format!("proc:{}:{}", u.name.replace(' ', "_"), u.pid))
+        .unwrap_or_else(|| format!("proc:{}:lens", kind.unwrap_or("Chrome")));
+    let mut snap = json!({
+        "tabs": tabs_v.get("tabs").cloned().unwrap_or(json!([])),
+        "tab_id": tab_id,
+        "tab_id_source": "extension_tabs",
+        "tabs_source": "extension_tabs",
+        "page_url": tab.get("url").cloned().unwrap_or(Value::Null),
+        "page_url_source": "extension_tabs",
+        "page_title": tab.get("title").cloned().unwrap_or(Value::Null),
+        "hud": false,
+        "source": "extension_viewport",
+    });
+    if pixels {
+        let captured = state
+            .extension_bridge
+            .call_timeout_hinted("capture_tab", json!({"tab_id": tab_id}), 8, kind)
+            .await?;
+        let encoded = captured
+            .get("png_base64")
+            .and_then(Value::as_str)
+            .ok_or_else(|| VcuError::coded(ErrorCode::ActionFailed, "extension observe screenshot missing PNG"))?;
+        if encoded.len() > 24_000_000 {
+            return Err(VcuError::coded(ErrorCode::ActionFailed, "extension observe screenshot too large"));
+        }
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .map_err(|_| VcuError::coded(ErrorCode::ActionFailed, "extension observe screenshot is not PNG"))?;
+        let (width, height) = crate::app::png_ihdr_size(&png).ok_or_else(|| {
+            VcuError::coded(ErrorCode::ActionFailed, "extension observe screenshot is not PNG")
+        })?;
+        let capture_id = new_id();
+        let dir = state.paths.captures_dir();
+        let path = dir.join(format!("viewport-{capture_id}.png"));
+        fs::create_dir_all(&dir)
+            .and_then(|_| fs::write(&path, &png))
+            .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "save observe screenshot", e.to_string()))?;
+        snap["screenshot_path"] = json!(path.display().to_string());
+        snap["screenshot_width"] = json!(width);
+        snap["screenshot_height"] = json!(height);
+        snap["capture_id"] = json!(capture_id);
+        snap["source"] = json!("extension_viewport");
+        snap["vision_handoff"] = json!({
+            "must_view": [path.display().to_string()],
+            "serial": true,
+            "rule": "View this PNG before click/type. Viewport pixels need this capture_id."
+        });
+        let meta = crate::app::LoginLatestMeta {
+            scale: Some(if height >= 1200 { 2.0 } else { 1.0 }),
+            frame: None,
+            page_title: tab.get("title").and_then(Value::as_str).map(|s| s.to_string()),
+            page_url: tab.get("url").and_then(Value::as_str).map(|s| s.to_string()),
+            webview_scale: None,
+            webview_frame: None,
+        };
+        if let Some(latest) = crate::app::publish_login_latest(&app_id, &path, &dir, Some(&meta)) {
+            snap["login_latest_png"] = json!(latest.display().to_string());
+        }
+    }
+    remember_observe(state, &app_id, &snap).await;
+    let user_json = user
+        .and_then(|u| serde_json::to_value(u).ok())
+        .unwrap_or_else(|| json!({"id": app_id}));
+    let mut env = observe_envelope(app_id, user_json, snap, extension_profile);
+    if let Some(front) = frontmost.as_deref() {
+        env["frontmost_app"] = json!(front);
+        env["frontmost_matched"] = json!(crate::login_state::browser_name_is_frontmost(
+            env.get("app_id").and_then(Value::as_str).unwrap_or(""),
+            front,
+        ));
+    }
+    Ok(env)
+}
+
 async fn browser_observe(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -2837,6 +2978,15 @@ async fn browser_observe(
             }
             Err(e) => err_response(e),
         };
+    }
+    if req.id.is_none()
+        && state.extension_bridge.is_polling().await
+        && state.extension_bridge.likely_user_profile().await
+    {
+        match observe_via_lens(&state, extension_profile, pixels).await {
+            Ok(env) => return Json(Envelope::ok(env)).into_response(),
+            Err(_) => {}
+        }
     }
     if report.user_browsers.is_empty() {
         return err_response(VcuError::coded(
