@@ -472,6 +472,9 @@ enum BrowserCmd {
         /// Open a separate USER-profile window, retaining its login state.
         #[arg(long, conflicts_with = "group")]
         new_window: bool,
+        /// chrome or edge; default last observe
+        #[arg(long)]
+        browser: Option<String>,
     },
     /// List USER browser tabs and native groups.
     Tabs,
@@ -501,6 +504,8 @@ enum BrowserCmd {
         color: String,
         #[arg(long)]
         collapsed: bool,
+        #[arg(long)]
+        browser: Option<String>,
     },
     /// Rename, recolor, expand or collapse a native group.
     GroupUpdate {
@@ -517,6 +522,8 @@ enum BrowserCmd {
     Ungroup {
         #[arg(long, value_delimiter = ',', required = true, num_args = 1..)]
         tabs: Vec<String>,
+        #[arg(long)]
+        browser: Option<String>,
     },
     /// Ping USER Edge extension (no page script)
     Ping {
@@ -1255,10 +1262,11 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Open { url, session_name, group, background, new_window } => {
+            BrowserCmd::Open { url, session_name, group, background, new_window, browser } => {
                 let mut body = json!({"url": url, "active": !background, "new_window": new_window});
                 if let Some(name) = session_name { body["session_name"] = json!(name); }
                 if let Some(id) = group { body["group_id"] = json!(id); }
+                if let Some(b) = browser { body["browser"] = json!(b); }
                 let v = api_post(&paths, "/v1/browser/open", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
@@ -1286,8 +1294,10 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Group { tabs, title, color, collapsed } => {
-                let v = api_post(&paths, "/v1/browser/group", json!({"tab_ids": tabs, "title": title, "color": color, "collapsed": collapsed})).await?;
+            BrowserCmd::Group { tabs, title, color, collapsed, browser } => {
+                let mut body = json!({"tab_ids": tabs, "title": title, "color": color, "collapsed": collapsed});
+                if let Some(b) = browser { body["browser"] = json!(b); }
+                let v = api_post(&paths, "/v1/browser/group", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
@@ -1300,8 +1310,10 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Ungroup { tabs } => {
-                let v = api_post(&paths, "/v1/browser/ungroup", json!({"tab_ids": tabs})).await?;
+            BrowserCmd::Ungroup { tabs, browser } => {
+                let mut body = json!({"tab_ids": tabs});
+                if let Some(b) = browser { body["browser"] = json!(b); }
+                let v = api_post(&paths, "/v1/browser/ungroup", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }

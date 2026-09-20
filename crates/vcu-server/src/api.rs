@@ -1470,17 +1470,176 @@ async fn browser_select(State(state): State<Arc<AppState>>, headers: HeaderMap, 
 async fn browser_close(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
     browser_tab_command_for_tab(state, headers, "close_tab", params).await
 }
+fn json_param_tab_ids(params: &Value) -> Vec<String> {
+    params
+        .get("tab_ids")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|id| {
+                    id.as_str()
+                        .map(|s| s.to_string())
+                        .or_else(|| id.as_i64().map(|n| n.to_string()))
+                        .or_else(|| id.as_u64().map(|n| n.to_string()))
+                })
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+async fn resolve_open_kind(
+    state: &AppState,
+    params: &Value,
+) -> Result<Option<&'static str>, VcuError> {
+    let want = parse_observe_browser(params.get("browser").and_then(Value::as_str))?;
+    if want.is_some() {
+        return Ok(want);
+    }
+    let last = state.last_observe.read().await.clone();
+    Ok(last
+        .as_ref()
+        .and_then(|l| crate::login_state::browser_kind_from_app_id(&l.app_id)))
+}
+
+async fn resolve_tab_ids_kind(
+    state: &AppState,
+    params: &Value,
+) -> Result<Option<&'static str>, VcuError> {
+    let want = parse_observe_browser(params.get("browser").and_then(Value::as_str))?;
+    let ids = json_param_tab_ids(params);
+    if ids.is_empty() {
+        return Ok(want);
+    }
+    let tabs = state.extension_bridge.list_tabs_merged().await?;
+    let mut kinds: Vec<&'static str> = Vec::new();
+    for id in &ids {
+        match find_extension_tab(&tabs, id, want) {
+            Ok(found) => {
+                if let Some(k) = kind_from_tab(&found).or(want) {
+                    kinds.push(k);
+                }
+            }
+            Err(e) => {
+                let msg = e.message();
+                if msg.contains("ambiguous") || msg.contains("browser must be") {
+                    return Err(e);
+                }
+            }
+        }
+    }
+    if kinds.is_empty() {
+        return Ok(want);
+    }
+    let first = kinds[0];
+    if kinds.iter().any(|k| *k != first) {
+        return Err(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "tab_ids span Chrome and Edge; pass one --browser",
+        ));
+    }
+    Ok(Some(first))
+}
+
+async fn browser_tab_command_hinted(
+    state: Arc<AppState>,
+    headers: HeaderMap,
+    method: &str,
+    params: Value,
+    kind: Option<&'static str>,
+) -> axum::response::Response {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if let Err(e) = validate_tab_management(method, &params) {
+        return err_response(e);
+    }
+    if !state.extension_bridge.is_polling().await {
+        return err_response(VcuError::coded(
+            ErrorCode::ExtensionDisconnected,
+            "USER browser extension is not polling",
+        ));
+    }
+    if !state.extension_bridge.likely_user_profile().await {
+        return err_response(VcuError::coded(
+            ErrorCode::ActionFailed,
+            "extension_profile is not user; refusing Agent browser operation",
+        ));
+    }
+    let params = strip_browser_param(params);
+    match state
+        .extension_bridge
+        .call_timeout_hinted(method, params, 8, kind)
+        .await
+    {
+        Ok(mut value) => {
+            if !value.is_object() {
+                return err_response(VcuError::coded(ErrorCode::ActionFailed, "invalid extension response"));
+            }
+            value["source"] = json!("extension_tabs");
+            value["login_state"] = json!(true);
+            value["hud"] = json!(false);
+            value["os_cursor_used"] = json!(false);
+            if let Some(k) = kind {
+                value["browser"] = json!(k);
+            }
+            Json(Envelope::ok(value)).into_response()
+        }
+        Err(e) => err_response(e),
+    }
+}
+
 async fn browser_group(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
-    browser_tab_command(state, headers, "group_tabs", params).await
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if let Err(e) = validate_tab_management("group_tabs", &params) {
+        return err_response(e);
+    }
+    if let Err(e) = user_extension_ready(&state).await {
+        return err_response(e);
+    }
+    let kind = match resolve_tab_ids_kind(&state, &params).await {
+        Ok(k) => k,
+        Err(e) => return err_response(e),
+    };
+    browser_tab_command_hinted(state, headers, "group_tabs", params, kind).await
 }
 async fn browser_group_update(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
     browser_tab_command(state, headers, "update_group", params).await
 }
 async fn browser_ungroup(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
-    browser_tab_command(state, headers, "ungroup_tabs", params).await
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if let Err(e) = validate_tab_management("ungroup_tabs", &params) {
+        return err_response(e);
+    }
+    if let Err(e) = user_extension_ready(&state).await {
+        return err_response(e);
+    }
+    let kind = match resolve_tab_ids_kind(&state, &params).await {
+        Ok(k) => k,
+        Err(e) => return err_response(e),
+    };
+    browser_tab_command_hinted(state, headers, "ungroup_tabs", params, kind).await
 }
 async fn browser_open(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(params): Json<Value>) -> impl IntoResponse {
-    browser_tab_command(state, headers, "open_tab", params).await
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if let Err(e) = validate_tab_management("open_tab", &params) {
+        return err_response(e);
+    }
+    if let Err(e) = user_extension_ready(&state).await {
+        return err_response(e);
+    }
+    let kind = match resolve_open_kind(&state, &params).await {
+        Ok(k) => k,
+        Err(e) => return err_response(e),
+    };
+    browser_tab_command_hinted(state, headers, "open_tab", params, kind).await
 }
 
 async fn browser_install_lens(

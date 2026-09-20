@@ -192,6 +192,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-640 | close/select --browser | **通过** close chrome tab `--browser edge` 拒绝；`--browser chrome` 只关 Chrome 抛页；`scripts/poc_cu_d_640.py` CU-D-640 OK。组 1/3 未动 |
 | TC-D-650 | extract/type/click --browser | **通过** extract `#who` 分浏览器；type Chrome；click Edge dry-run；`scripts/poc_cu_d_650.py` CU-D-650 OK。组 1/3 未动 |
 | TC-D-660 | hover/scroll/wait/screenshot --browser | **通过** hover/scroll Chrome、wait Edge `#who`；错浏览器 hover 拒绝；`scripts/poc_cu_d_660.py` CU-D-660 OK。组 1/3 未动 |
+| TC-D-670 | open --browser + group same browser | **通过** open chrome/edge `#who`；跨浏览器 group 拒绝；Chrome 两抛页 group/ungroup；`scripts/poc_cu_d_670.py` CU-D-670 OK。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 

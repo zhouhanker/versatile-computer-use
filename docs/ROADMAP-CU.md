@@ -212,6 +212,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-640 | close/select --browser | **完成（真机）** close 错浏览器拒绝；`--browser chrome|edge` 只关对侧抛页。`poc_cu_d_640.py` OK。无 SendInput。 |
 | CU-D-650 | extract/type/click --browser | **完成（真机）** `#who` chrome/edge 分向；type Chrome；click Edge dry-run。`poc_cu_d_650.py` OK。无 SendInput。 |
 | CU-D-660 | hover/scroll/wait/screenshot --browser | **完成（真机）** hover/scroll Chrome；wait Edge；screenshot 可因遮挡失败。`poc_cu_d_660.py` OK。无 SendInput。 |
+| CU-D-670 | open --browser + group same browser | **完成（真机）** open Chrome/Edge；跨浏览器 group 拒绝；同 Chrome 两抛页 group/ungroup。`poc_cu_d_670.py` OK。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -287,6 +288,7 @@ CU-D-000 文档
     → CU-D-640 close/select --browser
     → CU-D-650 extract/type/click --browser
     → CU-D-660 hover/scroll/wait/screenshot --browser
+    → CU-D-670 open --browser + group same browser
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

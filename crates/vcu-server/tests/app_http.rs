@@ -215,6 +215,9 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
                     json!({"ok": true, "closed": true, "tab_id": tab, "source": "extension_tabs"})
                 }
+                "open_tab" => json!({"ok": true, "tab_id": "1001", "url": "https://edge.example/new", "source": "extension_tabs"}),
+                "group_tabs" => json!({"ok": true, "group_id": "g1", "source": "extension_tabs"}),
+                "ungroup_tabs" => json!({"ok": true, "source": "extension_tabs"}),
                 "click" => {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!(null));
                     json!({"ok": true, "pressed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab, "page_url": "https://edge.example/live", "focused": true})
@@ -624,6 +627,39 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(shot_edge["ok"], true, "{shot_edge}");
     assert_eq!(shot_edge["data"]["browser"], "edge");
     assert_eq!(shot_edge["data"]["source"], "extension_viewport");
+
+    let group_amb: serde_json::Value = auth(client.post(format!("{base}/v1/browser/group")))
+        .json(&json!({"tab_ids": ["42"], "title": "x"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(group_amb["ok"], false, "{group_amb}");
+    assert!(group_amb["error"]["message"].as_str().unwrap_or("").contains("ambiguous"), "{group_amb}");
+
+    let grouped: serde_json::Value = auth(client.post(format!("{base}/v1/browser/group")))
+        .json(&json!({"tab_ids": ["99"], "title": "x", "browser": "edge"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(grouped["ok"], true, "{grouped}");
+    assert_eq!(grouped["data"]["browser"], "edge");
+
+    let opened: serde_json::Value = auth(client.post(format!("{base}/v1/browser/open")))
+        .json(&json!({"url": "https://example.com/", "active": false, "browser": "edge"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(opened["ok"], true, "{opened}");
+    assert_eq!(opened["data"]["browser"], "edge");
 
     let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true, "tab_id": "99"}))

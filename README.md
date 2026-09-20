@@ -78,6 +78,7 @@ vcu browser observe --tab <id> --json
 vcu browser observe --browser chrome --json
 vcu browser select --tab <id>
 vcu browser open --url https://example.com --background
+vcu browser open --url https://example.com --browser chrome --background
 vcu browser extract --tab <id> --selector a --json
 vcu browser extract --tab <id> --browser chrome --selector a --json
 vcu browser click --tab <id> --selector '#continue'
