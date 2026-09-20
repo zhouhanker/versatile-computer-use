@@ -1099,83 +1099,13 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 selector,
                 budget,
             } => {
-                let ls = api_get(&paths, "/v1/browser/login-state").await?;
-                let users = ls
-                    .pointer("/data/user_browsers")
-                    .and_then(|v| v.as_array())
-                    .cloned()
-                    .or_else(|| ls.pointer("/user_browsers").and_then(|v| v.as_array()).cloned())
-                    .unwrap_or_default();
-                if users.is_empty() {
-                    return Err(VcuError::coded(
-                        ErrorCode::ActionFailed,
-                        "no user Chrome/Edge process; login-state observe needs the user browser window",
-                    ));
+                let mut body = json!({"pixels": pixels, "budget": budget});
+                if let Some(sel) = selector {
+                    body["selector"] = json!(sel);
                 }
-                let mut chosen_user = None;
-                let mut snap = json!({"ok": false});
-                let mut last_fail = json!({"ok": false});
-                let mut id = String::new();
-                for user in &users {
-                    let pid = user.get("pid").and_then(|v| v.as_i64()).unwrap_or(0);
-                    let name = user
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Microsoft Edge");
-                    let candidate_id = format!("proc:{}:{}", name.replace(' ', "_"), pid);
-                    let mut body = json!({"id": candidate_id, "budget": budget, "pixels": pixels});
-                    if let Some(sel) = selector.as_ref() {
-                        body["selector"] = json!(sel);
-                    } else {
-                        body["selector"] = json!("*");
-                    }
-                    let candidate = api_post(&paths, "/v1/app/snapshot", body).await?;
-                    let data = candidate.get("data").cloned().unwrap_or_else(|| candidate.clone());
-                    let has_png = data.get("screenshot_path").and_then(|v| v.as_str()).is_some()
-                        || data
-                            .pointer("/vision_handoff/must_view")
-                            .and_then(|v| v.as_array())
-                            .map(|a| !a.is_empty())
-                            .unwrap_or(false);
-                    if candidate.get("ok").and_then(Value::as_bool) == Some(true) {
-                        chosen_user = Some(user.clone());
-                        snap = candidate;
-                        id = candidate_id;
-                        if has_png {
-                            break;
-                        }
-                    } else {
-                        last_fail = candidate;
-                    }
-                }
-                let Some(user) = chosen_user else {
-                    println!("{}", serde_json::to_string_pretty(&last_fail).unwrap_or_default());
-                    return Ok(ok_exit(&last_fail));
-                };
-                let ext_profile = ls
-                    .pointer("/data/extension_profile")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("none");
-                let snap_data = snap.get("data").cloned().unwrap_or_else(|| snap.clone());
-                print_ok(
-                    &json!({
-                        "app_id": id,
-                        "login_state": true,
-                        "browser_profile": "user",
-                        "hud": false,
-                        "extension_profile": ext_profile,
-                        "page_title": snap_data.get("page_title").cloned().unwrap_or(json!(null)),
-                        "page_url": snap_data.get("page_url").cloned().unwrap_or(json!(null)),
-                        "tabs": snap_data.get("tabs").cloned().unwrap_or(json!([])),
-                        "webview": snap_data.get("webview").cloned().unwrap_or(json!(false)),
-                        "ax_enhanced": snap_data.get("ax_enhanced").cloned().unwrap_or(json!(false)),
-                        "coordinate_help": "ax = frame_origin + pixel / screenshot_scale; click with --pixel-x/--pixel-y",
-                        "login": user,
-                        "snapshot": snap_data,
-                    }),
-                    true,
-                );
-                Ok(ok_exit(&snap))
+                let v = api_post(&paths, "/v1/browser/observe", body).await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
             }
             BrowserCmd::Screenshot { tab } => {
                 let mut body = json!({});

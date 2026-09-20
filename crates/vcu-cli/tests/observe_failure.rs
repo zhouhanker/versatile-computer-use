@@ -17,7 +17,7 @@ fn observe_does_not_wrap_a_failed_snapshot_in_success() {
     let server = std::thread::spawn(move || {
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut served = 0;
-        while served < 2 && Instant::now() < deadline {
+        while served < 1 && Instant::now() < deadline {
             let Ok((mut socket, _)) = listener.accept() else {
                 std::thread::sleep(Duration::from_millis(10));
                 continue;
@@ -30,16 +30,12 @@ fn observe_does_not_wrap_a_failed_snapshot_in_success() {
                 request.extend_from_slice(&chunk[..n]);
                 if n == 0 || request.windows(4).any(|w| w == b"\r\n\r\n") { break; }
             }
-            let request = String::from_utf8_lossy(&request);
-            let body = if request.starts_with("GET /v1/browser/login-state") {
-                json!({"ok":true,"data":{"user_browsers":[{"name":"Microsoft Edge","pid":42}]}})
-            } else {
-                json!({"ok":false,"error":{"code":"ActionFailed","message":"window screenshot failed"}})
-            }.to_string();
+            let _request = String::from_utf8_lossy(&request);
+            let body = json!({"ok":false,"error":{"code":"ActionFailed","message":"window screenshot failed"}}).to_string();
             write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
             served += 1;
         }
-        assert_eq!(served, 2);
+        assert_eq!(served, 1);
     });
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_vcu"))
         .arg("--user-dir").arg(&root).args(["browser", "observe", "--json"]).output().unwrap();

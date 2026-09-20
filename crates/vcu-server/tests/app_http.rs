@@ -213,15 +213,32 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
         .json()
         .await
         .unwrap();
-    poller.abort();
     assert_eq!(snap["ok"], true, "{snap}");
     assert_eq!(snap["data"]["tabs_source"], "extension_tabs");
     assert_eq!(snap["data"]["page_url"], "https://edge.example/live");
     assert_eq!(snap["data"]["page_url_source"], "extension_tabs");
     assert_eq!(snap["data"]["scene_source"], "ax_scene");
     assert_eq!(snap["data"]["tabs"][0]["tab_id"], "42");
+    assert_eq!(snap["data"]["tab_id"], "42");
+    assert_eq!(snap["data"]["tab_id_source"], "extension_tabs");
     assert!(snap["data"]["elements"].as_array().unwrap().iter().any(|e| e["ref"] == "e_web"));
     assert_ne!(snap["data"].get("source").and_then(|v| v.as_str()), Some("extension_dom"));
+
+    let observed: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
+        .json(&json!({"id": "proc:Microsoft_Edge:10", "pixels": false, "budget": 1000}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(observed["ok"], true, "{observed}");
+    assert_eq!(observed["data"]["hud"], false);
+    assert_eq!(observed["data"]["login_state"], true);
+    assert_eq!(observed["data"]["tab_id"], "42");
+    assert_eq!(observed["data"]["tabs_source"], "extension_tabs");
+    assert_eq!(observed["data"]["snapshot"]["tab_id"], "42");
+    poller.abort();
 
     let textedit: serde_json::Value = auth(client.post(format!("{base}/v1/app/snapshot")))
         .json(&json!({"id": "proc:TextEdit:1", "budget": 1000}))

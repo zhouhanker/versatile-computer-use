@@ -457,6 +457,55 @@ pub fn merge_extension_tabs_into_scene(body: &mut Value, app_id: &str, ext: &Val
             body["page_url_source"] = json!("extension_tabs");
         }
     }
+    if let Some(tab) = focused_http_tab(&filtered) {
+        let ax_tab_empty = body
+            .get("tab_id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .is_empty();
+        if ax_tab_empty {
+            if let Some(id) = tab.get("tab_id").and_then(Value::as_str) {
+                body["tab_id"] = json!(id);
+                body["tab_id_source"] = json!("extension_tabs");
+            }
+        }
+        let ax_title_empty = body
+            .get("page_title")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .is_empty();
+        if ax_title_empty {
+            if let Some(title) = tab
+                .get("title")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+            {
+                body["page_title"] = json!(title);
+                body["page_title_source"] = json!("extension_tabs");
+            }
+        }
+    }
+}
+
+fn focused_http_tab(tabs: &[Value]) -> Option<&Value> {
+    tabs.iter()
+        .find(|t| tab_is_active(t) && http_url(t.get("url").unwrap_or(&Value::Null)).is_some())
+        .or_else(|| {
+            tabs.iter()
+                .find(|t| http_url(t.get("url").unwrap_or(&Value::Null)).is_some())
+        })
+}
+
+pub fn snapshot_has_png(body: &Value) -> bool {
+    body.get("screenshot_path")
+        .and_then(Value::as_str)
+        .map(|s| !s.is_empty())
+        .unwrap_or(false)
+        || body
+            .pointer("/vision_handoff/must_view")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().any(|p| p.as_str().map(|s| s.ends_with(".png")).unwrap_or(false)))
+            .unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -674,8 +723,14 @@ mod tests {
         assert_eq!(body["page_url"], "https://chrome.example/");
         assert_eq!(body["page_url_source"], "extension_tabs");
         assert_eq!(body["scene_source"], "ax_scene");
+        assert_eq!(body["tab_id"], "1");
+        assert_eq!(body["tab_id_source"], "extension_tabs");
+        assert_eq!(body["page_title"], "c");
+        assert_eq!(body["page_title_source"], "extension_tabs");
         assert_eq!(body["elements"].as_array().unwrap().len(), 1);
         assert!(body.get("source").is_none());
+        assert!(snapshot_has_png(&json!({"screenshot_path":"/tmp/a.png"})));
+        assert!(!snapshot_has_png(&json!({"ok":true})));
     }
 
     #[test]

@@ -128,7 +128,7 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_browser_login_state", "Classify user vs empty Agent browser. Login-state is the USER window, not ~/.vcu/edge-agent-profile.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_next", "Next login-state action only (load unpacked / observe). Never clicks Allow.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_install_lens", "Copy VCU extension to ~/.vcu/lens-extension. Optional reload hot-restarts every connected Edge/Chrome SW. Does not click UI or Allow.", json!({"type":"object","properties":{"reload":{"type":"boolean","default":false}}})),
-        tool("vcu_browser_observe", "Observe the USER logged-in browser without Stage HUD. Returns PNG image content plus JSON (vision_handoff.must_view). Look at the image before clicking.", json!({
+        tool("vcu_browser_observe", "Observe USER Chrome/Edge without Stage HUD. Walks all user browsers; stamps focused tab_id from extension_tabs. Returns PNG plus JSON (vision_handoff.must_view). Look at the image before clicking.", json!({
             "type":"object",
             "properties":{
                 "pixels":{"type":"boolean","default":true},
@@ -440,51 +440,7 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
                 copied
             }
         }
-        "vcu_browser_observe" => {
-            let ls = client.get("/v1/browser/login-state").await?;
-            let user = ls
-                .pointer("/data/user_browsers/0")
-                .cloned()
-                .ok_or_else(|| {
-                    VcuError::coded(
-                        ErrorCode::ActionFailed,
-                        "no user Chrome/Edge; login-state observe needs the user browser",
-                    )
-                })?;
-            let pid = user.get("pid").and_then(|v| v.as_i64()).unwrap_or(0);
-            let bname = user
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Microsoft Edge");
-            let id = format!("proc:{}:{}", bname.replace(' ', "_"), pid);
-            let pixels = args.get("pixels").and_then(|v| v.as_bool()).unwrap_or(true);
-            let budget = args.get("budget").and_then(|v| v.as_u64()).unwrap_or(2500);
-            let selector = args
-                .get("selector")
-                .and_then(|v| v.as_str())
-                .unwrap_or("*");
-            let snap = client
-                .post(
-                    "/v1/app/snapshot",
-                    json!({"id": id, "budget": budget, "pixels": pixels, "selector": selector}),
-                )
-                .await?;
-            if snap.get("ok").and_then(Value::as_bool) != Some(true) {
-                return Ok(snap);
-            }
-            json!({
-                "ok": true,
-                "data": {
-                    "app_id": id,
-                    "login_state": true,
-                    "browser_profile": "user",
-                    "hud": false,
-                    "extension_profile": ls.pointer("/data/extension_profile").and_then(|v| v.as_str()).unwrap_or("none"),
-                    "login": user,
-                    "snapshot": snap.get("data").cloned().unwrap_or_else(|| snap.clone())
-                }
-            })
-        }
+        "vcu_browser_observe" => client.post("/v1/browser/observe", args).await?,
         "vcu_browser_screenshot" => client.post("/v1/browser/screenshot", args).await?,
         "vcu_browser_click" => {
             let mut body = json!({

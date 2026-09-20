@@ -63,10 +63,13 @@ url=obs.get("page_url") or snap.get("page_url") or sdata.get("page_url")
 tabs=obs.get("tabs") or snap.get("tabs") or []
 tabs_source=snap.get("tabs_source") or obs.get("tabs_source")
 print("page_url", url, "tabs", len(tabs), "tabs_source", tabs_source, "page_url_source", snap.get("page_url_source"))
-if obs.get("extension_profile")=="user":
+tab_id=obs.get("tab_id") or snap.get("tab_id")
+if tabs_source=="extension_tabs" or obs.get("extension_profile")=="user":
     assert tabs_source=="extension_tabs", tabs_source
     assert tabs, "login-state observe must merge extension tabs when AX tree is empty"
     assert url and str(url).startswith("http"), url
+    assert tab_id, "observe must stamp focused extension tab_id"
+    print("tab_id", tab_id, "tab_id_source", snap.get("tab_id_source") or obs.get("tab_id_source"), "ext", obs.get("extension_profile"))
 print("PASS login-state observe hud=false scale", scale, "png_bytes", png.stat().st_size, "source", sdata.get("source"))
 INNER
 

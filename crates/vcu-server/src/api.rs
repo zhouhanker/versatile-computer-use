@@ -38,6 +38,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/app/focus", post(app_focus))
         .route("/v1/doctor", get(doctor_handler))
         .route("/v1/browser/login-state", get(browser_login_state))
+        .route("/v1/browser/observe", post(browser_observe))
         .route("/v1/browser/install-lens", post(browser_install_lens))
         .route("/v1/browser/click", post(browser_click))
         .route("/v1/browser/hover", post(browser_hover))
@@ -2523,14 +2524,7 @@ struct AppSnapshotReq {
 }
 fn default_app_budget() -> u64 { 4000 }
 
-async fn app_snapshot(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(req): Json<AppSnapshotReq>,
-) -> impl IntoResponse {
-    if let Err(e) = require_auth(&headers, &state).await {
-        return err_response(e);
-    }
+async fn snapshot_app_json(state: &AppState, req: &AppSnapshotReq) -> Result<Value, VcuError> {
     let backend = state.app_backend.read().await;
     match backend.snapshot(&req.id, req.budget).await {
         Ok(snap) => {
@@ -2552,7 +2546,7 @@ async fn app_snapshot(
                     Ok(None) => {
                         body["screenshot_skipped"] = json!(true);
                     }
-                    Err(e) => return err_response(e),
+                    Err(e) => return Err(e),
                 }
                 if let Some(frame) = webview_crop_frame(
                     snap.elements.as_slice(),
@@ -2566,7 +2560,7 @@ async fn app_snapshot(
                             attach_capture(&mut body, &state.paths.captures_dir(), &cap, "webview_");
                         }
                         Ok(None) => {}
-                        Err(e) => return err_response(e),
+                        Err(e) => return Err(e),
                     }
                     }
                 }
@@ -2634,17 +2628,161 @@ async fn app_snapshot(
                 }
                 stamp_vision_handoff(&mut body);
             }
-            if crate::login_state::browser_kind_from_app_id(&req.id).is_some()
-                && state.extension_bridge.is_polling().await
-            {
-                if let Ok(tabs) = state.extension_bridge.list_tabs_merged().await {
+            if crate::login_state::browser_kind_from_app_id(&req.id).is_some() {
+                let mut tabs = None;
+                for attempt in 0..3 {
+                    if !state.extension_bridge.is_polling().await {
+                        if attempt == 2 {
+                            break;
+                        }
+                        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                        continue;
+                    }
+                    match state.extension_bridge.list_tabs_merged().await {
+                        Ok(v)
+                            if v.get("tabs")
+                                .and_then(|x| x.as_array())
+                                .map(|a| !a.is_empty())
+                                .unwrap_or(false) =>
+                        {
+                            tabs = Some(v);
+                            break;
+                        }
+                        Ok(_) if attempt < 2 => {
+                            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                        }
+                        _ => break,
+                    }
+                }
+                if let Some(tabs) = tabs {
                     crate::login_state::merge_extension_tabs_into_scene(&mut body, &req.id, &tabs);
                 }
             }
-            Json(Envelope::ok(body)).into_response()
+            Ok(body)
         }
+        Err(e) => Err(e),
+    }
+}
+
+async fn app_snapshot(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AppSnapshotReq>,
+) -> impl IntoResponse {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    match snapshot_app_json(&state, &req).await {
+        Ok(body) => Json(Envelope::ok(body)).into_response(),
         Err(e) => err_response(e),
     }
+}
+
+#[derive(Deserialize, Default)]
+struct BrowserObserveReq {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    pixels: Option<bool>,
+    #[serde(default)]
+    selector: Option<String>,
+    #[serde(default)]
+    budget: Option<u64>,
+}
+
+fn observe_envelope(id: String, user: Value, snap: Value, extension_profile: &str) -> Value {
+    json!({
+        "app_id": id,
+        "login_state": true,
+        "browser_profile": "user",
+        "hud": false,
+        "extension_profile": extension_profile,
+        "page_title": snap.get("page_title").cloned().unwrap_or(Value::Null),
+        "page_url": snap.get("page_url").cloned().unwrap_or(Value::Null),
+        "tab_id": snap.get("tab_id").cloned().unwrap_or(Value::Null),
+        "tab_id_source": snap.get("tab_id_source").cloned().unwrap_or(Value::Null),
+        "tabs": snap.get("tabs").cloned().unwrap_or(json!([])),
+        "tabs_source": snap.get("tabs_source").cloned().unwrap_or(Value::Null),
+        "page_url_source": snap.get("page_url_source").cloned().unwrap_or(Value::Null),
+        "webview": snap.get("webview").cloned().unwrap_or(json!(false)),
+        "ax_enhanced": snap.get("ax_enhanced").cloned().unwrap_or(json!(false)),
+        "coordinate_help": "ax = frame_origin + pixel / screenshot_scale; click with --pixel-x/--pixel-y",
+        "login": user,
+        "snapshot": snap,
+    })
+}
+
+async fn browser_observe(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BrowserObserveReq>,
+) -> impl IntoResponse {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    let pixels = req.pixels.unwrap_or(true);
+    let budget = req.budget.unwrap_or(2500);
+    let selector = req.selector.clone().unwrap_or_else(|| "*".into());
+    let report = crate::login_state::inspect_login_browsers();
+    let extension_profile = if state.extension_bridge.is_polling().await
+        && state.extension_bridge.likely_user_profile().await
+    {
+        "user"
+    } else {
+        report.extension_profile
+    };
+    if let Some(id) = req.id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let snap_req = AppSnapshotReq {
+            id: id.to_string(),
+            budget,
+            pixels,
+            selector: Some(selector),
+        };
+        return match snapshot_app_json(&state, &snap_req).await {
+            Ok(snap) => {
+                let user = json!({"id": id});
+                Json(Envelope::ok(observe_envelope(id.to_string(), user, snap, extension_profile))).into_response()
+            }
+            Err(e) => err_response(e),
+        };
+    }
+    if report.user_browsers.is_empty() {
+        return err_response(VcuError::coded(
+            ErrorCode::ActionFailed,
+            "no user Chrome/Edge process; login-state observe needs the user browser window",
+        ));
+    }
+    let mut chosen_user = None;
+    let mut snap_body = json!({});
+    let mut last_err: Option<VcuError> = None;
+    let mut id = String::new();
+    for user in &report.user_browsers {
+        let candidate_id = format!("proc:{}:{}", user.name.replace(' ', "_"), user.pid);
+        let snap_req = AppSnapshotReq {
+            id: candidate_id.clone(),
+            budget,
+            pixels,
+            selector: Some(selector.clone()),
+        };
+        match snapshot_app_json(&state, &snap_req).await {
+            Ok(body) => {
+                let has_png = crate::login_state::snapshot_has_png(&body);
+                chosen_user = Some(serde_json::to_value(user).unwrap_or_else(|_| json!({})));
+                snap_body = body;
+                id = candidate_id;
+                if has_png {
+                    break;
+                }
+            }
+            Err(e) => last_err = Some(e),
+        }
+    }
+    let Some(user) = chosen_user else {
+        return err_response(last_err.unwrap_or_else(|| {
+            VcuError::coded(ErrorCode::ActionFailed, "login-state observe failed")
+        }));
+    };
+    Json(Envelope::ok(observe_envelope(id, user, snap_body, extension_profile))).into_response()
 }
 
 #[derive(Deserialize)]
