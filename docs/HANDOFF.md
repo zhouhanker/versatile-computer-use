@@ -1,12 +1,11 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-330 CI 已过。下一刀 CU-D-340。
+更新：2026-09-20。CU-D-340 CI 已过。下一刀 CU-D-350。
 
 ## 本轮
 
-- 330：run `35479929439` @ `0c9ffcf` `NEWLINE_DENIED via=mcp_tools_call` / `CU-D-330 OK`。
-- 320：run `35479050203` @ `720e6d2` `TYPE_OK path=wm_settext os_cursor_used=False via=mcp_tools_call` / `CU-D-320 OK`。
+- 340：run `35480404968` @ `402e12d` `SCROLL_OK path=wm_vscroll os_cursor_used=False via=mcp_tools_call` / `CU-D-340 OK`。
 
 ## 下一刀
 
-CU-D-340：MCP `tools/call` live `vcu_scroll` → `wm_vscroll`。先写进 ROADMAP（已写）再写代码。不要 claim MAC-NEXT / FEISHU-001。
+CU-D-350：MCP `tools/call` live `vcu_extract` 读回 Scene 值。先写进 ROADMAP（已写）再写代码。不要 claim MAC-NEXT / FEISHU-001。

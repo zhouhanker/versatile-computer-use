@@ -159,7 +159,8 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-310 | MCP tools/call live wait | **通过** run `35478526783` `WAIT_OK path=scene_wait via=mcp_tools_call` / `CU-D-310 OK`。无 SendInput |
 | TC-D-320 | MCP tools/call live type | **通过** run `35479050203` `TYPE_OK path=wm_settext os_cursor_used=False via=mcp_tools_call` / `CU-D-320 OK`。无 SendInput |
 | TC-D-330 | MCP tools/call live type newline denied | **通过** run `35479929439` `NEWLINE_DENIED via=mcp_tools_call` / `CU-D-330 OK`。无 SendInput |
-| TC-D-340 | MCP tools/call live scroll | **未过** `tools/call` `vcu_scroll` → `wm_vscroll`。无 SendInput / mouse_event |
+| TC-D-340 | MCP tools/call live scroll | **通过** run `35480404968` `SCROLL_OK path=wm_vscroll os_cursor_used=False via=mcp_tools_call` / `CU-D-340 OK`。无 SendInput |
+| TC-D-350 | MCP tools/call live extract | **未过** `tools/call` `vcu_extract` 读回 Scene 值。无 SendInput |
 
 ## 8. 未通过不得宣称完成
 
