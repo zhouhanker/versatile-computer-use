@@ -178,6 +178,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-500 | MCP observe-bind instructions | **通过** initialize 含 vcu_browser_observe / last observe / Never CDP Allow |
 | TC-D-510 | login-state next_action observe | **通过** next_action 含 observe / last observe；polling=user；poc 打印新文案 |
 | TC-D-520 | Dual-browser tabs include Edge | **通过** 同一次 tabs chrome=6 edge=7 `browsers_failed=[]`；`scripts/poc_cu_d_520.py` CU-D-520 OK。组 1/3 未动 |
+| TC-D-530 | Observe frontmost USER browser | **通过** 前台 Edge → observe `proc:Microsoft_Edge` `frontmost_matched=true`；`scripts/poc_cu_d_530.py` CU-D-530 OK。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 

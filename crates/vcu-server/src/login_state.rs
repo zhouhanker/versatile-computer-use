@@ -383,6 +383,62 @@ pub fn browser_kind_from_app_id(id: &str) -> Option<&'static str> {
     None
 }
 
+pub fn browser_name_is_frontmost(name: &str, frontmost: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    let f = frontmost.to_ascii_lowercase();
+    if n.contains("edge") {
+        return f.contains("edge");
+    }
+    if n.contains("chrome") {
+        return f.contains("chrome") && !f.contains("edge");
+    }
+    n == f
+}
+
+/// macOS frontmost app if it is USER Chrome/Edge. Never sets frontmost.
+pub fn frontmost_user_browser_name() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("osascript")
+            .args([
+                "-e",
+                r#"tell application "System Events" to get name of first application process whose frontmost is true"#,
+            ])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if name.is_empty() {
+            return None;
+        }
+        let l = name.to_ascii_lowercase();
+        if l.contains("edge") {
+            return Some("Microsoft Edge".into());
+        }
+        if l.contains("chrome") && !l.contains("edge") {
+            return Some("Chrome".into());
+        }
+        None
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
+
+pub fn order_user_browsers_frontmost_first(
+    mut users: Vec<BrowserProc>,
+    frontmost: Option<&str>,
+) -> Vec<BrowserProc> {
+    let Some(front) = frontmost.map(str::trim).filter(|s| !s.is_empty()) else {
+        return users;
+    };
+    users.sort_by_key(|u| !browser_name_is_frontmost(&u.name, front));
+    users
+}
+
 fn http_url(v: &Value) -> Option<String> {
     v.as_str()
         .filter(|u| u.starts_with("http://") || u.starts_with("https://"))
@@ -786,6 +842,31 @@ mod tests {
         assert_eq!(browser_kind_from_app_id("proc:Microsoft_Edge:10"), Some("edge"));
         assert_eq!(browser_kind_from_app_id("proc:TextEdit:1"), None);
         assert_eq!(browser_kind_from_app_id("proc:WeChat:2"), None);
+    }
+
+    fn proc(name: &str, pid: i32) -> BrowserProc {
+        BrowserProc {
+            pid,
+            name: name.into(),
+            profile: "user".into(),
+            command_excerpt: name.into(),
+        }
+    }
+
+    #[test]
+    fn orders_edge_first_when_frontmost() {
+        let users = vec![proc("Chrome", 1), proc("Microsoft Edge", 2)];
+        let ordered = order_user_browsers_frontmost_first(users, Some("Microsoft Edge"));
+        assert_eq!(ordered[0].name, "Microsoft Edge");
+        assert_eq!(ordered[0].pid, 2);
+        assert_eq!(ordered[1].name, "Chrome");
+    }
+
+    #[test]
+    fn orders_chrome_first_when_frontmost() {
+        let users = vec![proc("Microsoft Edge", 2), proc("Chrome", 1)];
+        let ordered = order_user_browsers_frontmost_first(users, Some("Google Chrome"));
+        assert_eq!(ordered[0].name, "Chrome");
     }
 
     #[test]

@@ -374,7 +374,7 @@ enum BrowserCmd {
         pixels: bool,
         #[arg(long)]
         selector: Option<String>,
-        #[arg(long, default_value_t = 80)]
+        #[arg(long, default_value_t = 2500)]
         budget: u64,
     },
     /// Capture a USER tab viewport PNG. Without --tab, uses last observe tab for 60s.

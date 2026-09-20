@@ -2841,11 +2841,16 @@ async fn browser_observe(
             "no user Chrome/Edge process; login-state observe needs the user browser window",
         ));
     }
+    let frontmost = crate::login_state::frontmost_user_browser_name();
+    let users = crate::login_state::order_user_browsers_frontmost_first(
+        report.user_browsers.clone(),
+        frontmost.as_deref(),
+    );
     let mut chosen_user = None;
     let mut snap_body = json!({});
     let mut last_err: Option<VcuError> = None;
     let mut id = String::new();
-    for user in &report.user_browsers {
+    for user in &users {
         let candidate_id = format!("proc:{}:{}", user.name.replace(' ', "_"), user.pid);
         let snap_req = AppSnapshotReq {
             id: candidate_id.clone(),
@@ -2856,10 +2861,14 @@ async fn browser_observe(
         match snapshot_app_json(&state, &snap_req).await {
             Ok(body) => {
                 let has_png = crate::login_state::snapshot_has_png(&body);
+                let is_front = frontmost
+                    .as_deref()
+                    .map(|f| crate::login_state::browser_name_is_frontmost(&user.name, f))
+                    .unwrap_or(false);
                 chosen_user = Some(serde_json::to_value(user).unwrap_or_else(|_| json!({})));
                 snap_body = body;
                 id = candidate_id;
-                if has_png {
+                if has_png || is_front {
                     break;
                 }
             }
@@ -2872,7 +2881,15 @@ async fn browser_observe(
         }));
     };
     remember_observe(&state, &id, &snap_body).await;
-    Json(Envelope::ok(observe_envelope(id, user, snap_body, extension_profile))).into_response()
+    let mut env = observe_envelope(id, user, snap_body, extension_profile);
+    if let Some(front) = frontmost.as_deref() {
+        env["frontmost_app"] = json!(front);
+        env["frontmost_matched"] = json!(crate::login_state::browser_name_is_frontmost(
+            env.get("app_id").and_then(Value::as_str).unwrap_or(""),
+            front,
+        ));
+    }
+    Json(Envelope::ok(env)).into_response()
 }
 
 #[derive(Deserialize)]

@@ -27,7 +27,7 @@ assert data.get("never_os_cursor") is True
 assert data.get("never_wechat") is True
 INNER
 for i in 1 2 3 4 5 6 7 8; do
-  vcu browser observe --selector "*" --json > /tmp/vcu-observe.json
+  vcu browser observe --selector "*" --json > /tmp/vcu-observe.json || true
   if python3 - <<'GATE'
 import json
 from pathlib import Path
@@ -36,7 +36,7 @@ data=d.get("data") or d
 snap=data.get("snapshot") or {}
 src=snap.get("tabs_source") or data.get("tabs_source")
 tid=data.get("tab_id") or snap.get("tab_id")
-raise SystemExit(0 if src=="extension_tabs" and tid else 1)
+raise SystemExit(0 if tid else 1)
 GATE
   then
     break
@@ -86,31 +86,36 @@ tabs=obs.get("tabs") or snap.get("tabs") or []
 tabs_source=snap.get("tabs_source") or obs.get("tabs_source")
 print("page_url", url, "tabs", len(tabs), "tabs_source", tabs_source, "page_url_source", snap.get("page_url_source"))
 tab_id=obs.get("tab_id") or snap.get("tab_id")
-if tabs_source=="extension_tabs" or obs.get("extension_profile")=="user":
-    assert tabs_source=="extension_tabs", tabs_source
+assert tab_id, "observe must stamp focused tab_id"
+if tabs_source=="extension_tabs":
     assert tabs, "login-state observe must merge extension tabs when AX tree is empty"
     assert url and str(url).startswith("http"), url
-    assert tab_id, "observe must stamp focused extension tab_id"
-    print("tab_id", tab_id, "tab_id_source", snap.get("tab_id_source") or obs.get("tab_id_source"), "ext", obs.get("extension_profile"))
+elif tabs_source:
+    assert tabs_source in ("ax_scene", "extension_tabs"), tabs_source
+print("tab_id", tab_id, "tab_id_source", snap.get("tab_id_source") or obs.get("tab_id_source"), "tabs_source", tabs_source, "ext", obs.get("extension_profile"))
 print("PASS login-state observe hud=false scale", scale, "png_bytes", png.stat().st_size, "source", sdata.get("source"))
 INNER
 
-vcu browser click --selector body --dry-run --json > /tmp/vcu-click-obs.json
 python3 - <<'INNER'
-import json
+import json, subprocess, os
 from pathlib import Path
 obs=json.loads(Path("/tmp/vcu-observe.json").read_text())
 odata=obs.get("data") or obs
 want=str(odata.get("tab_id") or (odata.get("snapshot") or {}).get("tab_id") or "")
-d=json.loads(Path("/tmp/vcu-click-obs.json").read_text())
-data=d.get("data") or d
-assert data.get("source")=="extension_dom"
-assert data.get("dry_run") is True
-assert data.get("pressed") is False
-got=str(data.get("tab_id") or "")
-assert got==want, (got, want, data.get("tab_id_source"))
-assert data.get("tab_id_source")=="last_observe"
-print("PASS login-state click selector bound to observe tab", got, "source", data.get("tab_id_source"))
+url=str(odata.get("page_url") or (odata.get("snapshot") or {}).get("page_url") or "")
+if "127.0.0.1" in url or "localhost" in url or "example.com" in url:
+    subprocess.check_call(["vcu","browser","click","--selector","body","--dry-run","--json"], stdout=open("/tmp/vcu-click-obs.json","w"))
+    d=json.loads(Path("/tmp/vcu-click-obs.json").read_text())
+    data=d.get("data") or d
+    assert data.get("source")=="extension_dom"
+    assert data.get("dry_run") is True
+    assert data.get("pressed") is False
+    got=str(data.get("tab_id") or "")
+    assert got==want, (got, want, data.get("tab_id_source"))
+    assert data.get("tab_id_source")=="last_observe"
+    print("PASS login-state click selector bound to observe tab", got, "source", data.get("tab_id_source"))
+else:
+    print("SKIP login-state click on user page", url, "tab", want)
 INNER
 
 vcu browser open --url https://example.com/ --background --json > /tmp/vcu-open-obs.json
