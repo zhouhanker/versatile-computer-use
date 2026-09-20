@@ -151,6 +151,7 @@ async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         "extension_polling": state.extension_bridge.is_polling().await,
         "extension_browsers": state.extension_bridge.active_browsers().await,
         "extension_browser_count": state.extension_bridge.active_client_ids().await.len(),
+        "extension_clients": state.extension_bridge.client_snapshots().await,
         "last_poll_age_ms": state.extension_bridge.last_poll_age_ms().await,
         "extension_pending": state.extension_bridge.pending_len().await,
         "extension_waiters": state.extension_bridge.waiter_len().await,
@@ -2306,6 +2307,8 @@ struct ExtPollQuery {
     wait_ms: u64,
     #[serde(default)]
     client_id: Option<String>,
+    #[serde(default)]
+    browser: Option<String>,
 }
 fn default_wait() -> u64 { 5000 }
 
@@ -2408,7 +2411,7 @@ async fn extension_poll(
     if let Err(e) = require_auth(&headers, &state).await {
         return err_response(e);
     }
-    match state.extension_bridge.poll_for(q.wait_ms, q.client_id).await {
+    match state.extension_bridge.poll_for(q.wait_ms, q.client_id, q.browser).await {
         Some(cmd) => Json(Envelope::ok(cmd)).into_response(),
         None => Json(Envelope::ok(json!({"empty": true}))).into_response(),
     }

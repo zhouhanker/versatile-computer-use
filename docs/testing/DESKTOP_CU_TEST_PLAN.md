@@ -165,7 +165,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-370 | MCP tools/call live key return denied | **通过** run `35482034139` `KEY_DENIED via=mcp_tools_call` / `CU-D-370 OK`。无 SendInput |
 | TC-D-380 | MCP tools/call live wait miss | **通过** run `35482614685` `WAIT_MISS_OK via=mcp_tools_call` / `WAIT_REF_MISS_OK via=mcp_tools_call` / `CU-D-380 OK`。无 SendInput |
 | TC-D-390 | MCP tools/call live doctor | **通过** run `35483037087` `SCOPE_OK via=mcp_tools_call` / `BACKEND_OK via=mcp_tools_call` / `STAGE_OK via=mcp_tools_call` / `CU-D-390 OK`。无 SendInput |
-| TC-D-400 | Dual-browser live lens hello | **未过** Chrome lens hello + Edge/Chrome tabs 合并。不要动用户组 1/3 |
+| TC-D-400 | Dual-browser live lens hello | **通过** `CHROME_HELLO_OK` / `EDGE_HELLO_OK` / `MERGE_OK browser_count=2` / `CU-D-400 OK`。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 

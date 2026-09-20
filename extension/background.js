@@ -369,7 +369,7 @@ function startPollLoop() {
     try {
       while (gen === pollGen && pairingToken) {
         try {
-          const body = await fetchJson(endpoint + "/v1/extension/poll?wait_ms=4000&client_id=" + encodeURIComponent(chrome.runtime.id || ""), {
+          const body = await fetchJson(endpoint + "/v1/extension/poll?wait_ms=4000&client_id=" + encodeURIComponent(chrome.runtime.id || "") + "&browser=" + encodeURIComponent(currentBrowser()), {
             headers: { "X-Vcu-Token": pairingToken },
           }, 10000);
           const cmd = body && body.data;

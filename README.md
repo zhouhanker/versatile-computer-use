@@ -117,7 +117,7 @@ vcu browser close --tab <id>
 - 指定标签失效则报错；超时回执不会自动重放 mutation
 - 同源 iframe 点内层节点；canvas 只派发非 trusted 合成事件
 
-MCP 工具：`vcu_browser_tabs` / `select` / `open` / `close` / `group` / `group_update` / `ungroup` / `screenshot` / `observe` / `click` / `hover` / `type` / `wait` / `scroll` / `key` / `ping` / `extract` / `login_state` / `install_lens`；桌面另有 `vcu_hover` / `vcu_session_abort` / `vcu_wait`（`value`）。CI 已 live hover/click/wait/wait miss/type（无换行）/cmd 含换行 type 拒绝/scroll=`wm_vscroll`/extract/screenshot/key return 拒绝/doctor/abort；双浏览器 live 尚未宣称。
+MCP 工具：`vcu_browser_tabs` / `select` / `open` / `close` / `group` / `group_update` / `ungroup` / `screenshot` / `observe` / `click` / `hover` / `type` / `wait` / `scroll` / `key` / `ping` / `extract` / `login_state` / `install_lens`；桌面另有 `vcu_hover` / `vcu_session_abort` / `vcu_wait`（`value`）。CI 已 live hover/click/wait/wait miss/type（无换行）/cmd 含换行 type 拒绝/scroll=`wm_vscroll`/extract/screenshot/key return 拒绝/doctor/abort。双浏览器 live：Chrome+Edge lens 同时 poll 时 `tabs` 合并（CU-D-400）。
 
 ## 限制（已知、不会假装完成）
 

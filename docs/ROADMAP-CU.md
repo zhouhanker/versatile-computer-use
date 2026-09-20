@@ -185,7 +185,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-370 | MCP tools/call live key return denied | **完成（CI 真机）** run `35482034139` @ `63ab5b4`：`KEY_DENIED via=mcp_tools_call`；`CU-D-370 OK`。无 SendInput。 |
 | CU-D-380 | MCP tools/call live wait miss | **完成（CI 真机）** run `35482614685` @ `27aa24d`：`WAIT_MISS_OK via=mcp_tools_call`；`WAIT_REF_MISS_OK via=mcp_tools_call`；`CU-D-380 OK`。无 SendInput。 |
 | CU-D-390 | MCP tools/call live doctor | **完成（CI 真机）** run `35483037087` @ `8304b65`：`SCOPE_OK via=mcp_tools_call`；`BACKEND_OK via=mcp_tools_call`；`STAGE_OK via=mcp_tools_call`；`CU-D-390 OK`。无 SendInput。 |
-| CU-D-400 | Dual-browser live lens hello | **下一刀** USER Chrome lens `hello` + Edge/Chrome `tabs` 合并带 `browser` 字段。不要动用户组 1/3。不是产品 Windows CU。 |
+| CU-D-400 | Dual-browser live lens hello | **完成（真机）** `CHROME_HELLO_OK` / `EDGE_HELLO_OK` / `MERGE_OK browser_count=2` / `CU-D-400 OK`；tabs chrome=5 edge=13；`lens_dual_browser` pass。同路径 unpacked 共用 runtime id，client key=`browser:id`。组 1/3 未动。不是产品 Windows CU。 |
 
 ## 4. 建议执行顺序（编排）
 

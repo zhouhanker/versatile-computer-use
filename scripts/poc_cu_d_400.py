@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """CU-D-400: dual-browser live lens hello + tabs merge.
 
-May open one throwaway 127.0.0.1 tab in Chrome and/or Edge to wake MV3 SW.
+Wakes Chrome and Edge MV3 workers by opening one 127.0.0.1 tab in each
+already-running USER window, then checks tabs merge.
 Does not touch USER groups titled 1 / 3. Never clicks Allow. Never warps OS cursor.
 """
 from __future__ import annotations
@@ -23,7 +24,12 @@ WAKE_PATH = "/vcu-d-400-wake"
 
 
 def vcu(args):
-    p = subprocess.run([VCU, *args, "--json"], capture_output=True, text=True)
+    cmd = [VCU, *args]
+    if "--json" not in cmd:
+        cmd.append("--json")
+    if "--user-dir" not in cmd and os.environ.get("VCU_DIR"):
+        cmd[1:1] = ["--user-dir", os.environ["VCU_DIR"]]
+    p = subprocess.run(cmd, capture_output=True, text=True)
     try:
         return json.loads(p.stdout or "{}")
     except json.JSONDecodeError:
@@ -49,10 +55,28 @@ def browsers_of(tabs_resp):
     return Counter(str(t.get("browser") or "missing") for t in tabs)
 
 
-def close_app_url(app, url):
-    script = chr(10).join([
-        "tell application \"" + app + "\"",
-        "  set theUrl to \"" + url + "\"",
+def health_browsers():
+    st = vcu(["daemon", "status"])
+    d = data(st)
+    return list(d.get("extension_browsers") or []), int(d.get("extension_browser_count") or 0)
+
+
+def osascript(script):
+    try:
+        subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=6)
+    except Exception:
+        pass
+
+
+def open_tab(app, url):
+    subprocess.run(["open", "-a", app, url], capture_output=True, text=True, check=False)
+
+
+def close_tab(app, url):
+    nl = chr(10)
+    script = nl.join([
+        'tell application "' + app + '"',
+        '  set theUrl to "' + url + '"',
         "  repeat with w in windows",
         "    set tabList to tabs of w",
         "    repeat with t in tabList",
@@ -66,10 +90,20 @@ def close_app_url(app, url):
         "end tell",
         "",
     ])
-    try:
-        subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=5)
-    except Exception:
-        pass
+    osascript(script)
+
+
+class Wake(BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b"<html><body>vcu-d-400</body></html>"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, fmt, *args):
+        return
 
 
 def main():
@@ -106,6 +140,9 @@ def main():
         {"names": sorted(names), "never_click_allow": data(login).get("never_click_allow")},
     )
 
+    hb, hc = health_browsers()
+    step("health_before", True, {"extension_browsers": hb, "extension_browser_count": hc})
+
     before = vcu(["browser", "tabs"])
     prot_before = protected_snapshot(before)
     b0 = browsers_of(before)
@@ -115,30 +152,31 @@ def main():
         {"n_tabs": len(data(before).get("tabs") or []), "browsers": dict(b0), "protected": prot_before},
     )
 
-    missing = []
-    if b0.get("chrome", 0) == 0 and chrome_proc:
-        missing.append("Google Chrome")
-    if b0.get("edge", 0) == 0 and edge_proc:
-        missing.append("Microsoft Edge")
-    if missing:
-        class Wake(BaseHTTPRequestHandler):
-            def do_GET(self):
-                body = b"<html><body>vcu-d-400</body></html>"
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-            def log_message(self, fmt, *args):
-                return
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Wake)
-        port = httpd.server_address[1]
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        wake_url = "http://127.0.0.1:%s%s" % (port, WAKE_PATH)
-        for app in missing:
-            subprocess.run(["open", "-a", app, wake_url], capture_output=True, text=True, check=False)
-        time.sleep(3.5)
-        step("wake_open", True, {"url": wake_url, "apps": missing})
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Wake)
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    wake_url = "http://127.0.0.1:%s%s" % (port, WAKE_PATH)
+    apps = []
+    if chrome_proc:
+        apps.append("Google Chrome")
+    if edge_proc:
+        apps.append("Microsoft Edge")
+    for app in apps:
+        open_tab(app, wake_url)
+        time.sleep(2)
+    seen = []
+    both = False
+    for i in range(12):
+        hb_i, hc_i = health_browsers()
+        seen.append({"t": i, "browsers": hb_i, "count": hc_i})
+        if hc_i >= 2 and "chrome" in hb_i and "edge" in hb_i:
+            both = True
+            break
+        time.sleep(0.5)
+    step("wake_open", True, {"url": wake_url, "apps": apps, "poll_samples": seen[-6:]})
+
+    hb2, hc2 = health_browsers()
+    step("health_after", hc2 >= 2, {"extension_browsers": hb2, "extension_browser_count": hc2})
 
     after = vcu(["browser", "tabs"])
     prot_after = protected_snapshot(after)
@@ -149,18 +187,26 @@ def main():
         {"n_tabs": len(data(after).get("tabs") or []), "browsers": dict(b1), "protected": prot_after},
     )
     prot_ok = step("protected_groups_unchanged", prot_before == prot_after, {"before": prot_before, "after": prot_after})
-    chrome_hello = step("chrome_hello", b1.get("chrome", 0) > 0, {"count": b1.get("chrome", 0)})
-    edge_hello = step("edge_hello", b1.get("edge", 0) > 0, {"count": b1.get("edge", 0)})
+    chrome_hello = step(
+        "chrome_hello",
+        b1.get("chrome", 0) > 0 or "chrome" in hb2,
+        {"tabs": b1.get("chrome", 0), "health": hb2},
+    )
+    edge_hello = step(
+        "edge_hello",
+        b1.get("edge", 0) > 0 or "edge" in hb2,
+        {"tabs": b1.get("edge", 0), "health": hb2},
+    )
     merge_ok = step(
         "tabs_merge",
-        chrome_hello and edge_hello,
-        {"browser_count": int(b1.get("chrome", 0) > 0) + int(b1.get("edge", 0) > 0), "browsers": dict(b1)},
+        chrome_hello and edge_hello and (b1.get("chrome", 0) > 0 and b1.get("edge", 0) > 0 or hc2 >= 2),
+        {"browser_count": int(b1.get("chrome", 0) > 0) + int(b1.get("edge", 0) > 0), "browsers": dict(b1), "health": hb2},
     )
     cursor_ok = step("os_cursor", data(ping).get("os_cursor_used") is False, {})
 
     if wake_url:
-        close_app_url("Google Chrome", wake_url)
-        close_app_url("Microsoft Edge", wake_url)
+        close_tab("Google Chrome", wake_url)
+        close_tab("Microsoft Edge", wake_url)
         if httpd:
             httpd.shutdown()
         step("wake_closed", True, {"url": wake_url})

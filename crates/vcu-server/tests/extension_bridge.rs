@@ -168,7 +168,7 @@ async fn list_tabs_merged_from_two_clients() {
     let chrome = bridge.clone();
     let edge_w = tokio::spawn(async move {
         let cmd = edge
-            .poll_for(2000, Some("edge".into()))
+            .poll_for(2000, Some("edge".into()), Some("edge".into()))
             .await
             .expect("edge list");
         assert_eq!(cmd.method, "list_tabs");
@@ -180,7 +180,7 @@ async fn list_tabs_merged_from_two_clients() {
     });
     let chrome_w = tokio::spawn(async move {
         let cmd = chrome
-            .poll_for(2000, Some("chrome".into()))
+            .poll_for(2000, Some("chrome".into()), Some("chrome".into()))
             .await
             .expect("chrome list");
         assert_eq!(cmd.method, "list_tabs");
@@ -221,7 +221,7 @@ async fn list_tabs_single_client_still_reports_browser_count() {
         .await;
     let edge = bridge.clone();
     let worker = tokio::spawn(async move {
-        let cmd = edge.poll_for(2000, Some("edge".into())).await.expect("list");
+        let cmd = edge.poll_for(2000, Some("edge".into()), Some("edge".into())).await.expect("list");
         assert_eq!(cmd.method, "list_tabs");
         edge.submit_result(
             &cmd.id,
@@ -248,7 +248,7 @@ async fn action_with_known_tab_id_targets_owning_client() {
     let edge = bridge.clone();
     let chrome = bridge.clone();
     let edge_list = tokio::spawn(async move {
-        let cmd = edge.poll_for(2000, Some("edge".into())).await.expect("edge list");
+        let cmd = edge.poll_for(2000, Some("edge".into()), Some("edge".into())).await.expect("edge list");
         edge.submit_result(
             &cmd.id,
             json!({"ok": true, "tabs": [{"tab_id": "e1", "window_id": "ew", "title": "Edge", "url": "https://e.example/", "agent_owned": false, "borrowed_by": null}], "groups": []}),
@@ -257,7 +257,7 @@ async fn action_with_known_tab_id_targets_owning_client() {
     });
     let chrome_list = tokio::spawn(async move {
         let cmd = chrome
-            .poll_for(2000, Some("chrome".into()))
+            .poll_for(2000, Some("chrome".into()), Some("chrome".into()))
             .await
             .expect("chrome list");
         chrome
@@ -276,7 +276,7 @@ async fn action_with_known_tab_id_targets_owning_client() {
     let chrome = bridge.clone();
     let chrome_w = tokio::spawn(async move {
         let cmd = chrome
-            .poll_for(2000, Some("chrome".into()))
+            .poll_for(2000, Some("chrome".into()), Some("chrome".into()))
             .await
             .expect("chrome extract");
         assert_eq!(cmd.method, "extract");
@@ -287,7 +287,7 @@ async fn action_with_known_tab_id_targets_owning_client() {
     let edge_w = tokio::spawn(async move {
         let stolen = tokio::time::timeout(
             std::time::Duration::from_millis(300),
-            edge.poll_for(200, Some("edge".into())),
+            edge.poll_for(200, Some("edge".into()), Some("edge".into())),
         )
         .await
         .ok()
@@ -315,14 +315,14 @@ async fn reload_all_clients_targets_each_connected_browser() {
     let edge = bridge.clone();
     let chrome = bridge.clone();
     let edge_w = tokio::spawn(async move {
-        let cmd = edge.poll_for(2000, Some("edge".into())).await.expect("edge reload");
+        let cmd = edge.poll_for(2000, Some("edge".into()), Some("edge".into())).await.expect("edge reload");
         assert_eq!(cmd.method, "reload_self");
         edge.submit_result(&cmd.id, json!({"ok": true, "reloading": true, "browser": "edge"}))
             .await;
     });
     let chrome_w = tokio::spawn(async move {
         let cmd = chrome
-            .poll_for(2000, Some("chrome".into()))
+            .poll_for(2000, Some("chrome".into()), Some("chrome".into()))
             .await
             .expect("chrome reload");
         assert_eq!(cmd.method, "reload_self");
@@ -358,4 +358,20 @@ async fn reload_without_client_ids_enqueues_two_untargeted_commands() {
     assert_eq!(result["reloaded"], 2);
     wa.await.unwrap();
     wb.await.unwrap();
+}
+
+#[tokio::test]
+async fn same_runtime_id_two_browsers_are_two_clients() {
+    let bridge = ExtensionBridge::new();
+    let id = "cedlbclnijpladccmmfpihhgkeeldfhc";
+    bridge
+        .mark_hello_client(true, Some(id.into()), Some("edge".into()))
+        .await;
+    bridge
+        .mark_hello_client(true, Some(id.into()), Some("chrome".into()))
+        .await;
+    let mut names = bridge.active_browsers().await;
+    names.sort();
+    assert_eq!(names, vec!["chrome".to_string(), "edge".to_string()]);
+    assert_eq!(bridge.active_client_ids().await.len(), 2);
 }

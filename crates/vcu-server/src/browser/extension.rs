@@ -61,6 +61,14 @@ pub struct ExtensionCommand {
     pub params: serde_json::Value,
 }
 
+fn client_key(client_id: Option<&str>, browser: Option<&str>) -> Option<String> {
+    let id = client_id.map(str::trim).filter(|s| !s.is_empty())?;
+    match browser.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(b) => Some(format!("{b}:{id}")),
+        None => Some(id.to_string()),
+    }
+}
+
 impl ExtensionBridge {
     pub fn new() -> Self {
         Self::default()
@@ -90,11 +98,11 @@ impl ExtensionBridge {
         if likely_user_profile {
             g.likely_user_profile = true;
         }
-        if let Some(id) = client_id.filter(|s| !s.is_empty()) {
+        if let Some(key) = client_key(client_id.as_deref(), browser.as_deref()) {
             let browser = browser
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "browser".into());
-            let entry = g.clients.entry(id).or_insert_with(|| ExtensionClient {
+            let entry = g.clients.entry(key).or_insert_with(|| ExtensionClient {
                 browser: browser.clone(),
                 last_poll_ms: now_ms(),
                 tab_ids: Vec::new(),
@@ -126,6 +134,29 @@ impl ExtensionBridge {
         names.sort();
         names.dedup();
         names
+    }
+
+    pub async fn client_snapshots(&self) -> Vec<serde_json::Value> {
+        let g = self.inner.lock().await;
+        let now = now_ms();
+        let mut rows: Vec<serde_json::Value> = g
+            .clients
+            .iter()
+            .map(|(id, c)| {
+                serde_json::json!({
+                    "id": id,
+                    "browser": c.browser,
+                    "last_poll_age_ms": now.saturating_sub(c.last_poll_ms),
+                })
+            })
+            .collect();
+        rows.sort_by(|a, b| {
+            a["browser"]
+                .as_str()
+                .unwrap_or("")
+                .cmp(b["browser"].as_str().unwrap_or(""))
+        });
+        rows
     }
 
     pub async fn likely_user_profile(&self) -> bool {
@@ -160,13 +191,14 @@ impl ExtensionBridge {
     }
 
     pub async fn poll(&self, wait_ms: u64) -> Option<ExtensionCommand> {
-        self.poll_for(wait_ms, None).await
+        self.poll_for(wait_ms, None, None).await
     }
 
     pub async fn poll_for(
         &self,
         wait_ms: u64,
         client_id: Option<String>,
+        browser: Option<String>,
     ) -> Option<ExtensionCommand> {
         let deadline = tokio::time::Instant::now() + Duration::from_millis(wait_ms.max(1));
         loop {
@@ -174,22 +206,24 @@ impl ExtensionBridge {
                 let mut g = self.inner.lock().await;
                 g.last_seen_ms = now_ms();
                 g.last_poll_ms = now_ms();
-                if let Some(id) = client_id.as_deref() {
-                    g.clients
-                        .entry(id.to_string())
-                        .or_insert_with(|| ExtensionClient {
-                            browser: "browser".into(),
-                            last_poll_ms: 0,
-                            tab_ids: Vec::new(),
-                        })
-                        .last_poll_ms = now_ms();
+                let key = client_key(client_id.as_deref(), browser.as_deref());
+                if let Some(key) = key.as_ref() {
+                    let entry = g.clients.entry(key.clone()).or_insert_with(|| ExtensionClient {
+                        browser: browser.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| "browser".into()),
+                        last_poll_ms: 0,
+                        tab_ids: Vec::new(),
+                    });
+                    if let Some(b) = browser.as_deref().filter(|s| !s.is_empty()) {
+                        entry.browser = b.to_string();
+                    }
+                    entry.last_poll_ms = now_ms();
                 }
                 let now = now_ms();
                 let lease = self.lease_ms;
                 if let Some(cmd) = g.pending.iter_mut().find(|c| {
-                    let client_ok = match (&c.target_client, &client_id) {
+                    let client_ok = match (&c.target_client, &key) {
                         (None, _) => true,
-                        (Some(target), Some(id)) => target == id,
+                        (Some(target), Some(k)) => target == k,
                         (Some(_), None) => false,
                     };
                     if !client_ok {
