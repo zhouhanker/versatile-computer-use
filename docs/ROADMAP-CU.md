@@ -182,7 +182,8 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-340 | MCP tools/call live scroll | **完成（CI 真机）** run `35480404968` @ `402e12d`：`SCROLL_OK path=wm_vscroll os_cursor_used=False via=mcp_tools_call`；`CU-D-340 OK`。无 SendInput。 |
 | CU-D-350 | MCP tools/call live extract | **完成（CI 真机）** run `35481212302` @ `14525d8`：`EXTRACT_OK count=1 via=mcp_tools_call`；`CU-D-350 OK`。无 SendInput。 |
 | CU-D-360 | MCP tools/call live screenshot | **完成（CI 真机）** run `35481626341` @ `37a6a01`：`SHOT_OK mime=image/png via=mcp_tools_call`；`CU-D-360 OK`。无 CopyFromScreen / SendInput。 |
-| CU-D-370 | MCP tools/call live key return denied | **下一刀** 抛弃型 Notepad；MCP `tools/call` `vcu_act` key=return 无 confirm_send → `KEY_DENIED` / `FocusPolicyViolation`。无 SendInput。 |
+| CU-D-370 | MCP tools/call live key return denied | **完成（CI 真机）** run `35482034139` @ `63ab5b4`：`KEY_DENIED via=mcp_tools_call`；`CU-D-370 OK`。无 SendInput。 |
+| CU-D-380 | MCP tools/call live wait miss | **下一刀** 抛弃型 Notepad；MCP `tools/call` `vcu_wait` 等不存在的 value → `WAIT_MISS` / `ActionFailed` timed out。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -229,6 +230,7 @@ CU-D-000 文档
     → CU-D-350 MCP tools/call live extract
     → CU-D-360 MCP tools/call live screenshot
     → CU-D-370 MCP tools/call live key return denied
+    → CU-D-380 MCP tools/call live wait miss
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。
