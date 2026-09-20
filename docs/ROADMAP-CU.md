@@ -178,7 +178,8 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-300 | MCP tools/call live click | **完成（CI 真机）** run `35478128021` @ `6e2fd82`：`INVOKE_OK path=bm_click os_cursor_used=False via=mcp_tools_call`；`CU-D-300 OK`。无 SendInput。 |
 | CU-D-310 | MCP tools/call live wait | **完成（CI 真机）** run `35478526783` @ `8320d9f`：`WAIT_OK path=scene_wait via=mcp_tools_call`；`CU-D-310 OK`。无 SendInput。 |
 | CU-D-320 | MCP tools/call live type | **完成（CI 真机）** run `35479050203` @ `720e6d2`：`TYPE_OK path=wm_settext os_cursor_used=False via=mcp_tools_call`；`CU-D-320 OK`。无 SendInput。 |
-| CU-D-330 | MCP tools/call live type newline denied | **下一刀** 抛弃型 cmd；MCP `tools/call` `vcu_type` 含换行 → `NEWLINE_DENIED` / `FocusPolicyViolation`。无 SendInput。 |
+| CU-D-330 | MCP tools/call live type newline denied | **完成（CI 真机）** run `35479929439` @ `0c9ffcf`：`NEWLINE_DENIED via=mcp_tools_call`；`CU-D-330 OK`。无 SendInput。 |
+| CU-D-340 | MCP tools/call live scroll | **下一刀** 抛弃型 Notepad；MCP `tools/call` `vcu_scroll` → `wm_vscroll`；`os_cursor_used=false`。无 SendInput / mouse_event。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -221,6 +222,7 @@ CU-D-000 文档
     → CU-D-310 MCP tools/call live wait
     → CU-D-320 MCP tools/call live type
     → CU-D-330 MCP tools/call live type newline denied
+    → CU-D-340 MCP tools/call live scroll
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。
