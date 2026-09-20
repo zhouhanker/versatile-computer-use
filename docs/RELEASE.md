@@ -31,7 +31,7 @@ bash scripts/pack-release.sh
 
 ## `vcu self update` 依赖
 
-`vcu self update` 与 `curl | sh` 都指向 `releases/latest/download/`，**没有 Release 资产时两者都不可用**（当前仓库即为此状态，跟踪项 CU-D-700 / 台账 `MAC-NEXT`）。发布后自查：
+`vcu self update` 与 `curl | sh` 都指向 `releases/latest/download/`。**没有 Release 资产时两者都不可用**；仓库现已发布 `v0.2.8`（Latest）。发布后自查：
 
 ```bash
 gh release list                                     # 应有 v* 资产
@@ -40,3 +40,9 @@ vcu self update                                     # 不带 VCU_BASE_URL 应成
 ```
 
 无 Release 期间用本地通路：`bash scripts/pack-release.sh && VCU_BASE_URL=file://$PWD/dist vcu self update`。
+
+### 发布踩过的坑（保持修复）
+
+- `files:` 不要用裸 `dist/*`：会带上 0 字节的 `dist/.gitkeep`，GitHub 拒绝 0 字节资产，publish job 会在**其它资产都传完之后**失败并把 Release 留在 draft。
+- Windows job 的 checkout 会把 `install.sh` 变成 CRLF（`core.autocrlf`），publish 时覆盖掉 macOS 的 LF 版本，导致 `curl | sh` 报 `set: pipefail: invalid option name`。已用 `.gitattributes`（`*.sh text eol=lf`）+ publish 步骤 `tr -d '\r'` 双保险。
+- draft 抢救：如果 publish 失败但资产已上传，可 `gh release edit <tag> --draft=false` 发布，再用 `gh release upload <tag> <file> --clobber` 替换坏资产（注意 CDN 可能缓存 `/latest/` 几分钟）。

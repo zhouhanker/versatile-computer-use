@@ -135,8 +135,8 @@
 - [x] **CU-D-670**：`open --browser` 定向 Chrome/Edge；group/ungroup 拒绝跨浏览器 tab。`poc_cu_d_670.py` OK。组 1/3 未动。无 SendInput。
 - [x] **CU-D-680**：`group-update --browser` 真机通过。`scripts/poc_cu_d_680.py` CU-D-680 OK：组列表带 `browser` 标记、唯一 id 无 `--browser` 正确解析、`--browser` 定向只改对应浏览器组、错浏览器/未知 id 诚实失败且不误改、组清理干净、组 1/3 未动。撞号分支由 `app_http` `upd_amb` 单测覆盖。无 SendInput。同时删除仓库残留 `extension/background.js.bak`。
 - [x] **CU-D-690**：extension DOM 支持原生 `<select>`。`type --selector` 接受 `<select>`：按 option value/可见文本匹配，设置后派发 `input`+`change`，回执 `input_path=dom_select`；匹配不到诚实报错且不改值，文本输入仍 `dom_type`。`scripts/poc_cu_d_690.py` CU-D-690 OK；真机验收＝用 VCU 在 GitHub Support 工单页选中「Type of Issue」并提交成功（`.local/desktop-cu/cu-d-690-github-ticket.png`）。
-- [ ] **CU-D-700**：Release 托管 + `vcu self update` 可用性（对应台账 MAC-NEXT）。现场：GitHub Releases 为空 → `vcu self update` 报 `update installer exited non-zero` 且不透传 installer stderr；本地通路 `VCU_BASE_URL=file://$PWD/dist vcu self update` 已实测 `updated: true`。
-- [ ] **清理**：删除被 git 跟踪的残留备份 `extension/background.js.bak`（2026-09-17 旧 service worker，2460B）。
+- [x] **CU-D-700**：Release 托管 + `vcu self update` 可用性。已发布 `v0.2.8`（Latest）：`curl | sh` 装到临时前缀成功，`vcu self update`（无 `VCU_BASE_URL`）`updated: true` 且与 Release 包 sha256 一致；失败路径输出 installer stderr + 本地 `file://` 提示。同时修复发布管线两个缺陷（0 字节 `dist/.gitkeep`、Windows 侧 CRLF `install.sh`）。
+- [x] **清理**：删除被 git 跟踪的残留备份 `extension/background.js.bak`（2026-09-17 旧 service worker，2460B）。
 
 
 ## 操作入口

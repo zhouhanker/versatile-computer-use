@@ -60,7 +60,7 @@ vcu self update
 vcu self update --version 0.1.0
 ```
 
-`vcu self update` 走 `releases/latest/download/install.sh`（`VCU_BASE_URL` 可覆盖）。**仓库还没发布 Release 资产时它会失败**，只报 `update installer exited non-zero`（不透传 installer stderr）。
+`vcu self update` 走 `releases/latest/download/install.sh`（`VCU_BASE_URL` 可覆盖）。仓库已发布 `v0.2.8`（Latest），直接跑即可。若换成没有资产的镜像会失败，此时错误里会带上 base URL、installer 的 stderr 摘要与下面的本地通路提示。
 
 ### Local mirror（无 Release 时）
 

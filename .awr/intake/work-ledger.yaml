@@ -1180,11 +1180,11 @@ work_items:
     milestone: m-phase1-mvp
     required: false
     priority: P2
-    summary: 辅助功能授权后完整 AX 树；GitHub Releases 托管 dist。现场（2026-09-20）：releases 为空 → vcu self update 报 update installer exited non-zero，不透传 stderr；本地通路 VCU_BASE_URL=file://$PWD/dist 已验证 updated=true
+    summary: 发布托管已由 CU-D-700 落地（Release v0.2.8 Latest；curl | sh 与 vcu self update 均已真机验证）。本项只剩「辅助功能授权后完整 AX 树」未做，继续停放
     acceptance:
       - "GitHub Releases 有 v* 资产后，curl | sh 与不带宽带的 vcu self update 均可用"
       - "无 Release 时 self update 失败要透传 installer stderr 并提示 VCU_BASE_URL=file://... 本地通路"
-    next_action: 由 CU-D-700 落地（发布 Release 资产 + self update 报错可诊断）；深 AX 部分继续停放
+    next_action: 深 AX 未排期（停放）；启用前先过 Accessibility 门禁与 docs/ROADMAP-CU.md 的阶段 1–3 结论
     evidence: ["docs/RELEASE.md", "docs/INSTALL.md"]
     depends_on: []
 
@@ -1222,17 +1222,17 @@ work_items:
 
   - id: CU-D-700
     title: Release 托管与 vcu self update 可用性
-    status: ready
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-phase1-mvp
     required: false
     priority: P2
-    summary: 现场：GitHub Releases 为空 → vcu self update 报 update installer exited non-zero（不透传 installer stderr）；本地通路 VCU_BASE_URL=file://$PWD/dist vcu self update 已实测 updated=true
+    summary: 已发布 Release v0.2.8（Latest，16 资产：macOS arm64/x64、Windows x64、vcu-latest-*+sha256、install.sh/ps1）；curl | sh 装到临时前缀成功；不带 VCU_BASE_URL 的 vcu self update updated=true 且装出的 vcu/vcu-daemon/vcu-mcp 与 Release 包 sha256 完全一致；失败路径输出 installer stderr + 本地 file:// 提示（crates/vcu-cli/tests/self_update_failure.rs + 真机 404）。修了两个发布缺陷：0 字节 dist/.gitkeep 被当资产（publish job 失败）、Windows checkout CRLF install.sh 覆盖 LF（curl | sh 失败）；工作流修复（显式资产列表 + tr 归一化 + .gitattributes）待下一次 tag 端到端验证
     acceptance:
       - "发布 v* Release 资产（macOS arm64/x64、Windows x64、install.sh/ps1）"
       - "curl -fsSL .../releases/latest/download/install.sh | sh 与 vcu self update 在无 VCU_BASE_URL 时成功"
       - "失败路径输出 installer stderr 并提示本地 file:// 通路"
-    next_action: 打 tag 触发 release.yml 并做 curl/self update 冒烟；随后更新 MAC-NEXT
-    evidence: ["docs/RELEASE.md", "docs/INSTALL.md", "dist/"]
+    next_action: 无（下一次打 tag 时确认发布管线修复生效）
+    evidence: ["crates/vcu-cli/tests/self_update_failure.rs", ".github/workflows/release.yml", ".gitattributes", "docs/RELEASE.md"]
     depends_on: []
