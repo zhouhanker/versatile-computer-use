@@ -30,7 +30,7 @@ Windows hover then click（CU-D-260，CI）：先 hover 再 `vcu click`，仍是
 
 Windows doctor（CU-D-270）：`vcu doctor` 的 `windows_desktop_scope` 为 warn，写明 CI 切片不是产品 Windows CU；`app_backend` 写 wm_settext/bm_click，不是 AXPress。
 
-MCP（CU-D-280，CI tools/list）：宿主工具表有 `vcu_hover`、`vcu_wait`（含 `value`）、`vcu_session_abort`（拆 HUD）。不要把 `vcu_session_stop` 当成 Escape abort。live `tools/call` hover 是 CU-D-290，尚未宣称。
+MCP（CU-D-280 tools/list；CU-D-290 CI live）：`vcu_hover` → `guide_hover`；`vcu_session_abort` 拆 HUD。不要把 `vcu_session_stop` 当成 Escape abort。live `vcu_click` 是 CU-D-300，尚未宣称。
 
 真机脚本：`scripts/poc_desktop_textedit.sh`（CU-D-023，文档必须出现标记才算过）。
 
