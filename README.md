@@ -16,7 +16,7 @@
 | --- | --- |
 | Browser Bridge | **0.2.8** |
 | Runtime package | **0.1.0** |
-| 范围 | 浏览器 Bridge **0.2.8 冻结**。macOS 桌面：可见 Stage HUD、Abort、TextEdit 输入、Finder Launch Services 打开自建文件夹、Terminal 粘贴输入（无 Return）、飞书/系统设置只读观察。Windows **CI 真机切片**（不是产品会话）：WinForms Stage（abort 拆 HUD；Guide hover 不搬鼠标）、Notepad `wm_settext`、按钮 `bm_click`、PrintWindow 截图、Explorer open/reveal、cmd / PowerShell `clipboard_paste`（无换行）、Calculator `bm_click`（win32calc）、Settings 只读（click/type 拒绝）、Notepad `wm_vscroll` / extract 读回 / wait 到 Scene value；wait miss 诚实超时；Return/key 无 confirm_send 拒绝；MCP `tools/list` 含 `vcu_hover` / `vcu_session_abort` / wait `value`；CI live `tools/call` hover=`guide_hover`、click=`bm_click`、wait=`scene_wait`、type=`wm_settext`（无换行）、cmd 含换行 type 拒绝、scroll=`wm_vscroll`、extract 读回 Scene 值、screenshot=`image/png`、key return 拒绝、abort 拆 HUD（不是产品 Windows CU 会话）。**不是**完整 Codex CU（无微信、无 HID、飞书不自动发送、无官方动画）。 |
+| 范围 | 浏览器 Bridge **0.2.8 冻结**。macOS 桌面：可见 Stage HUD、Abort、TextEdit 输入、Finder Launch Services 打开自建文件夹、Terminal 粘贴输入（无 Return）、飞书/系统设置只读观察。Windows **CI 真机切片**（不是产品会话）：WinForms Stage（abort 拆 HUD；Guide hover 不搬鼠标）、Notepad `wm_settext`、按钮 `bm_click`、PrintWindow 截图、Explorer open/reveal、cmd / PowerShell `clipboard_paste`（无换行）、Calculator `bm_click`（win32calc）、Settings 只读（click/type 拒绝）、Notepad `wm_vscroll` / extract 读回 / wait 到 Scene value；wait miss 诚实超时；Return/key 无 confirm_send 拒绝；MCP `tools/list` 含 `vcu_hover` / `vcu_session_abort` / wait `value`；CI live `tools/call` hover=`guide_hover`、click=`bm_click`、wait=`scene_wait`、wait miss 诚实超时、type=`wm_settext`（无换行）、cmd 含换行 type 拒绝、scroll=`wm_vscroll`、extract 读回 Scene 值、screenshot=`image/png`、key return 拒绝、abort 拆 HUD（不是产品 Windows CU 会话）。**不是**完整 Codex CU（无微信、无 HID、飞书不自动发送、无官方动画）。 |
 
 VCU 是独立的登录态浏览器操作层，**不是** Codex 官方桌面 Computer Use，也不是通用 OS 键鼠。桌面路径见 [`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md)。
 
@@ -117,7 +117,7 @@ vcu browser close --tab <id>
 - 指定标签失效则报错；超时回执不会自动重放 mutation
 - 同源 iframe 点内层节点；canvas 只派发非 trusted 合成事件
 
-MCP 工具：`vcu_browser_tabs` / `select` / `open` / `close` / `group` / `group_update` / `ungroup` / `screenshot` / `observe` / `click` / `hover` / `type` / `wait` / `scroll` / `key` / `ping` / `extract` / `login_state` / `install_lens`；桌面另有 `vcu_hover` / `vcu_session_abort` / `vcu_wait`（`value`）。CI 已 live hover/click/wait/type（无换行）/cmd 含换行 type 拒绝/scroll=`wm_vscroll`/extract/screenshot/key return 拒绝/abort；live wait miss 尚未宣称。
+MCP 工具：`vcu_browser_tabs` / `select` / `open` / `close` / `group` / `group_update` / `ungroup` / `screenshot` / `observe` / `click` / `hover` / `type` / `wait` / `scroll` / `key` / `ping` / `extract` / `login_state` / `install_lens`；桌面另有 `vcu_hover` / `vcu_session_abort` / `vcu_wait`（`value`）。CI 已 live hover/click/wait/wait miss/type（无换行）/cmd 含换行 type 拒绝/scroll=`wm_vscroll`/extract/screenshot/key return 拒绝/abort；live doctor 尚未宣称。
 
 ## 限制（已知、不会假装完成）
 

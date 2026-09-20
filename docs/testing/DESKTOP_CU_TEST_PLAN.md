@@ -163,7 +163,8 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-350 | MCP tools/call live extract | **通过** run `35481212302` `EXTRACT_OK count=1 via=mcp_tools_call` / `CU-D-350 OK`。无 SendInput |
 | TC-D-360 | MCP tools/call live screenshot | **通过** run `35481626341` `SHOT_OK mime=image/png via=mcp_tools_call` / `CU-D-360 OK`。无 CopyFromScreen / SendInput |
 | TC-D-370 | MCP tools/call live key return denied | **通过** run `35482034139` `KEY_DENIED via=mcp_tools_call` / `CU-D-370 OK`。无 SendInput |
-| TC-D-380 | MCP tools/call live wait miss | **未过** `tools/call` `vcu_wait` 等不存在的 value → `ActionFailed` timed out。无 SendInput |
+| TC-D-380 | MCP tools/call live wait miss | **通过** run `35482614685` `WAIT_MISS_OK via=mcp_tools_call` / `WAIT_REF_MISS_OK via=mcp_tools_call` / `CU-D-380 OK`。无 SendInput |
+| TC-D-390 | MCP tools/call live doctor | **未过** `tools/call` `vcu_doctor` `windows_desktop_scope` warn。无 SendInput |
 
 ## 8. 未通过不得宣称完成
 
