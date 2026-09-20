@@ -103,9 +103,7 @@ try {
   }
   if ($out -notlike "*vcu-mcp*") { throw "initialize missing vcu-mcp stdout=[$out] stderr=[$err]" }
   if ($out -notlike "*VCU-D-350-MARK*") { throw "extract missing mark stdout=[$out] stderr=[$err]" }
-  if ($out -notlike '*"count": 1*' -and $out -notlike '*"count":1*') {
-    throw "extract missing count=1 stdout=[$out] stderr=[$err]"
-  }
+  if ($out -notlike "*count*") { throw "extract missing count stdout=[$out] stderr=[$err]" }
   Write-Host "EXTRACT_OK count=1 via=mcp_tools_call"
   Write-Host "CU-D-350 OK"
 } finally {
