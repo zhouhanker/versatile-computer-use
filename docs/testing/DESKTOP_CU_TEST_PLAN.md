@@ -183,6 +183,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-550 | extract stamps last_observe | **通过** extract tab 与 observe 相同 `tab_id_source=last_observe`；`scripts/poc_cu_d_550.py` CU-D-550 OK。组 1/3 未动 |
 | TC-D-560 | health/init observe-bind copy | **通过** health click 含 selector、无 pixel-x；init next 含 observe、无 tabs-then-screenshot；`scripts/poc_cu_d_560.py` CU-D-560 OK |
 | TC-D-570 | lens observe without AX walk | **通过** dt=0.49s extension_tabs 无 elements；`scripts/poc_cu_d_570.py` CU-D-570 OK。组 1/3 未动 |
+| TC-D-580 | observe capture_id viewport click | **通过** dry-run viewport click source=extension_dom；`scripts/poc_cu_d_580.py` CU-D-580 OK。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 

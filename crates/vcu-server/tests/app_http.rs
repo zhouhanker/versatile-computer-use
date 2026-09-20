@@ -201,6 +201,10 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
                     json!({"ok": true, "source": "extension_dom", "tab_id": tab, "count": 1, "matches": [{"text": "edge-live"}]})
                 }
+                "click_point" => {
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    json!({"ok": true, "pressed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
+                }
                 "capture_tab" => {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
                     json!({
@@ -268,6 +272,19 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(lens_obs["data"]["tab_id"], "42");
     assert_eq!(lens_obs["data"]["tabs_source"], "extension_tabs");
     assert_eq!(lens_obs["data"]["tab_id_source"], "extension_tabs");
+    let capture = lens_obs["data"]["capture_id"].as_str().unwrap();
+    assert_eq!(capture.len(), 26, "{lens_obs}");
+    let point: serde_json::Value = auth(client.post(format!("{base}/v1/browser/click")))
+        .json(&json!({"space":"viewport","capture_id":capture,"pixel_x":0.0,"pixel_y":0.0,"dry_run":true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(point["ok"], true, "{point}");
+    assert_eq!(point["data"]["source"], "extension_dom");
+    assert_eq!(point["data"]["tab_id"], "42");
 
     let clicked: serde_json::Value = auth(client.post(format!("{base}/v1/browser/click")))
         .json(&json!({"selector": "a.more", "dry_run": true}))

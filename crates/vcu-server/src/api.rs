@@ -2904,8 +2904,20 @@ async fn observe_via_lens(
         let capture_id = new_id();
         let dir = state.paths.captures_dir();
         let path = dir.join(format!("viewport-{capture_id}.png"));
+        let viewport = captured.get("viewport").cloned().unwrap_or_else(|| {
+            json!({"document_id": "observe", "width": width as f64, "height": height as f64})
+        });
+        let metadata = json!({
+            "capture_id": capture_id,
+            "tab_id": tab_id,
+            "viewport": viewport,
+            "width": width,
+            "height": height,
+            "created_at_ms": Utc::now().timestamp_millis()
+        });
         fs::create_dir_all(&dir)
             .and_then(|_| fs::write(&path, &png))
+            .and_then(|_| fs::write(dir.join(format!("viewport-{capture_id}.json")), serde_json::to_vec(&metadata).unwrap()))
             .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "save observe screenshot", e.to_string()))?;
         snap["screenshot_path"] = json!(path.display().to_string());
         snap["screenshot_width"] = json!(width);
@@ -2915,7 +2927,7 @@ async fn observe_via_lens(
         snap["vision_handoff"] = json!({
             "must_view": [path.display().to_string()],
             "serial": true,
-            "rule": "View this PNG before click/type. Viewport pixels need this capture_id."
+            "rule": "View this PNG before click/type. Use capture_id with space=viewport."
         });
         let meta = crate::app::LoginLatestMeta {
             scale: Some(if height >= 1200 { 2.0 } else { 1.0 }),
@@ -2933,7 +2945,13 @@ async fn observe_via_lens(
     let user_json = user
         .and_then(|u| serde_json::to_value(u).ok())
         .unwrap_or_else(|| json!({"id": app_id}));
-    let mut env = observe_envelope(app_id, user_json, snap, extension_profile);
+    let mut env = observe_envelope(app_id, user_json, snap.clone(), extension_profile);
+    if let Some(cid) = snap.get("capture_id") {
+        env["capture_id"] = cid.clone();
+        env["screenshot_path"] = snap.get("screenshot_path").cloned().unwrap_or(Value::Null);
+        env["source"] = json!("extension_viewport");
+        env["vision_handoff"] = snap.get("vision_handoff").cloned().unwrap_or(Value::Null);
+    }
     if let Some(front) = frontmost.as_deref() {
         env["frontmost_app"] = json!(front);
         env["frontmost_matched"] = json!(crate::login_state::browser_name_is_frontmost(

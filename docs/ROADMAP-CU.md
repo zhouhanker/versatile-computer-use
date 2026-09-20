@@ -203,6 +203,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-550 | extract stamps last_observe | **完成（真机）** extract 无 tab 时 `tab_id_source=last_observe`。无 SendInput。 |
 | CU-D-560 | health/init observe-bind copy | **完成** health click 与 init next 为 observe-bind。无 SendInput。 |
 | CU-D-570 | lens observe without AX walk | **完成（真机）** observe dt=0.49s `tabs_source=extension_tabs`。无 SendInput。 |
+| CU-D-580 | observe capture_id viewport click | **完成（真机）** observe capture 可 dry-run viewport click。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -269,6 +270,7 @@ CU-D-000 文档
     → CU-D-550 extract stamps last_observe
     → CU-D-560 health/init observe-bind copy
     → CU-D-570 lens observe without AX walk
+    → CU-D-580 observe capture_id viewport click
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。
