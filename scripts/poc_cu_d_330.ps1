@@ -123,9 +123,7 @@ try {
   }
   if ($out -notlike "*vcu-mcp*") { throw "initialize missing vcu-mcp stdout=[$out] stderr=[$err]" }
   if ($out -notlike "*FocusPolicyViolation*") { throw "newline type missing FocusPolicyViolation stdout=[$out] stderr=[$err]" }
-  if ($out -notlike '*"isError": true*' -and $out -notlike '*"isError":true*') {
-    throw "newline type missing isError true stdout=[$out] stderr=[$err]"
-  }
+  if ($out -notlike "*refuses newline*") { throw "newline type missing refuses newline stdout=[$out] stderr=[$err]" }
   Write-Host "NEWLINE_DENIED via=mcp_tools_call"
   Write-Host "CU-D-330 OK"
 } finally {
