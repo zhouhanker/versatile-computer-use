@@ -196,6 +196,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-480 | Open tab in observe browser | **完成（真机）** `open_tab` 定向 last observe 的现有 USER 窗口；抛页关闭。无 SendInput。 |
 | CU-D-490 | Desktop scene browser tabs | **完成（HTTP）** Chrome/Edge `desktop.scene` 附 `browser_tabs`，`source` 仍 `ax_scene`；tab 管理命令定向 last observe。无 SendInput。 |
 | CU-D-500 | MCP observe-bind instructions | **完成** initialize 指示 observe 后 60s last observe；Never CDP Allow。无 SendInput。 |
+| CU-D-510 | login-state next_action observe | **完成（真机）** polling 即 user；next_action ping→observe→last observe。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -255,6 +256,7 @@ CU-D-000 文档
     → CU-D-480 open tab in observe browser
     → CU-D-490 desktop scene browser tabs
     → CU-D-500 MCP observe-bind instructions
+    → CU-D-510 login-state next_action observe
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

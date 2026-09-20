@@ -1272,7 +1272,9 @@ async fn browser_login_state(
             report.cdp_handshake = "allow_dialog";
         }
     }
-    if state.extension_bridge.likely_user_profile().await {
+    if state.extension_bridge.is_polling().await
+        || state.extension_bridge.likely_user_profile().await
+    {
         report.extension_profile = "user";
     }
     // CDP abandoned: never pass allow_dialog into next_action.

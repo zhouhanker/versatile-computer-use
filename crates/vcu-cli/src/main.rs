@@ -368,7 +368,7 @@ enum BrowserCmd {
         #[arg(long)]
         from: Option<String>,
     },
-    /// Observe the USER browser window without Stage HUD (login-state Scene)
+    /// Observe USER Chrome/Edge without Stage HUD. Stamps tab_id; later click/screenshot/open bind it for 60s.
     Observe {
         #[arg(long, default_value_t = true)]
         pixels: bool,
@@ -377,12 +377,12 @@ enum BrowserCmd {
         #[arg(long, default_value_t = 80)]
         budget: u64,
     },
-    /// Capture the selected tab viewport, bound to its document and layout state.
+    /// Capture a USER tab viewport PNG. Without --tab, uses last observe tab for 60s.
     Screenshot {
         #[arg(long)]
         tab: Option<String>,
     },
-    /// Click screenshot pixels (viewport with --capture) or a unique DOM selector.
+    /// Click viewport pixels (--capture) or a unique DOM selector. Without --tab, selector clicks bind last observe for 60s.
     Click {
         #[arg(long)]
         pixel_x: Option<f64>,
@@ -443,7 +443,7 @@ enum BrowserCmd {
         #[arg(long = "ref")]
         target_ref: Option<String>,
     },
-    /// Open http(s) URL in a new USER Edge tab via extension. No HUD, no OS cursor.
+    /// Open http(s) URL in the existing USER window from last observe (Chrome vs Edge). No HUD, no OS cursor.
     Open {
         #[arg(long)]
         url: String,

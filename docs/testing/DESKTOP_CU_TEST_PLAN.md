@@ -176,6 +176,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-480 | Open tab in observe browser | **通过** `open_tab_hint_targets_observe_browser`；poc 后台开 example.com 于 Chrome 后关闭 |
 | TC-D-490 | Desktop scene browser tabs | **通过** `desktop_scene_attaches_extension_tabs_for_edge` source=ax_scene browser_tabs；close 定向 last observe |
 | TC-D-500 | MCP observe-bind instructions | **通过** initialize 含 vcu_browser_observe / last observe / Never CDP Allow |
+| TC-D-510 | login-state next_action observe | **通过** next_action 含 observe / last observe；polling=user；poc 打印新文案 |
 
 ## 8. 未通过不得宣称完成
 

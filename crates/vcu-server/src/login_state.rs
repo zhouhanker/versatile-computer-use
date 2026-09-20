@@ -167,7 +167,7 @@ pub fn login_next_action(
             "In USER Edge open edge://extensions, Developer mode, Load unpacked → {lens_dir}. Then `vcu browser login-state` should show extension_profile=user. Observe without waiting: `vcu browser observe`. CDP is abandoned; never click Allow."
         );
     }
-    "Login-state DOM lens is on the USER browser. `vcu browser ping` must pong; `vcu browser extract` source must be extension_dom. Do not use Agent Edge. CDP is abandoned; never click Allow.".into()
+    "Login-state DOM lens is on the USER browser. `vcu browser ping` must pong; then `vcu browser observe` and view the PNG. For 60s, click/screenshot/open without tab_id bind last observe. `vcu browser extract` source must be extension_dom. Do not use Agent Edge. CDP is abandoned; never click Allow.".into()
 }
 
 fn lens_status() -> (bool, String) {
@@ -710,6 +710,8 @@ mod tests {
         let b = login_next_action(false, true, "user", false, "/tmp/lens-extension", false);
         assert!(b.contains("DOM lens") || b.contains("extension_dom"));
         assert!(b.contains("ping"));
+        assert!(b.contains("observe"));
+        assert!(b.contains("last observe"));
         assert!(b.contains("never click Allow"));
         assert!(!b.contains("click Allow debugging"));
         let stale = login_next_action(false, true, "user", false, "/tmp/lens-extension", true);
