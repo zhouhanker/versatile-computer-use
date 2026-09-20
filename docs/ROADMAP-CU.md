@@ -201,6 +201,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-530 | Observe frontmost USER browser | **完成（真机）** 前台 Edge 时 observe 绑 Edge tab，非 Chrome。无 SendInput。 |
 | CU-D-540 | login-state lists frontmost first | **完成（真机）** user_browsers[0] 与前台 Edge 一致。无 SendInput。 |
 | CU-D-550 | extract stamps last_observe | **完成（真机）** extract 无 tab 时 `tab_id_source=last_observe`。无 SendInput。 |
+| CU-D-560 | health/init observe-bind copy | **完成** health click 与 init next 为 observe-bind。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -265,6 +266,7 @@ CU-D-000 文档
     → CU-D-530 observe frontmost USER browser
     → CU-D-540 login-state lists frontmost first
     → CU-D-550 extract stamps last_observe
+    → CU-D-560 health/init observe-bind copy
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

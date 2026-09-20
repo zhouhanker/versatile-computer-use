@@ -57,6 +57,11 @@ async fn extension_bootstrap_returns_token_without_auth() {
     assert_eq!(health["data"]["extension_connected"], true);
     assert_eq!(health["data"]["extension_polling"], false);
     assert!(health["data"]["login_next_action"].as_str().unwrap().len() > 8);
+    let click = health["data"]["click"].as_str().unwrap();
+    assert!(click.contains("observe") || click.contains("selector"), "{click}");
+    assert!(!click.contains("pixel-x"), "{click}");
+    let observe = health["data"]["observe"].as_str().unwrap();
+    assert!(observe.contains("observe"), "{observe}");
     assert!(health["data"]["host_vision"].as_str().unwrap().contains("Grok") || health["data"]["host_vision"].as_str().unwrap().contains("vision"));
 
     handle.join.abort();

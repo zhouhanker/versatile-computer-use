@@ -26,23 +26,23 @@ assert data.get("never_click_allow") is True
 assert data.get("never_os_cursor") is True
 assert data.get("never_wechat") is True
 INNER
-for i in 1 2 3 4 5 6 7 8; do
-  vcu browser observe --selector "*" --json > /tmp/vcu-observe.json || true
-  if python3 - <<'GATE'
-import json
+python3 - <<'GATE'
+import json, urllib.request
 from pathlib import Path
+token=json.loads((Path.home()/".vcu/config.json").read_text())["pairing_token"]
+req=urllib.request.Request(
+    "http://127.0.0.1:17890/v1/browser/observe",
+    data=json.dumps({"pixels": False, "budget": 800}).encode(),
+    method="POST",
+    headers={"X-Vcu-Token": token, "Content-Type": "application/json"},
+)
+with urllib.request.urlopen(req, timeout=20) as r:
+    Path("/tmp/vcu-observe.json").write_bytes(r.read())
 d=json.loads(Path("/tmp/vcu-observe.json").read_text())
 data=d.get("data") or d
-snap=data.get("snapshot") or {}
-src=snap.get("tabs_source") or data.get("tabs_source")
-tid=data.get("tab_id") or snap.get("tab_id")
+tid=data.get("tab_id") or (data.get("snapshot") or {}).get("tab_id")
 raise SystemExit(0 if tid else 1)
 GATE
-  then
-    break
-  fi
-  sleep 0.4
-done
 vcu browser screenshot --json > /tmp/vcu-observe-shot.json
 python3 - <<'INNER'
 import json

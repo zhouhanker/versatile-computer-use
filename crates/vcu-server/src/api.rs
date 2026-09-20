@@ -162,7 +162,7 @@ async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         "lens_copied": login.lens_copied,
         "lens_dir": login.lens_dir,
         "observe": "vcu browser observe --json",
-        "click": "vcu browser click --pixel-x --pixel-y --dry-run",
+        "click": "vcu browser click --selector body --dry-run --json  # after observe; viewport pixels need screenshot capture_id",
         "install_lens": "vcu browser install-lens",
     })))
 }
@@ -2778,7 +2778,10 @@ struct BrowserObserveReq {
     budget: Option<u64>,
 }
 
-fn observe_envelope(id: String, user: Value, snap: Value, extension_profile: &str) -> Value {
+fn observe_envelope(id: String, user: Value, mut snap: Value, extension_profile: &str) -> Value {
+    if let Some(obj) = snap.as_object_mut() {
+        obj.remove("elements");
+    }
     json!({
         "app_id": id,
         "login_state": true,

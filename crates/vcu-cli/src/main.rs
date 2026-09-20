@@ -652,7 +652,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                                 "vcu daemon start",
                                 "vcu browser install-lens   # load unpacked in USER Chrome/Edge",
                                 "vcu browser ping --json",
-                                "vcu browser tabs --json   # select an exact tab, then browser screenshot"
+                                "vcu browser observe --json  # view PNG; 60s click/screenshot/open bind last observe"
                             ]
                         }),
                         json,
