@@ -79,6 +79,11 @@ async fn mcp_initialize_and_session_tools() {
     let init = read_msg(&mut stdout);
     assert_eq!(init["id"], 1);
     assert_eq!(init["result"]["serverInfo"]["name"], "vcu-mcp");
+    let ins = init["result"]["instructions"].as_str().unwrap();
+    assert!(ins.contains("vcu_browser_observe"), "{ins}");
+    assert!(ins.contains("last observe"), "{ins}");
+    assert!(ins.contains("Never CDP Allow"), "{ins}");
+    assert!(!ins.contains("click Allow"), "{ins}");
 
     write_msg(
         &mut stdin,

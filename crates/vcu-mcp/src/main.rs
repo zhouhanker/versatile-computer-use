@@ -76,7 +76,7 @@ async fn serve(paths: VcuPaths) -> VcuResult<()> {
                         "name": "vcu-mcp",
                         "version": env!("CARGO_PKG_VERSION")
                     },
-                    "instructions": "VCU browser computer-use on USER Chrome/Edge. Host vision is enough. First ping, list tabs, choose an exact tab. For webpage pixels: vcu_browser_screenshot(tab_id), view its PNG in THIS turn, then vcu_browser_click(space=viewport,capture_id,pixel_x,pixel_y). Captures bind the document and layout, expire in 60s and are consumed by one real action; on stale/timeout observe again, do not blindly replay. Selector click/type/extract/scroll use extension_dom and explicit tab_id; DOM input is synthetic (trusted=false), so verify the page result. vcu_browser_observe is the native whole-window path; window/webview pixels use its own screenshot_scale and must never be mixed with viewport images. Native tab groups provide named, collapsible tasks; open new_window only when wanted. No desktop session/HUD required. Never CDP Allow, OS cursor warp, WeChat, or blind Return."
+                    "instructions": "VCU browser computer-use on USER Chrome/Edge (dual-browser). Host vision is enough. First vcu_browser_ping, then vcu_browser_observe (look at the PNG). Observe stamps tab_id; for 60s, selector click/type/hover/scroll/extract, viewport screenshot, and open (existing USER window) bind that last observe and its Chrome/Edge lens. Explicit tab_id still wins. Webpage pixels: vcu_browser_screenshot, view PNG this turn, then vcu_browser_click(space=viewport,capture_id,pixel_x,pixel_y). Captures expire in 60s and one real action consumes them; on stale/timeout observe again, do not replay. DOM events are synthetic (trusted=false); verify page results. Never mix observe window/webview pixels with viewport images. Desktop session snapshots of Chrome/Edge may include browser_tabs but source stays ax_scene — HTML clicks still use vcu_browser_*. Never CDP Allow, OS cursor warp, WeChat, or blind Return."
                 }
             }),
             "ping" => json!({"jsonrpc":"2.0","id": id, "result": {}}),
@@ -136,8 +136,8 @@ fn tool_defs() -> Vec<Value> {
                 "budget":{"type":"integer","default":2500}
             }
         })),
-        tool("vcu_browser_screenshot", "Capture a USER tab viewport as PNG, bound to its document and layout. View image before click with space=viewport and capture_id. Expires in 60s; real click consumes capture.", json!({"type":"object","properties":{"tab_id":{"type":"string"}}})),
-        tool("vcu_browser_click", "Click a USER webpage by unique selector or bound viewport screenshot pixels (capture_id required). window/webview is the separate AX path. dry_run does not press; verify page outcome. Never OS cursor or Allow.", json!({
+        tool("vcu_browser_screenshot", "Capture a USER tab viewport as PNG. Without tab_id, uses last observe tab for 60s. View image before click with space=viewport and capture_id. Expires in 60s; real click consumes capture.", json!({"type":"object","properties":{"tab_id":{"type":"string"}}})),
+        tool("vcu_browser_click", "Click a USER webpage by unique selector or bound viewport screenshot pixels (capture_id required). Without tab_id, selector clicks bind last observe for 60s. window/webview is AX, not DOM. dry_run does not press. Never OS cursor or Allow.", json!({
             "type":"object",
             "properties":{
                 "capture_id":{"type":"string","description":"Required for space=viewport; use browser_screenshot capture_id"},
@@ -194,7 +194,7 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_browser_tabs", "List USER browser tabs and native groups, including focus and collapsed state.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_select", "Select an exact tab, expand its group and focus its browser window.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"}}})),
         tool("vcu_browser_close", "Close exactly the explicitly named tab. Use for completed task tabs; never substitutes another tab.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"}}})),
-        tool("vcu_browser_open", "Open a new TAB in an existing USER Edge/Chrome window. new_window=true is opt-in for a separate window. session_name creates a named native group, group_id joins one. Mutually exclusive.", json!({"type":"object","required":["url"],"properties":{
+        tool("vcu_browser_open", "Open a new TAB in the existing USER window from last observe (Chrome vs Edge). new_window=true is opt-in. session_name creates a named native group, group_id joins one. Mutually exclusive.", json!({"type":"object","required":["url"],"properties":{
             "url":{"type":"string"},"session_name":{"type":"string"},"group_id":{"type":"string"},"active":{"type":"boolean","default":true},"new_window":{"type":"boolean","default":false,"description":"Opt-in: open a separate USER-profile window. Default is a new tab in the existing window. Incompatible with group_id"}
         }})),
         tool("vcu_browser_group", "Group explicit same-window tab IDs in a named, colored native browser group.", json!({"type":"object","required":["tab_ids","title"],"properties":{
@@ -241,7 +241,7 @@ fn tool_defs() -> Vec<Value> {
             "type":"object","required":["session","url"],
             "properties":{"session":{"type":"string"},"url":{"type":"string"},"tab_id":{"type":"string"}}
         })),
-        tool("vcu_snapshot", "Observe Scene or page (a11y/dom/text/full). Desktop mode=full attaches webview_screenshot_ref when a messenger/WebView pane exists.", json!({
+        tool("vcu_snapshot", "Observe Scene or page (a11y/dom/text/full). Desktop Chrome/Edge may include browser_tabs; source stays ax_scene — HTML actions still use vcu_browser_*. mode=full attaches webview_screenshot_ref for messenger panes.", json!({
             "type":"object","required":["session"],
             "properties":{
                 "session":{"type":"string"},
