@@ -46,3 +46,5 @@ vcu self update                                     # 不带 VCU_BASE_URL 应成
 - `files:` 不要用裸 `dist/*`：会带上 0 字节的 `dist/.gitkeep`，GitHub 拒绝 0 字节资产，publish job 会在**其它资产都传完之后**失败并把 Release 留在 draft。
 - Windows job 的 checkout 会把 `install.sh` 变成 CRLF（`core.autocrlf`），publish 时覆盖掉 macOS 的 LF 版本，导致 `curl | sh` 报 `set: pipefail: invalid option name`。已用 `.gitattributes`（`*.sh text eol=lf`）+ publish 步骤 `tr -d '\r'` 双保险。
 - draft 抢救：如果 publish 失败但资产已上传，可 `gh release edit <tag> --draft=false` 发布，再用 `gh release upload <tag> <file> --clobber` 替换坏资产（注意 CDN 可能缓存 `/latest/` 几分钟）。
+
+修复后的管线已用临时 tag 端到端验证过（run `35511683467`，成功后已删除该 tag/Release）：publish job 绿、资产 14 个、无 0 字节文件、`install.sh` 为 LF 且与仓库文件 sha256 一致。
