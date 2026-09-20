@@ -1560,6 +1560,17 @@ mod tests {
         assert!(!l360.contains("[system.windows.forms.sendkeys"));
         assert!(!l360.contains("mouse_event"));
         assert!(!l360.contains("copyfromscreen"));
+        let p370 = root.join("scripts/poc_cu_d_370.ps1");
+        let s370 = std::fs::read_to_string(&p370).unwrap_or_default();
+        assert!(s370.contains("KEY_DENIED"), "{}", p370.display());
+        assert!(s370.contains("FocusPolicyViolation"));
+        assert!(s370.contains("mcp_tools_call"));
+        assert!(s370.contains("vcu_act"));
+        assert!(s370.contains("CU-D-370 OK"));
+        let l370 = s370.to_ascii_lowercase();
+        assert!(!l370.contains("sendinput("));
+        assert!(!l370.contains("[system.windows.forms.sendkeys"));
+        assert!(!l370.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
