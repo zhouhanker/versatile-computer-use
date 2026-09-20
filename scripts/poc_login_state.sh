@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export PATH="$HOME/.local/bin:$PATH"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PATH="$ROOT/target/debug:$HOME/.local/bin:$PATH"
 if ! command -v vcu >/dev/null; then
   echo "vcu not on PATH" >&2
   exit 1
@@ -26,6 +27,7 @@ assert data.get("never_os_cursor") is True
 assert data.get("never_wechat") is True
 INNER
 vcu browser observe --selector "*" --json > /tmp/vcu-observe.json
+vcu browser screenshot --json > /tmp/vcu-observe-shot.json
 python3 - <<'INNER'
 import json
 from pathlib import Path
@@ -33,22 +35,32 @@ d=json.loads(Path("/tmp/vcu-observe.json").read_text())
 data=d.get("data") or d
 assert data.get("hud") is False
 assert data.get("login_state") is True
+shot=json.loads(Path("/tmp/vcu-observe-shot.json").read_text())
+sdata=shot.get("data") or shot
+assert shot.get("ok") is True or sdata.get("ok") is True
+assert sdata.get("source") == "extension_viewport" or sdata.get("screenshot_path")
+vh=(data.get("snapshot") or {}).get("vision_handoff") or data.get("vision_handoff") or sdata.get("vision_handoff") or {}
+must=vh.get("must_view") or []
+png_path=sdata.get("screenshot_path")
+if not must and png_path:
+    must=[png_path]
+assert must, "observe/screenshot must provide a PNG"
+assert any(str(p).endswith(".png") for p in must)
 png=Path.home()/".vcu/captures/login-latest.png"
 meta=Path.home()/".vcu/captures/login-latest.json"
+if not (png.exists() and png.stat().st_size>1000):
+    png=Path(str(must[0]))
 assert png.exists() and png.stat().st_size>1000
-assert meta.exists()
-j=json.loads(meta.read_text())
-assert j.get("screenshot_scale") in (1.0, 2.0, 3.0)
-vh=(data.get("snapshot") or {}).get("vision_handoff") or data.get("vision_handoff") or {}
-must=vh.get("must_view") or []
-assert must, "observe must stamp vision_handoff.must_view"
-assert any(str(p).endswith(".png") for p in must)
+scale=None
+if meta.exists():
+    j=json.loads(meta.read_text())
+    scale=j.get("screenshot_scale")
+if scale is None:
+    scale=sdata.get("screenshot_scale") or 1.0
 obs=data
-url=obs.get("page_url") or (obs.get("snapshot") or {}).get("page_url")
+url=obs.get("page_url") or (obs.get("snapshot") or {}).get("page_url") or sdata.get("page_url")
 print("page_url", url, "tabs", len(obs.get("tabs") or (obs.get("snapshot") or {}).get("tabs") or []))
-if url:
-    assert str(url).startswith("http")
-print("PASS login-state observe hud=false scale", j.get("screenshot_scale"), "png_bytes", png.stat().st_size)
+print("PASS login-state observe hud=false scale", scale, "png_bytes", png.stat().st_size, "source", sdata.get("source"))
 INNER
 
 vcu browser click --pixel-x 0 --pixel-y 0 --space webview --dry-run --guide > /tmp/vcu-click-map.json

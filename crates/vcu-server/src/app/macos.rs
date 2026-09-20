@@ -30,6 +30,8 @@ impl MacosAppBackend {
             "Cursor".into(),
             "Microsoft Edge".into(),
             "Edge".into(),
+            "Google Chrome".into(),
+            "Chrome".into(),
             "Feishu".into(),
             "Lark".into(),
             "飞书".into(),
@@ -1682,6 +1684,10 @@ mod tests {
         assert!(!b.allowed("微信"));
         assert!(b.allowed("Microsoft Edge"));
         assert!(b.allowed("Edge"));
+        assert!(b.allowed("Google Chrome"));
+        assert!(b.allowed("Chrome"));
+        assert!(b.ensure_operable("Chrome").is_ok());
+        assert!(b.ensure_operable("Google Chrome").is_ok());
         assert!(b.allowed("Feishu"));
         assert!(b.allowed("Lark"));
         assert!(b.allowed("TextEdit"));

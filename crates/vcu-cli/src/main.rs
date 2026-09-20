@@ -1100,33 +1100,58 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 budget,
             } => {
                 let ls = api_get(&paths, "/v1/browser/login-state").await?;
-                let user = ls
-                    .pointer("/data/user_browsers/0")
+                let users = ls
+                    .pointer("/data/user_browsers")
+                    .and_then(|v| v.as_array())
                     .cloned()
-                    .or_else(|| ls.pointer("/user_browsers/0").cloned());
-                let Some(user) = user else {
+                    .or_else(|| ls.pointer("/user_browsers").and_then(|v| v.as_array()).cloned())
+                    .unwrap_or_default();
+                if users.is_empty() {
                     return Err(VcuError::coded(
                         ErrorCode::ActionFailed,
                         "no user Chrome/Edge process; login-state observe needs the user browser window",
                     ));
+                }
+                let mut chosen_user = None;
+                let mut snap = json!({"ok": false});
+                let mut last_fail = json!({"ok": false});
+                let mut id = String::new();
+                for user in &users {
+                    let pid = user.get("pid").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let name = user
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Microsoft Edge");
+                    let candidate_id = format!("proc:{}:{}", name.replace(' ', "_"), pid);
+                    let mut body = json!({"id": candidate_id, "budget": budget, "pixels": pixels});
+                    if let Some(sel) = selector.as_ref() {
+                        body["selector"] = json!(sel);
+                    } else {
+                        body["selector"] = json!("*");
+                    }
+                    let candidate = api_post(&paths, "/v1/app/snapshot", body).await?;
+                    let data = candidate.get("data").cloned().unwrap_or_else(|| candidate.clone());
+                    let has_png = data.get("screenshot_path").and_then(|v| v.as_str()).is_some()
+                        || data
+                            .pointer("/vision_handoff/must_view")
+                            .and_then(|v| v.as_array())
+                            .map(|a| !a.is_empty())
+                            .unwrap_or(false);
+                    if candidate.get("ok").and_then(Value::as_bool) == Some(true) {
+                        chosen_user = Some(user.clone());
+                        snap = candidate;
+                        id = candidate_id;
+                        if has_png {
+                            break;
+                        }
+                    } else {
+                        last_fail = candidate;
+                    }
+                }
+                let Some(user) = chosen_user else {
+                    println!("{}", serde_json::to_string_pretty(&last_fail).unwrap_or_default());
+                    return Ok(ok_exit(&last_fail));
                 };
-                let pid = user.get("pid").and_then(|v| v.as_i64()).unwrap_or(0);
-                let name = user
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("Microsoft Edge");
-                let id = format!("proc:{}:{}", name.replace(' ', "_"), pid);
-                let mut body = json!({"id": id, "budget": budget, "pixels": pixels});
-                if let Some(sel) = selector {
-                    body["selector"] = json!(sel);
-                } else {
-                    body["selector"] = json!("*");
-                }
-                let snap = api_post(&paths, "/v1/app/snapshot", body).await?;
-                if snap.get("ok").and_then(Value::as_bool) != Some(true) {
-                    println!("{}", serde_json::to_string_pretty(&snap).unwrap_or_default());
-                    return Ok(ok_exit(&snap));
-                }
                 let ext_profile = ls
                     .pointer("/data/extension_profile")
                     .and_then(|v| v.as_str())
