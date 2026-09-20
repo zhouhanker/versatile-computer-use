@@ -1538,6 +1538,16 @@ mod tests {
         assert!(!l340.contains("sendinput("));
         assert!(!l340.contains("[system.windows.forms.sendkeys"));
         assert!(!l340.contains("mouse_event"));
+        let p350 = root.join("scripts/poc_cu_d_350.ps1");
+        let s350 = std::fs::read_to_string(&p350).unwrap_or_default();
+        assert!(s350.contains("EXTRACT_OK"), "{}", p350.display());
+        assert!(s350.contains("mcp_tools_call"));
+        assert!(s350.contains("vcu_extract"));
+        assert!(s350.contains("CU-D-350 OK"));
+        let l350 = s350.to_ascii_lowercase();
+        assert!(!l350.contains("sendinput("));
+        assert!(!l350.contains("[system.windows.forms.sendkeys"));
+        assert!(!l350.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
