@@ -1181,7 +1181,12 @@ async fn browser_tab_command(state: Arc<AppState>, headers: HeaderMap, method: &
     if !state.extension_bridge.likely_user_profile().await {
         return err_response(VcuError::coded(ErrorCode::ActionFailed, "extension_profile is not user; refusing Agent browser operation"));
     }
-    match state.extension_bridge.call_timeout(method, params, 8).await {
+    let call = if method == "open_tab" {
+        extension_dom_call(&state, method, params, 8).await
+    } else {
+        state.extension_bridge.call_timeout(method, params, 8).await
+    };
+    match call {
         Ok(mut value) => {
             if !value.is_object() { return err_response(VcuError::coded(ErrorCode::ActionFailed, "invalid extension response")); }
             value["source"] = json!("extension_tabs");

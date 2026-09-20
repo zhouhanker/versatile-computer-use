@@ -113,6 +113,33 @@ assert data.get("tab_id_source")=="last_observe"
 print("PASS login-state click selector bound to observe tab", got, "source", data.get("tab_id_source"))
 INNER
 
+vcu browser open --url https://example.com/ --background --json > /tmp/vcu-open-obs.json
+python3 - <<'INNER'
+import json, subprocess
+from pathlib import Path
+obs=json.loads(Path("/tmp/vcu-observe.json").read_text())
+odata=obs.get("data") or obs
+want_browser=(odata.get("login") or {}).get("name") or ""
+d=json.loads(Path("/tmp/vcu-open-obs.json").read_text())
+data=d.get("data") or d
+assert d.get("ok") is True or data.get("ok") is True, d
+opened=None
+for t in data.get("tabs") or []:
+    if str(t.get("url") or "").startswith("https://example.com"):
+        opened=t
+        break
+tab_id=str((opened or {}).get("tab_id") or data.get("tab_id") or "")
+assert tab_id, data
+browser=str((opened or {}).get("browser") or data.get("browser") or "")
+if "Chrome" in want_browser:
+    assert browser.lower()=="chrome" or not browser, (browser, want_browser)
+if "Edge" in want_browser:
+    assert browser.lower()=="edge" or not browser, (browser, want_browser)
+print("PASS login-state open bound to observe browser", browser or want_browser, "tab", tab_id)
+subprocess.check_call(["vcu","browser","close","--tab",tab_id])
+print("PASS login-state closed throwaway tab", tab_id)
+INNER
+
 vcu browser click --pixel-x 0 --pixel-y 0 --space webview --dry-run --guide > /tmp/vcu-click-map.json
 python3 - <<'INNER'
 import json, subprocess

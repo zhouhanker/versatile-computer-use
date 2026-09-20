@@ -173,6 +173,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-450 | Bind DOM act to last observe | **通过** `tab_id_source=last_observe`；HTTP observe 后 click 无 tab_id 仍打 42；`poc_login_state.sh` PASS |
 | TC-D-460 | Target lens by observe browser | **通过** `browser_hint_targets_client_when_tab_unknown`；重启 daemon 后 selector click 无 wrong_extension_browser |
 | TC-D-470 | Screenshot binds last observe | **通过** HTTP screenshot tab_id=42 `tab_id_source=last_observe`；poc screenshot tab 与 observe 相同 |
+| TC-D-480 | Open tab in observe browser | **通过** `open_tab_hint_targets_observe_browser`；poc 后台开 example.com 于 Chrome 后关闭 |
 
 ## 8. 未通过不得宣称完成
 
