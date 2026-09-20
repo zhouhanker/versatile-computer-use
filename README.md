@@ -1,158 +1,117 @@
-# Versatile Computer Use (VCU)
+# Versatile Computer Use
 
-厂商与模型无关的 **浏览器 Computer Use** 运行时：Rust CLI、本地 daemon、MCP，外加 Edge/Chrome 扩展（Browser Bridge）。
+厂商与模型无关的本机 Computer Use 运行时。通过 CLI、本地 daemon 与 MCP，把观察与操作接到 Codex、Claude、Cursor 等宿主；宿主已具备视觉能力时无需再配置专用模型。
 
-附着**用户自己的** Edge / Chrome 登录态，做网页观察、DOM 操作、绑图坐标点击，以及浏览器原生彩色可折叠标签组。
+仓库：[github.com/zhouhanker/versatile-computer-use](https://github.com/zhouhanker/versatile-computer-use)
 
-**不搬系统光标。不用 CDP。不点「允许调试」。**
+## 产品定位
 
-宿主模型（Grok 等）若已有视觉，不必 `vcu init model`。
+VCU 附着用户自己的 Chrome / Edge 登录态，完成网页观察、DOM 操作、截图坐标点击与原生标签组管理。同一套运行时也提供 macOS 桌面会话（可见 Stage、Guide 虚拟指针、允许名单应用上的辅助功能操作），以及 Windows 侧的窗口观察与控件动作。
 
-仓库：https://github.com/zhouhanker/versatile-computer-use
+Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。
 
-## 当前版本
+## 能力
 
-| 项 | 值 |
-| --- | --- |
-| Browser Bridge | **0.2.8** |
-| Runtime package | **0.1.0** |
-| 范围 | 浏览器 Bridge **0.2.8 冻结**。macOS 桌面：可见 Stage HUD、Abort、TextEdit 输入、Finder Launch Services 打开自建文件夹、Terminal 粘贴输入（无 Return）、飞书/系统设置只读观察；login-state observe 承认进程名 `Chrome`（与 Edge 双浏览器）；AX 空树时合并 extension tabs/url（`tabs_source=extension_tabs`），observe 标 focused `tab_id`；CLI/MCP 走同一 `/v1/browser/observe`；随后 60s 内无 tab_id 的 DOM 动作绑这次 observe，并定向到该浏览器的 lens client；无 tab 的 viewport screenshot 同样绑这次 observe；`open` 默认开在刚 observe 的现有 USER 窗口；desktop.scene 对浏览器窗附 `browser_tabs`（仍是 ax_scene，不是 DOM）。Windows **CI 真机切片**（不是产品会话）：WinForms Stage（abort 拆 HUD；Guide hover 不搬鼠标）、Notepad `wm_settext`、按钮 `bm_click`、PrintWindow 截图、Explorer open/reveal、cmd / PowerShell `clipboard_paste`（无换行）、Calculator `bm_click`（win32calc）、Settings 只读（click/type 拒绝）、Notepad `wm_vscroll` / extract 读回 / wait 到 Scene value；wait miss 诚实超时；Return/key 无 confirm_send 拒绝；MCP `tools/list` 含 `vcu_hover` / `vcu_session_abort` / wait `value`；CI live `tools/call` hover=`guide_hover`、click=`bm_click`、wait=`scene_wait`、wait miss 诚实超时、type=`wm_settext`（无换行）、cmd 含换行 type 拒绝、scroll=`wm_vscroll`、extract 读回 Scene 值、screenshot=`image/png`、key return 拒绝、doctor 诚实 Windows 范围、abort 拆 HUD（不是产品 Windows CU 会话）。**不是**完整 Codex CU（无微信、无 HID、飞书不自动发送、无官方动画）。 |
+**浏览器**
 
-VCU 是独立的登录态浏览器操作层，**不是** Codex 官方桌面 Computer Use，也不是通用 OS 键鼠。桌面路径见 [`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md)。
+- 使用已登录的 Chrome / Edge，不另开空的 Agent 配置
+- 列出、选择、打开、关闭标签；默认在现有窗口打开新标签
+- 原生标签组：名称、颜色、折叠与展开
+- 按 CSS selector 进行 click、hover、type、scroll、extract
+- `observe` 生成 viewport PNG；可用 `observe --tab` 指定标签
+- 按截图像素点击（`capture_id` + `space=viewport`）
+- 已加载扩展可通过 `vcu browser install-lens --reload` 热更新
+- CLI、HTTP、MCP 同一套接口
 
-## 能做什么
+**桌面**
 
-- 使用已登录的 Edge / Chrome，不另开空 Agent profile
-- 列出 / 选择 / 打开 / 关闭标签；默认在**现有窗口开新标签**（`--new-window` 才开新窗口）
-- 原生标签组：名称、颜色、折叠 / 展开；选中组内网页时自动展开
-- DOM：唯一 selector 的 click / hover / type / scroll；失效 tab 不 fallback
-- 先截 viewport PNG，再按像素点击（capture 60 秒过期，真实动作消费一次）
-- 已加载扩展热更新：`vcu browser install-lens --reload`
-- CLI、HTTP、MCP 同一套动作
+- macOS：desktop 会话升起 Stage HUD，Abort 结束会话；TextEdit / Notes / Finder / Terminal 等允许名单应用上的观察与输入
+- Windows：Notepad、Explorer、命令行、计算器等窗口的观察与控件动作（CI 真机覆盖）
 
-网页动作必须 `source=extension_dom`，`trusted=false`，`os_cursor_used=false`。桌面网页仍走扩展；AXWebArea 不是 DOM 点击。
-
-## 做不到 / 不要指望
-
-- 微信自动化、飞书客户端自动发送、系统设置里勾 TCC
-- Finder 图标 AXPress（当前 macOS AX 无图标；打开走 NSWorkspace）
-- 通用桌面键鼠 / 完整 Windows 产品 CU（CI 有 Notepad/Explorer/cmd 切片，不是产品会话；无官方动画、无微信）
-- 在 cmd 里执行命令或带换行 type（换行一律 FocusPolicyViolation）
-- CDP、点击 Edge「允许调试」
-- 移动系统光标、HID、把合成事件伪装成用户手势
-- 跨源 iframe / `object`（明确拒绝）
-- 依赖 `isTrusted === true` 的站点（支付、部分 canvas 游戏）
-- 通用 AX 网页像素真点（网页真点走 extension viewport）
-- 修改或复制 `~/.codex/computer-use/`
+接入方式：`vcu` CLI、本机 HTTP daemon、以及 `vcu-mcp`（stdio MCP）。
 
 ## 安装
 
-本地从源码打包：
+macOS / Linux：
+
+```bash
+curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh | sh
+```
+
+Windows：
+
+```powershell
+irm https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.ps1 | iex
+```
+
+从源码打包：
 
 ```bash
 bash scripts/pack-release.sh
 VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
 ```
 
-从 GitHub Release 安装见 [`docs/INSTALL.md`](docs/INSTALL.md)。
+安装说明见 [`docs/INSTALL.md`](docs/INSTALL.md)。
 
-```bash
-# macOS / Linux
-curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh | sh
-
-# Windows
-irm https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.ps1 | iex
-```
-
-然后：
+## 开始使用
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 vcu daemon start
-
-# 第一次：在 USER Edge 和 Chrome 中 Load unpacked → ~/.vcu/lens-extension
 vcu browser install-lens
-
-# 之后更新代码：拷文件并热重启已连接的扩展（不必再点扩展页）
-vcu browser install-lens --reload
-
-vcu browser ping --json    # 必须 pong；version 应为本 README 中的 Bridge 版本
 ```
 
-`ping` 报 `unknown method` 或 version 落后：再执行 `--reload`。已打开的旧网页可能仍是旧 `content.js`，刷新该页即可。
+首次使用时，在用户自己的 Edge 与 Chrome 中打开扩展页，Developer mode → Load unpacked → `~/.vcu/lens-extension`。之后更新扩展：
 
-## 快速使用
+```bash
+vcu browser install-lens --reload
+vcu browser ping --json
+```
 
-登录态来自用户自己的浏览器窗口，不要为点一下去 `session start`。
+登录态网页操作：
 
 ```bash
 vcu browser login-state
 vcu browser tabs --json
 vcu browser observe --json
-vcu browser observe --tab <id> --json   # 指定标签，不抢 OS 前台
+vcu browser observe --tab <id> --json
 vcu browser select --tab <id>
-
-# 默认：现有窗口的新标签。只要独立窗口时才加 --new-window
 vcu browser open --url https://example.com --background
-
-vcu browser group --tabs <id>,<id> --title '🎨 分享设计' --color purple
-vcu browser group-update --group <id> --collapsed true
-
 vcu browser extract --tab <id> --selector a --json
-vcu browser click --tab <id> --selector '#continue' --dry-run
+vcu browser click --tab <id> --selector '#continue'
 vcu browser hover --tab <id> --selector '#continue'
 vcu browser type --tab <id> --selector 'input[name=q]' --text 'hello'
-
 vcu browser screenshot --tab <id> --json
-# 看返回的 PNG 后：
 vcu browser click --space viewport --capture <capture_id> --pixel-x <x> --pixel-y <y>
-
 vcu browser close --tab <id>
 ```
 
-细节：[浏览器 playbook](playbooks/user-browser.md)。
-
-约定：
-
-- 网页动作 `extension_dom`；标签管理 `extension_tabs`；网页截图 `extension_viewport`
-- 截图绑定 tab / 文档 / URL / 尺寸 / 滚动 / 缩放；布局或输入变化后旧 capture 会被拒绝
-- 指定标签失效则报错；超时回执不会自动重放 mutation
-- 同源 iframe 点内层节点；canvas 只派发非 trusted 合成事件
-
-MCP 工具：`vcu_browser_tabs` / `select` / `open` / `close` / `group` / `group_update` / `ungroup` / `screenshot` / `observe` / `click` / `hover` / `type` / `wait` / `scroll` / `key` / `ping` / `extract` / `login_state` / `install_lens`；桌面另有 `vcu_hover` / `vcu_session_abort` / `vcu_wait`（`value`）。CI 已 live hover/click/wait/wait miss/type（无换行）/cmd 含换行 type 拒绝/scroll=`wm_vscroll`/extract/screenshot/key return 拒绝/doctor/abort。双浏览器 live：Chrome+Edge lens 同时 poll 时 `tabs` 合并（CU-D-400）。
-
-## 限制（已知、不会假装完成）
-
-- 光标：短斜三角 + 柔光；移动会朝向旋转，点击有压缩。不宣称官方逐像素动画
-- Edge 与 Chrome 同时连接时，`tabs` 合并并带 `browser` 字段（lens 需在两边 polling；`--reload` 若 Edge worker 睡着会打开一次 `reload.html`）；`tab_id` 仍是各浏览器内部数字，可能撞号
-- 布局扫描上限：1000 个 viewport 可见交互目标 / 5000 候选，超限拒绝
-- DOM 事件一律非 trusted，无法替代网站要求的原生用户手势
-
-## 验证与开发
+标签组：
 
 ```bash
-make check                                     # Rust workspace + Node 扩展测试 + pack
-node --test extension/tests/*.test.cjs
-cargo test --workspace
-python3 scripts/poc_browser_parity.py          # 默认不执行真实动作
-python3 scripts/poc_browser_parity.py --live   # 仅 127.0.0.1 受控页
+vcu browser group --tabs <id>,<id> --title '设计' --color purple
+vcu browser group-update --group <id> --collapsed true
 ```
 
-`--live` 只关闭自己创建且未被用户接管的标签。不要操作旧 tab ID。
+浏览器操作手册：[`playbooks/user-browser.md`](playbooks/user-browser.md)。桌面最短环：[`playbooks/desktop.md`](playbooks/desktop.md)。
 
-macOS Stage helper：`vcu-stage`。Guide overlay 不移动物理鼠标。当前浏览器版默认无桌面 HUD。
+## MCP
 
-## 硬约束
+将 `vcu-mcp` 配入宿主即可调用浏览器与桌面工具，包括 `vcu_browser_observe`、`vcu_browser_click`、`vcu_browser_extract`、`vcu_hover`、`vcu_session_abort` 等。
 
-`os_cursor=deny`。写入用户网页前确认目标 tab。不要盲目 Return（`confirm_send`）。若曾开启 desktop 会话，结束必须 `vcu session stop all`。
+```bash
+vcu mcp print-config --json
+```
+
+推荐顺序：`ping` → `observe`（查看返回的 PNG）→ 在 60 秒内对 last observe 执行 click / type / screenshot / open。也可用 `observe` 的 `tab_id` 指定标签。
 
 ## 文档
 
-- 计划（已发布浏览器版）：[`docs/PLAN.md`](docs/PLAN.md)
-- 下一史诗（含桌面）：[`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md)
-- 交接：[`docs/HANDOFF.md`](docs/HANDOFF.md)
-- 浏览器操作：[`playbooks/user-browser.md`](playbooks/user-browser.md)
-- 桌面最短环：[`playbooks/desktop.md`](playbooks/desktop.md)
-- 安装：[`docs/INSTALL.md`](docs/INSTALL.md)
-- 验收记录：[`docs/testing/BROWSER_PARITY_RESULTS.md`](docs/testing/BROWSER_PARITY_RESULTS.md)
-- 阶段设计：[`docs/design/09-browser-interaction-parity.md`](docs/design/09-browser-interaction-parity.md)
+| 文档 | 说明 |
+| --- | --- |
+| [`docs/PLAN.md`](docs/PLAN.md) | 当前版本计划 |
+| [`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md) | Computer Use 路线图 |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md) | 会话交接 |
+| [`docs/INSTALL.md`](docs/INSTALL.md) | 安装 |
+| [`playbooks/user-browser.md`](playbooks/user-browser.md) | 浏览器操作 |
+| [`playbooks/desktop.md`](playbooks/desktop.md) | 桌面操作 |
