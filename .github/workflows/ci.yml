@@ -176,6 +176,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: powershell -NoProfile -STA -File scripts/poc_cu_d_380.ps1
+      - name: windows mcp live doctor (CU-D-390)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -STA -File scripts/poc_cu_d_390.ps1
 
   package-macos:
     needs: test

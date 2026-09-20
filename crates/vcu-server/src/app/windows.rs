@@ -1583,6 +1583,17 @@ mod tests {
         assert!(!l380.contains("sendinput("));
         assert!(!l380.contains("[system.windows.forms.sendkeys"));
         assert!(!l380.contains("mouse_event"));
+        let p390 = root.join("scripts/poc_cu_d_390.ps1");
+        let s390 = std::fs::read_to_string(&p390).unwrap_or_default();
+        assert!(s390.contains("SCOPE_OK"), "{}", p390.display());
+        assert!(s390.contains("windows_desktop_scope"));
+        assert!(s390.contains("mcp_tools_call"));
+        assert!(s390.contains("vcu_doctor"));
+        assert!(s390.contains("CU-D-390 OK"));
+        let l390 = s390.to_ascii_lowercase();
+        assert!(!l390.contains("sendinput("));
+        assert!(!l390.contains("[system.windows.forms.sendkeys"));
+        assert!(!l390.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
