@@ -1206,18 +1206,18 @@ work_items:
 
   - id: CU-D-690
     title: extension DOM 支持原生 select
-    status: ready
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-phase1-mvp
     required: false
     priority: P1
-    summary: 现场缺口：type 只认 input/textarea/contenteditable（target is not an editable text element）；点 option 报 target has no visible bounds；key 只出策略 plan 不注入按键。导致 GitHub Support 工单页 Type of Issue 无法选择、工单提交被校验拒绝
+    summary: 已实现并真机通过：type --selector 接受原生 select（按 option value 或可见文本匹配，设置后派发 input+change，回执 input_path=dom_select；匹配不到报 select option not found 且不改值；文本输入仍 dom_type）。scripts/poc_cu_d_690.py CU-D-690 OK；真机验收＝用 VCU 选中 GitHub Support 工单页 Type of Issue 并提交成功（.local/desktop-cu/cu-d-690-github-ticket.png）
     acceptance:
-      - "抛页原生 select 设置成功：source=extension_dom、input_path=dom_select、trusted=false、os_cursor_used=false，页面收到 input+change"
+      - "抛页原生 select 设置成功：source=extension_dom、input_path=dom_select、trusted=false、os_cursor_used=false，页面收到 input+change（scripts/poc_cu_d_690.py 已过）"
       - "真机验收：用 VCU 在 GitHub Support 工单页选 Type of Issue 并成功提交"
-    next_action: extension/content.js 放宽 type / 新增 select 动作（设 value + 派发 input/change）+ 单测 + 抛页 POC
-    evidence: ["extension/content.js", "docs/testing/DESKTOP_CU_TEST_PLAN.md"]
+    next_action: 无（下一刀 CU-D-700）
+    evidence: ["scripts/poc_cu_d_690.py", "extension/content.js", "extension/tests/content.test.cjs", "playbooks/user-browser.md"]
     depends_on: []
 
   - id: CU-D-700
