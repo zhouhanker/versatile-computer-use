@@ -1494,6 +1494,17 @@ mod tests {
         assert!(!l300.contains("sendinput("));
         assert!(!l300.contains("[system.windows.forms.sendkeys"));
         assert!(!l300.contains("mouse_event"));
+        let p310 = root.join("scripts/poc_cu_d_310.ps1");
+        let s310 = std::fs::read_to_string(&p310).unwrap_or_default();
+        assert!(s310.contains("WAIT_OK"), "{}", p310.display());
+        assert!(s310.contains("scene_wait"));
+        assert!(s310.contains("mcp_tools_call"));
+        assert!(s310.contains("vcu_wait"));
+        assert!(s310.contains("CU-D-310 OK"));
+        let l310 = s310.to_ascii_lowercase();
+        assert!(!l310.contains("sendinput("));
+        assert!(!l310.contains("[system.windows.forms.sendkeys"));
+        assert!(!l310.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
