@@ -1,0 +1,4 @@
+# Keep shell entrypoints LF everywhere: the release workflow copies
+# install.sh from a Windows checkout as well, and CRLF makes
+# `curl ... | sh` fail with "set: pipefail: invalid option name".
+*.sh text eol=lf

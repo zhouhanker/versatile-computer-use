@@ -129,10 +129,22 @@ jobs:
           mkdir -p dist
           find artifacts -type f \( -name 'vcu-*.tar.gz' -o -name 'vcu-*.sha256' -o -name 'install.sh' -o -name 'install.ps1' \) -exec cp -n {} dist/ \; || true
           find artifacts -type f \( -name 'vcu-*.tar.gz' -o -name 'vcu-*.sha256' -o -name 'install.sh' -o -name 'install.ps1' \) -exec cp {} dist/ \;
+          # The windows artifact carries a CRLF install.sh (checkout autocrlf);
+          # normalize with tr (portable) so `curl | sh` works on macOS/Linux.
+          if [ -f dist/install.sh ]; then
+            tr -d '\r' < dist/install.sh > dist/install.sh.lf && mv dist/install.sh.lf dist/install.sh
+          fi
           ls -la dist/
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          # Explicit list: a bare dist/* glob also matches dist/.gitkeep and
+          # GitHub rejects zero-byte release assets, which fails the job after
+          # every real asset has already been uploaded.
+          files: |
+            dist/vcu-*.tar.gz
+            dist/vcu-*.sha256
+            dist/install.sh
+            dist/install.ps1
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
