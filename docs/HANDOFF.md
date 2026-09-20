@@ -1,10 +1,10 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-530 真机已过。
+更新：2026-09-20。CU-D-540 真机已过。
 
 ## 本轮
 
-- 530：前台是 Microsoft Edge 时，`/v1/browser/observe` 为 `proc:Microsoft_Edge:60318` tab `1828168410` `frontmost_matched=true`（Bilibili），不再误绑 Chrome wake 页。`scripts/poc_cu_d_530.py` CU-D-530 OK。组 1/3 未动。无 SendInput。不是 TC-B-040。
+- 540：前台 Microsoft Edge 时 `login-state` 的 `user_browsers[0]` 为 Edge pid 60318，与 observe `proc:Microsoft_Edge:60318` 一致。`scripts/poc_cu_d_540.py` CU-D-540 OK。组 1/3 未动。无 SendInput。不是 TC-B-040。
 
 ## 下一刀
 

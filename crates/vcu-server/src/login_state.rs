@@ -242,6 +242,8 @@ pub fn inspect_login_browsers() -> LoginBrowserReport {
             }
         }
     }
+    let frontmost = frontmost_user_browser_name();
+    user_browsers = order_user_browsers_frontmost_first(user_browsers, frontmost.as_deref());
     let extension_profile = classify_extension_profile(&user_browsers, &agent_browsers);
     let listening = cdp_listening();
     let automation_infobar = false;

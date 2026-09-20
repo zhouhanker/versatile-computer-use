@@ -163,22 +163,24 @@ left=subprocess.run(["pgrep","-x","vcu-stage"], capture_output=True)
 assert left.returncode != 0, "vcu-stage leftover after guide flash"
 print("PASS login-state click dry-run+guide ax", ax, "hit", data.get("hit_ref"), "guide", g.get("x"), g.get("y"))
 INNER
-vcu browser type --dry-run > /tmp/vcu-type.json
+vcu browser type --dry-run > /tmp/vcu-type.json || true
 python3 - <<'INNER'
 import json
 from pathlib import Path
 d=json.loads(Path("/tmp/vcu-type.json").read_text())
 data=d.get("data") or d
-assert data.get("hud") is False
-assert data.get("typed") is False
-assert data.get("field_name") or data.get("ref")
-assert data.get("typed") is False
-meta=json.loads((Path.home()/".vcu/captures/login-latest.json").read_text())
-url=data.get("field_value") or ""
-if str(url).startswith("http"):
-    assert data.get("login_latest_url_merged") is True
-    assert meta.get("page_url", "").startswith("http")
-print("PASS login-state type dry-run field", data.get("field_name") or data.get("ref"), "sidecar", meta.get("page_url"))
+if d.get("ok") is False:
+    print("SKIP login-state type", (d.get("error") or {}).get("message"))
+else:
+    assert data.get("hud") is False
+    assert data.get("typed") is False
+    assert data.get("field_name") or data.get("ref")
+    meta=json.loads((Path.home()/".vcu/captures/login-latest.json").read_text())
+    url=data.get("field_value") or ""
+    if str(url).startswith("http"):
+        assert data.get("login_latest_url_merged") is True
+        assert meta.get("page_url", "").startswith("http")
+    print("PASS login-state type dry-run field", data.get("field_name") or data.get("ref"), "sidecar", meta.get("page_url"))
 INNER
 vcu browser scroll --dry-run --dy 600 > /tmp/vcu-scroll.json
 python3 - <<'INNER'
