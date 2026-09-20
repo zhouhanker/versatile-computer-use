@@ -28,6 +28,11 @@ chrome.alarms.onAlarm.addListener((a) => {
 });
 void bootstrapAndStart();
 
+chrome.runtime.onConnect.addListener((port) => {
+  if (!port || port.name !== "vcu-keepalive") return;
+  void bootstrapAndStart();
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg.type === "browser_command") {
@@ -134,14 +139,32 @@ function isRestrictedUrl(url) {
 
 async function ensureOffscreen() {
   try {
-    if (!chrome.offscreen) return;
-    const ctxs = await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
-    if (ctxs && ctxs.length) return;
-    await chrome.offscreen.createDocument({
-      url: "offscreen.html",
-      reasons: ["BLOBS"],
-      justification: "Keep VCU extension poll loop alive without UI clicks",
-    });
+    if (!chrome.offscreen || !chrome.offscreen.createDocument) return;
+    let exists = false;
+    try {
+      if (chrome.runtime.getContexts) {
+        const ctxs = await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
+        exists = !!(ctxs && ctxs.length);
+      }
+    } catch (_) {}
+    if (exists) return;
+    const tries = [["BLOBS"], ["DOM_PARSER"]];
+    let last = null;
+    for (const reasons of tries) {
+      try {
+        await chrome.offscreen.createDocument({
+          url: "offscreen.html",
+          reasons,
+          justification: "Keep VCU extension poll loop alive without UI clicks",
+        });
+        lastError = lastError && String(lastError).startsWith("offscreen:") ? null : lastError;
+        return;
+      } catch (e) {
+        last = e;
+        if (/already exists|duplicate|single offscreen/i.test(String(e))) return;
+      }
+    }
+    lastError = "offscreen:" + String(last || "createDocument failed");
   } catch (e) {
     lastError = "offscreen:" + String(e);
   }
@@ -207,7 +230,7 @@ async function hello() {
     } catch (_) {}
     const likely_user_profile = hosts.some((h) => h && !h.endsWith("msn.com"));
     const browser = currentBrowser();
-    await fetchJson(endpoint + "/v1/extension/hello", {
+    const body = await fetchJson(endpoint + "/v1/extension/hello", {
       method: "POST",
       headers: { "X-Vcu-Token": pairingToken, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -215,8 +238,22 @@ async function hello() {
         hosts,
         client_id: chrome.runtime.id,
         browser,
+        command_pull: true,
       }),
     }, 5000);
+    const cmd = body && body.data && body.data.command;
+    if (cmd && cmd.id && cmd.method) {
+      const result = await withTimeout(
+        handleCommand(cmd),
+        6000,
+        { ok: false, error: "command timeout " + cmd.method }
+      );
+      await fetchJson(endpoint + "/v1/extension/result", {
+        method: "POST",
+        headers: { "X-Vcu-Token": pairingToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ id: cmd.id, result: result || { ok: false, error: "empty result" } }),
+      }, 8000);
+    }
   } catch (e) {
     lastError = "hello_failed:" + String(e);
   }
@@ -361,16 +398,53 @@ async function fetchJson(url, opts = {}, timeoutMs = 10000) {
 }
 
 let pollGen = 0;
+async function injectTabHeartbeat() {
+  if (!chrome.scripting || !chrome.scripting.executeScript || !chrome.tabs || !chrome.tabs.query) return;
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch (_) {
+    return;
+  }
+  for (const tab of tabs) {
+    if (!tab || tab.id == null || isRestrictedUrl(tab.url || "")) continue;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          if (globalThis.__vcuKeepalive) return;
+          const beat = () => {
+            try {
+              chrome.runtime.sendMessage({ type: "keepalive" }, () => {
+                void chrome.runtime.lastError;
+              });
+            } catch (_) {}
+          };
+          beat();
+          globalThis.__vcuKeepalive = setInterval(beat, 5000);
+        },
+      });
+    } catch (_) {}
+  }
+}
+
 function startPollLoop() {
   if (polling) return;
   const gen = ++pollGen;
   polling = true;
+  void injectTabHeartbeat();
   (async function loop() {
     try {
       while (gen === pollGen && pairingToken) {
         try {
-          const body = await fetchJson(endpoint + "/v1/extension/poll?wait_ms=4000&client_id=" + encodeURIComponent(chrome.runtime.id || "") + "&browser=" + encodeURIComponent(currentBrowser()), {
-            headers: { "X-Vcu-Token": pairingToken },
+          const body = await fetchJson(endpoint + "/v1/extension/poll", {
+            method: "POST",
+            headers: { "X-Vcu-Token": pairingToken, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              wait_ms: 4000,
+              client_id: chrome.runtime.id || "",
+              browser: currentBrowser(),
+            }),
           }, 10000);
           const cmd = body && body.data;
           if (cmd && cmd.id && cmd.method) {

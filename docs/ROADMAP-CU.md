@@ -197,6 +197,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-490 | Desktop scene browser tabs | **完成（HTTP）** Chrome/Edge `desktop.scene` 附 `browser_tabs`，`source` 仍 `ax_scene`；tab 管理命令定向 last observe。无 SendInput。 |
 | CU-D-500 | MCP observe-bind instructions | **完成** initialize 指示 observe 后 60s last observe；Never CDP Allow。无 SendInput。 |
 | CU-D-510 | login-state next_action observe | **完成（真机）** polling 即 user；next_action ping→observe→last observe。无 SendInput。 |
+| CU-D-520 | Dual-browser tabs include Edge | **进行中** 单测已加；真机仍常只有 Chrome。Edge hello≠poll。禁止宣称完成。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -257,6 +258,7 @@ CU-D-000 文档
     → CU-D-490 desktop scene browser tabs
     → CU-D-500 MCP observe-bind instructions
     → CU-D-510 login-state next_action observe
+    → CU-D-520 dual-browser tabs include Edge
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

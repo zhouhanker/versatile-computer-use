@@ -1159,9 +1159,15 @@ if (typeof module !== "undefined" && module.exports) {
 }
   try {
     if (globalThis.chrome?.runtime?.sendMessage) {
-      chrome.runtime.sendMessage({ type: "vcu_wake" }, () => {
-        void chrome.runtime.lastError;
-      });
+      const beat = (type) => {
+        chrome.runtime.sendMessage({ type }, () => {
+          void chrome.runtime.lastError;
+        });
+      };
+      beat("vcu_wake");
+      if (!globalThis.__vcuKeepalive) {
+        globalThis.__vcuKeepalive = setInterval(() => beat("keepalive"), 5000);
+      }
     }
   } catch (_) {}
 })();

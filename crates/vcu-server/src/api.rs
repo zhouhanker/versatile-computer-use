@@ -30,7 +30,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/health", get(health))
         .route("/v1/extension/bootstrap", post(extension_bootstrap))
         .route("/v1/extension/hello", post(extension_hello))
-        .route("/v1/extension/poll", get(extension_poll))
+        .route("/v1/extension/poll", get(extension_poll).post(extension_poll_post))
         .route("/v1/extension/result", post(extension_result).layer(DefaultBodyLimit::max(16 * 1024 * 1024)))
         .route("/v1/app/windows", get(app_windows))
         .route("/v1/app/snapshot", post(app_snapshot))
@@ -2451,6 +2451,8 @@ struct ExtHelloReq {
     client_id: Option<String>,
     #[serde(default)]
     browser: Option<String>,
+    #[serde(default)]
+    command_pull: bool,
 }
 
 async fn extension_hello(
@@ -2462,8 +2464,16 @@ async fn extension_hello(
         return err_response(e);
     }
     let _ = req.hosts;
-    state.extension_bridge.mark_hello_client(req.likely_user_profile, req.client_id, req.browser).await;
-    Json(Envelope::ok(json!({"connected": true}))).into_response()
+    state.extension_bridge.mark_hello_client(req.likely_user_profile, req.client_id.clone(), req.browser.clone()).await;
+    let command = if req.command_pull {
+        state
+            .extension_bridge
+            .poll_for(4000, req.client_id, req.browser)
+            .await
+    } else {
+        None
+    };
+    Json(Envelope::ok(json!({"connected": true, "command": command}))).into_response()
 }
 
 async fn extension_poll(
@@ -2471,6 +2481,22 @@ async fn extension_poll(
     headers: HeaderMap,
     Query(q): Query<ExtPollQuery>,
 ) -> impl IntoResponse {
+    extension_poll_inner(state, headers, q).await
+}
+
+async fn extension_poll_post(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(q): Json<ExtPollQuery>,
+) -> impl IntoResponse {
+    extension_poll_inner(state, headers, q).await
+}
+
+async fn extension_poll_inner(
+    state: Arc<AppState>,
+    headers: HeaderMap,
+    q: ExtPollQuery,
+) -> axum::response::Response {
     if let Err(e) = require_auth(&headers, &state).await {
         return err_response(e);
     }

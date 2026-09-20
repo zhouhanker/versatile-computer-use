@@ -214,6 +214,103 @@ async fn list_tabs_merged_from_two_clients() {
 }
 
 #[tokio::test]
+async fn list_tabs_merged_keeps_other_browser_when_one_fails() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge
+        .mark_hello_client(true, Some("edge".into()), Some("edge".into()))
+        .await;
+    bridge
+        .mark_hello_client(true, Some("chrome".into()), Some("chrome".into()))
+        .await;
+    let edge = bridge.clone();
+    let chrome = bridge.clone();
+    let edge_w = tokio::spawn(async move {
+        let cmd = edge
+            .poll_for(2000, Some("edge".into()), Some("edge".into()))
+            .await
+            .expect("edge list");
+        assert_eq!(cmd.method, "list_tabs");
+        edge.submit_result(&cmd.id, json!({"ok": false, "error": "edge_list_failed"}))
+            .await;
+    });
+    let chrome_w = tokio::spawn(async move {
+        let cmd = chrome
+            .poll_for(2000, Some("chrome".into()), Some("chrome".into()))
+            .await
+            .expect("chrome list");
+        assert_eq!(cmd.method, "list_tabs");
+        chrome
+            .submit_result(
+                &cmd.id,
+                json!({"ok": true, "tabs": [{"tab_id": "c1", "window_id": "cw", "title": "Chrome", "url": "https://c.example/", "agent_owned": false, "borrowed_by": null}], "groups": []}),
+            )
+            .await;
+    });
+    let merged = bridge.list_tabs_merged().await.unwrap();
+    let tabs = merged["tabs"].as_array().unwrap();
+    assert_eq!(tabs.len(), 1, "{merged}");
+    assert_eq!(tabs[0]["tab_id"], "c1");
+    assert_eq!(merged["browser_count"], 2);
+    let ok = merged["browsers_ok"].as_array().unwrap();
+    assert!(ok.iter().any(|v| v == "chrome"), "{merged}");
+    let failed = merged["browsers_failed"].as_array().unwrap();
+    assert!(
+        failed.iter().any(|v| v["browser"] == "edge"),
+        "{merged}"
+    );
+    edge_w.await.unwrap();
+    chrome_w.await.unwrap();
+}
+
+
+#[tokio::test]
+async fn edge_poll_without_client_id_gets_edge_targeted_list_tabs() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    let rid = "cedlbclnijpladccmmfpihhgkeeldfhc";
+    bridge
+        .mark_hello_client(true, Some(rid.into()), Some("edge".into()))
+        .await;
+    bridge
+        .mark_hello_client(true, Some(rid.into()), Some("chrome".into()))
+        .await;
+    let edge = bridge.clone();
+    let chrome = bridge.clone();
+    let edge_w = tokio::spawn(async move {
+        let cmd = edge
+            .poll_for(2000, None, Some("edge".into()))
+            .await
+            .expect("edge list");
+        assert_eq!(cmd.method, "list_tabs");
+        edge.submit_result(
+            &cmd.id,
+            json!({"ok": true, "tabs": [{"tab_id": "e1", "window_id": "ew", "title": "Edge", "url": "https://e.example/", "agent_owned": false, "borrowed_by": null}], "groups": []}),
+        )
+        .await;
+    });
+    let chrome_w = tokio::spawn(async move {
+        let cmd = chrome
+            .poll_for(2000, Some(rid.into()), Some("chrome".into()))
+            .await
+            .expect("chrome list");
+        chrome
+            .submit_result(
+                &cmd.id,
+                json!({"ok": true, "tabs": [{"tab_id": "c1", "window_id": "cw", "title": "Chrome", "url": "https://c.example/", "agent_owned": false, "borrowed_by": null}], "groups": []}),
+            )
+            .await;
+    });
+    let merged = bridge.list_tabs_merged().await.unwrap();
+    let tabs = merged["tabs"].as_array().unwrap();
+    assert_eq!(tabs.len(), 2, "{merged}");
+    let ids: Vec<&str> = tabs.iter().map(|t| t["tab_id"].as_str().unwrap()).collect();
+    assert!(ids.contains(&"e1"), "{merged}");
+    assert!(ids.contains(&"c1"), "{merged}");
+    edge_w.await.unwrap();
+    chrome_w.await.unwrap();
+}
+
+
+#[tokio::test]
 async fn list_tabs_single_client_still_reports_browser_count() {
     let bridge = ExtensionBridge::with_lease_ms(80);
     bridge

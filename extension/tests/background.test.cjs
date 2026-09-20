@@ -59,13 +59,19 @@ function makeHarness(options = {}) {
       onInstalled: { addListener() {} },
       onStartup: { addListener() {} },
       onMessage: { addListener: (listener) => state.listeners.push(listener) },
+      onConnect: { addListener() {} },
       getManifest: () => ({ version: "0.2.8" }),
       getURL: (file) => "chrome-extension://vcu-extension-id/" + file,
-      getContexts: async () => [],
+      getContexts: options.getContexts || (async () => []),
       reload() {},
     },
     alarms: { create() {}, onAlarm: { addListener() {} } },
-    offscreen: { createDocument: async () => {} },
+    offscreen: {
+      createDocument: async (info) => {
+        state.calls.push({ method: "offscreen.createDocument", info: clone(info) });
+        if (options.offscreenCreate) return options.offscreenCreate(info);
+      },
+    },
     storage: {
       local: {
         get: async (keys) => {
@@ -198,7 +204,7 @@ function makeHarness(options = {}) {
     clearTimeout,
   };
   context.globalThis = context;
-  vm.runInNewContext(source + "\n;globalThis.__vcuTest = { handleCommand, resolveHttpTab, clickViaContent, typeViaContent, openTab, listTabsState };", context, { filename: "background.js" });
+  vm.runInNewContext(source + "\n;globalThis.__vcuTest = { handleCommand, resolveHttpTab, clickViaContent, typeViaContent, openTab, listTabsState, ensureOffscreen };", context, { filename: "background.js" });
   return { state, chrome, api: context.__vcuTest };
 }
 
@@ -504,4 +510,24 @@ test("reload_self reports reloading without clicking Allow", async () => {
   assert.equal(result.reloading, true);
   await new Promise((r) => setTimeout(r, 80));
   assert.equal(reloads, 1);
+});
+
+test("ensureOffscreen still creates when getContexts throws", async () => {
+  const { api, state } = makeHarness({
+    getContexts: async () => { throw new Error("getContexts unavailable"); },
+  });
+  await api.ensureOffscreen();
+  const created = state.calls.filter((call) => call.method === "offscreen.createDocument");
+  assert.ok(created.length >= 1, JSON.stringify(created));
+  assert.deepEqual(created[0].info.reasons, ["BLOBS"]);
+});
+
+test("ensureOffscreen skips create when an offscreen document already exists", async () => {
+  const { api, state } = makeHarness({
+    getContexts: async () => [{ contextType: "OFFSCREEN_DOCUMENT" }],
+  });
+  const before = state.calls.filter((call) => call.method === "offscreen.createDocument").length;
+  await api.ensureOffscreen();
+  const after = state.calls.filter((call) => call.method === "offscreen.createDocument").length;
+  assert.equal(after, before);
 });

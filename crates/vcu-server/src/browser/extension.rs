@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{oneshot, Mutex};
 use vcu_core::{
@@ -60,6 +61,8 @@ pub struct ExtensionCommand {
     pub method: String,
     pub params: serde_json::Value,
 }
+
+const CLIENT_LIVE_MS: u64 = 45_000;
 
 fn named_browser(name: &str) -> Option<&str> {
     match name.trim().to_ascii_lowercase().as_str() {
@@ -125,7 +128,7 @@ impl ExtensionBridge {
             .iter()
             .filter(|(_, c)| {
                 named_browser(&c.browser).is_some()
-                    && now.saturating_sub(c.last_poll_ms) < 15_000
+                    && now.saturating_sub(c.last_poll_ms) < CLIENT_LIVE_MS
             })
             .map(|(id, _)| id.clone())
             .collect()
@@ -139,7 +142,7 @@ impl ExtensionBridge {
             .iter()
             .filter(|(_, c)| {
                 named_browser(&c.browser).is_some()
-                    && now.saturating_sub(c.last_poll_ms) < 15_000
+                    && now.saturating_sub(c.last_poll_ms) < CLIENT_LIVE_MS
             })
             .filter_map(|(_, c)| named_browser(&c.browser).map(|s| s.to_string()))
             .collect();
@@ -236,7 +239,9 @@ impl ExtensionBridge {
                     let client_ok = match (&c.target_client, &key) {
                         (None, _) => true,
                         (Some(target), Some(k)) => target == k,
-                        (Some(_), None) => false,
+                        (Some(target), None) => named_browser(browser.as_deref().unwrap_or(""))
+                            .map(|b| target.starts_with(&format!("{b}:")))
+                            .unwrap_or(false),
                     };
                     if !client_ok {
                         return false;
@@ -363,20 +368,32 @@ impl ExtensionBridge {
             }
             return Ok(v);
         }
+        let tasks = ids.iter().cloned().map(|id| {
+            let bridge = self.clone();
+            async move {
+                let browser = bridge
+                    .client_browser(&id)
+                    .await
+                    .unwrap_or_else(|| "browser".into());
+                // Edge MV3 workers often sleep ~10s between polls. 8s silently
+                // dropped that browser from the merge; wait for the next poll.
+                let result = bridge
+                    .call_timeout_for(Some(id.clone()), "list_tabs", serde_json::json!({}), 35)
+                    .await;
+                (id, browser, result)
+            }
+        });
+        let rows = join_all(tasks).await;
         let mut tabs = Vec::new();
         let mut groups = Vec::new();
         let mut ok_clients = 0u32;
-        for id in &ids {
-            let browser = self
-                .client_browser(id)
-                .await
-                .unwrap_or_else(|| "browser".into());
-            match self
-                .call_timeout_for(Some(id.clone()), "list_tabs", serde_json::json!({}), 8)
-                .await
-            {
+        let mut browsers_ok = Vec::new();
+        let mut browsers_failed = Vec::new();
+        for (id, browser, result) in rows {
+            match result {
                 Ok(v) => {
                     ok_clients += 1;
+                    browsers_ok.push(browser.clone());
                     let mut seen = Vec::new();
                     if let Some(arr) = v.get("tabs").and_then(|x| x.as_array()) {
                         for t in arr {
@@ -395,13 +412,17 @@ impl ExtensionBridge {
                             tabs.push(tab);
                         }
                     }
-                    self.store_client_tabs(id, seen).await;
+                    self.store_client_tabs(&id, seen).await;
                     if let Some(arr) = v.get("groups").and_then(|x| x.as_array()) {
                         groups.extend(arr.iter().cloned());
                     }
                 }
-                Err(_) => {
-                    self.store_client_tabs(id, Vec::new()).await;
+                Err(e) => {
+                    browsers_failed.push(serde_json::json!({
+                        "browser": browser,
+                        "error": e.to_string(),
+                    }));
+                    self.store_client_tabs(&id, Vec::new()).await;
                 }
             }
         }
@@ -414,6 +435,8 @@ impl ExtensionBridge {
             "groups": groups,
             "browser_count": ids.len(),
             "browsers": browsers,
+            "browsers_ok": browsers_ok,
+            "browsers_failed": browsers_failed,
         }))
     }
 
@@ -434,7 +457,7 @@ impl ExtensionBridge {
         let now = now_ms();
         let mut found = None;
         for (id, c) in &g.clients {
-            if now.saturating_sub(c.last_poll_ms) >= 15_000 {
+            if now.saturating_sub(c.last_poll_ms) >= CLIENT_LIVE_MS {
                 continue;
             }
             if c.tab_ids.iter().any(|t| t == tab_id) {
@@ -482,7 +505,7 @@ impl ExtensionBridge {
     ) -> Vec<serde_json::Value> {
         if n <= 1 {
             return vec![match self
-                .call_timeout_for(target, "reload_self", serde_json::json!({}), 2)
+                .call_timeout_for(target, "reload_self", serde_json::json!({}), 35)
                 .await
             {
                 Ok(v) => v,
@@ -580,7 +603,7 @@ impl ExtensionBridge {
         let now = now_ms();
         let mut found = None;
         for (id, c) in &g.clients {
-            if now.saturating_sub(c.last_poll_ms) >= 15_000 {
+            if now.saturating_sub(c.last_poll_ms) >= CLIENT_LIVE_MS {
                 continue;
             }
             if named_browser(&c.browser) != Some(kind) {
