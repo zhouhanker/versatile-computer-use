@@ -79,6 +79,7 @@ vcu browser observe --browser chrome --json
 vcu browser select --tab <id>
 vcu browser open --url https://example.com --background
 vcu browser extract --tab <id> --selector a --json
+vcu browser extract --tab <id> --browser chrome --selector a --json
 vcu browser click --tab <id> --selector '#continue'
 vcu browser hover --tab <id> --selector '#continue'
 vcu browser type --tab <id> --selector 'input[name=q]' --text 'hello'

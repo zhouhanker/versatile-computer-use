@@ -524,6 +524,51 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(selected["data"]["tab_id"], "99");
     assert_eq!(selected["data"]["browser"], "edge");
 
+    let extract_amb: serde_json::Value = auth(client.post(format!("{base}/v1/browser/extract")))
+        .json(&json!({"selector": "#who", "tab_id": "42"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(extract_amb["ok"], false, "{extract_amb}");
+    assert!(extract_amb["error"]["message"].as_str().unwrap_or("").contains("ambiguous"), "{extract_amb}");
+
+    let extracted_edge: serde_json::Value = auth(client.post(format!("{base}/v1/browser/extract")))
+        .json(&json!({"selector": "#who", "tab_id": "42", "browser": "edge"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(extracted_edge["ok"], true, "{extracted_edge}");
+    assert_eq!(extracted_edge["data"]["browser"], "edge");
+    assert_eq!(extracted_edge["data"]["tab_id"], "42");
+
+    let typed_edge: serde_json::Value = auth(client.post(format!("{base}/v1/browser/type")))
+        .json(&json!({"selector": "input", "text": "hi", "tab_id": "42", "browser": "edge", "dry_run": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(typed_edge["ok"], true, "{typed_edge}");
+    assert_eq!(typed_edge["data"]["browser"], "edge");
+
+    let clicked_edge: serde_json::Value = auth(client.post(format!("{base}/v1/browser/click")))
+        .json(&json!({"selector": "body", "tab_id": "42", "browser": "edge", "dry_run": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(clicked_edge["ok"], true, "{clicked_edge}");
+    assert_eq!(clicked_edge["data"]["browser"], "edge");
+
     let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true, "tab_id": "99"}))
         .send()

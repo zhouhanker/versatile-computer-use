@@ -547,6 +547,10 @@ async fn dom_type_and_scroll_forward_explicit_tab_and_dry_run() {
     let (handle, base, token, _dir) = boot_async().await;
     let mut responses = HashMap::new();
     responses.insert(
+        "list_tabs".into(),
+        json!({"ok": true, "tabs": [{"tab_id": "77"}], "groups": []}),
+    );
+    responses.insert(
         "type".into(),
         json!({
             "ok": true,
@@ -601,15 +605,16 @@ async fn dom_type_and_scroll_forward_explicit_tab_and_dry_run() {
     assert_eq!(scrolled["data"]["tab_id"], "77");
 
     let commands = log.lock().await.clone();
-    assert_eq!(commands.len(), 2, "{commands:?}");
-    assert_eq!(commands[0].method, "type");
-    assert_eq!(
-        commands[0].params,
-        json!({"selector": "input[name=q]", "text": "hello", "dry_run": true, "tab_id": "77"})
-    );
-    assert_eq!(commands[1].method, "scroll");
+    assert_eq!(commands.len(), 3, "{commands:?}");
+    assert_eq!(commands[0].method, "list_tabs");
+    assert_eq!(commands[1].method, "type");
     assert_eq!(
         commands[1].params,
+        json!({"selector": "input[name=q]", "text": "hello", "dry_run": true, "tab_id": "77"})
+    );
+    assert_eq!(commands[2].method, "scroll");
+    assert_eq!(
+        commands[2].params,
         json!({"dy": -320, "dry_run": true, "tab_id": "77"})
     );
 

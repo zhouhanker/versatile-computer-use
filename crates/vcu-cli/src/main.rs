@@ -398,6 +398,8 @@ enum BrowserCmd {
         selector: Option<String>,
         #[arg(long)]
         tab: Option<String>,
+        #[arg(long)]
+        browser: Option<String>,
         #[arg(long, default_value = "window")]
         space: String,
         #[arg(long)]
@@ -426,6 +428,8 @@ enum BrowserCmd {
         selector: Option<String>,
         #[arg(long, requires = "selector")]
         tab: Option<String>,
+        #[arg(long)]
+        browser: Option<String>,
         #[arg(long, default_value_t = false)]
         dry_run: bool,
     },
@@ -520,6 +524,8 @@ enum BrowserCmd {
         selector: String,
         #[arg(long)]
         tab: Option<String>,
+        #[arg(long)]
+        browser: Option<String>,
     },
     /// Wait ms, until a DOM selector/text appears, or until a Scene name/role/ref appears (no HUD)
     Wait {
@@ -1147,6 +1153,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 pixel_y,
                 selector,
                 tab,
+                browser,
                 space,
                 capture,
                 dry_run,
@@ -1160,6 +1167,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                         "pixel_y": pixel_y,
                         "selector": selector,
                         "tab_id": tab,
+                        "browser": browser,
                         "space": space,
                         "capture_id": capture,
                         "dry_run": dry_run,
@@ -1184,6 +1192,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 target_ref,
                 selector,
                 tab,
+                browser,
                 dry_run,
             } => {
                 let mut body = json!({ "dry_run": dry_run });
@@ -1197,6 +1206,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                     body["selector"] = json!(sel);
                 }
                 if let Some(t) = tab { body["tab_id"] = json!(t); }
+                if let Some(b) = browser { body["browser"] = json!(b); }
                 let v = api_post(&paths, "/v1/browser/type", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
@@ -1284,10 +1294,13 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            BrowserCmd::Extract { selector, tab } => {
+            BrowserCmd::Extract { selector, tab, browser } => {
                 let mut body = json!({ "selector": selector });
                 if let Some(t) = tab {
                     body["tab_id"] = json!(t);
+                }
+                if let Some(b) = browser {
+                    body["browser"] = json!(b);
                 }
                 let v = api_post(&paths, "/v1/browser/extract", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());

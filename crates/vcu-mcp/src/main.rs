@@ -146,7 +146,8 @@ fn tool_defs() -> Vec<Value> {
                 "pixel_x":{"type":"number"},
                 "pixel_y":{"type":"number"},
                 "selector":{"type":"string","description":"CSS selector; DOM click via USER extension"},
-                "tab_id":{"type":"string","description":"USER Edge tab id; default last-focused http tab"},
+                "tab_id":{"type":"string","description":"USER tab id; default last observe"},
+                "browser":{"type":"string","description":"chrome or edge when tab_id collides"},
                 "space":{"type":"string","description":"viewport (bound browser screenshot), window or webview (AX)","default":"window"},
                 "dry_run":{"type":"boolean","default":false},
                 "guide":{"type":"boolean","default":false}
@@ -158,6 +159,7 @@ fn tool_defs() -> Vec<Value> {
                 "ref":{"type":"string"},
                 "selector":{"type":"string","description":"CSS selector; DOM type via USER extension"},
                 "tab_id":{"type":"string","description":"Exact tab ID; no fallback if missing"},
+                "browser":{"type":"string","description":"chrome or edge when tab_id collides"},
                 "dry_run":{"type":"boolean","default":false}
             }
         })),
@@ -213,7 +215,8 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_browser_extract", "DOM extract via USER Edge extension. source must be extension_dom. No HUD, no Agent Edge, no AX chrome fake-green.", json!({
             "type":"object","properties":{
                 "selector":{"type":"string","default":"a"},
-                "tab_id":{"type":"string"}
+                "tab_id":{"type":"string"},
+                "browser":{"type":"string","description":"chrome or edge when tab_id collides"}
             }
         })),
         tool("vcu_session_start", "Start a VCU session. surface=desktop is the real-window Steward path; browser_agent is the isolated profile bypass.", json!({
@@ -458,6 +461,7 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(py) = args.get("pixel_y") { body["pixel_y"] = py.clone(); }
             if let Some(sel) = args.get("selector") { body["selector"] = sel.clone(); }
             if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
+            if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
             client.post("/v1/browser/click", body).await?
         }
         "vcu_browser_type" => {
@@ -468,6 +472,7 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(r) = args.get("ref") { body["ref"] = r.clone(); }
             if let Some(sel) = args.get("selector") { body["selector"] = sel.clone(); }
             if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
+            if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
             client.post("/v1/browser/type", body).await?
         }
         "vcu_browser_hover" => {
@@ -522,6 +527,9 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             });
             if let Some(t) = args.get("tab_id").and_then(|v| v.as_str()) {
                 body["tab_id"] = json!(t);
+            }
+            if let Some(b) = args.get("browser").and_then(|v| v.as_str()) {
+                body["browser"] = json!(b);
             }
             client.post("/v1/browser/extract", body).await?
         }

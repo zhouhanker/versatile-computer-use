@@ -200,6 +200,8 @@ struct BrowserClickReq {
     #[serde(default)]
     tab_id: Option<String>,
     #[serde(default)]
+    browser: Option<String>,
+    #[serde(default)]
     capture_id: Option<String>,
 }
 
@@ -247,11 +249,14 @@ async fn browser_click(
             "selector": selector,
             "dry_run": req.dry_run,
         });
-        let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+        let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+            Ok(v) => v,
+            Err(e) => return err_response(e),
+        };
         if let Some(id) = tab.as_deref() {
             params["tab_id"] = json_tab_param(id);
         }
-        match extension_dom_call(&state, "click", params, 8).await {
+        match extension_dom_call_for(&state, "click", params, 8, kind).await {
             Ok(v) => {
                 return Json(Envelope::ok(json!({
                     "login_state": true,
@@ -262,6 +267,7 @@ async fn browser_click(
                     "source": "extension_dom",
                     "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab)),
                     "tab_id_source": tab_src,
+                    "browser": kind,
                     "page_url": v.get("page_url").cloned().unwrap_or(json!(null)),
                     "focused": v.get("focused").cloned().unwrap_or(json!(null)),
                     "os_cursor_used": false,
@@ -448,6 +454,48 @@ async fn bound_tab(state: &AppState, explicit: Option<&str>) -> (Option<String>,
     crate::login_state::bind_tab_id(explicit, last.as_ref(), std::time::Instant::now())
 }
 
+async fn bound_dom_target(
+    state: &AppState,
+    explicit_tab: Option<&str>,
+    browser: Option<&str>,
+) -> Result<(Option<String>, &'static str, Option<&'static str>), VcuError> {
+    let want = parse_observe_browser(browser)?;
+    let explicit = explicit_tab
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .is_some();
+    let (tab, src) = bound_tab(state, explicit_tab).await;
+    let last = state.last_observe.read().await.clone();
+    let last_kind = last
+        .as_ref()
+        .and_then(|l| crate::login_state::browser_kind_from_app_id(&l.app_id));
+    if let Some(id) = tab.as_deref() {
+        let tabs = state.extension_bridge.list_tabs_merged().await?;
+        let filter = if explicit { want } else { want.or(last_kind) };
+        let found = find_extension_tab(&tabs, id, filter)?;
+        let kind = kind_from_tab(&found).or(filter);
+        return Ok((
+            json_tab_id_value(&found).or_else(|| Some(id.to_string())),
+            src,
+            kind,
+        ));
+    }
+    Ok((None, src, want.or(last_kind)))
+}
+
+async fn extension_dom_call_for(
+    state: &AppState,
+    method: &str,
+    params: Value,
+    timeout: u64,
+    kind: Option<&str>,
+) -> Result<Value, VcuError> {
+    state
+        .extension_bridge
+        .call_timeout_hinted(method, params, timeout, kind)
+        .await
+}
+
 async fn extension_dom_call(
     state: &AppState,
     method: &str,
@@ -478,6 +526,8 @@ struct BrowserTypeReq {
     app_id: Option<String>,
     #[serde(default)]
     tab_id: Option<String>,
+    #[serde(default)]
+    browser: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -573,10 +623,12 @@ async fn browser_type(
             "text": req.text.clone().unwrap_or_default(),
             "dry_run": req.dry_run,
         });
-        let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+        let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+            Ok(v) => v,
+            Err(e) => return err_response(e),
+        };
         if let Some(id) = tab.as_deref() { params["tab_id"] = json_tab_param(id); }
-        let _ = tab_src;
-        match extension_dom_call(&state, "type", params, 8).await {
+        match extension_dom_call_for(&state, "type", params, 8, kind).await {
             Ok(v) => {
                 return Json(Envelope::ok(json!({
                     "login_state": true,
@@ -587,6 +639,7 @@ async fn browser_type(
                     "source": "extension_dom",
                     "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab)),
                     "tab_id_source": tab_src,
+                    "browser": kind,
                     "page_url": v.get("page_url"),
                     "focused": v.get("focused"),
                     "os_cursor_used": false,
@@ -954,6 +1007,8 @@ struct BrowserExtractReq {
     selector: String,
     #[serde(default)]
     tab_id: Option<String>,
+    #[serde(default)]
+    browser: Option<String>,
 }
 fn default_extract_selector() -> String {
     "a".into()
@@ -981,11 +1036,14 @@ async fn browser_extract(
     }
     let mut params = json!({"selector": req.selector});
     // Prefer last observe tab; never substitute the first page in the other browser.
-    let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+    let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+        Ok(v) => v,
+        Err(e) => return err_response(e),
+    };
     if let Some(id) = tab.as_deref() {
         params["tab_id"] = json_tab_param(id);
     }
-    match extension_dom_call(&state, "extract", params, 8).await {
+    match extension_dom_call_for(&state, "extract", params, 8, kind).await {
         Ok(v) => {
             let matches = v.get("matches").cloned().unwrap_or(json!([]));
             let count = v.get("count").and_then(|x| x.as_u64()).unwrap_or_else(|| {
@@ -998,6 +1056,7 @@ async fn browser_extract(
                 "source": "extension_dom",
                 "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab.clone())),
                 "tab_id_source": tab_src,
+                "browser": kind,
                 "selector": req.selector,
                 "page_url": v.get("page_url"),
                 "focused": v.get("focused"),
@@ -3140,7 +3199,8 @@ async fn observe_via_lens(
             Some("chrome") => n.contains("chrome") && !n.contains("edge"),
             _ => true,
         }
-    }).or(users.first());
+    });
+    let user = if kind.is_some() { user } else { user.or(users.first()) };
     let app_id = user
         .map(|u| format!("proc:{}:{}", u.name.replace(' ', "_"), u.pid))
         .unwrap_or_else(|| format!("proc:{}:lens", kind.unwrap_or("Chrome")));
