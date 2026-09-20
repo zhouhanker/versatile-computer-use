@@ -27,7 +27,7 @@ vcu browser ungroup --tabs <tab_id>,<tab_id>
 1. `vcu browser observe --json` 生成整窗 PNG 和坐标元数据。MCP observe 返回 `type=image`；同轮查看 `vision_handoff.must_view` 指定图片。
 2. 用 `tabs` 确认目标 ID，再用 `extract --tab ID --selector ...` 读取 DOM。默认只定位最后聚焦的用户 HTTP(S) 标签。
 3. 执行唯一 selector 的 click/type；尽量显式传 `--tab`。指定 ID 关闭或失效时直接失败，不换到其他网页。
-4. 再次 observe/extract 检查页面变化；DOM activation 的 `pressed=true` 仅说明动作已派发，不证明保存/导航等业务结果成功。
+4. 无 `--tab` 时，DOM click/type/hover/scroll/extract 在 observe 后 60 秒内绑 last observe 的 `tab_id`（`tab_id_source=last_observe`）；显式 `--tab` 优先。再次 observe/extract 检查页面变化；DOM activation 的 `pressed=true` 仅说明动作已派发，不证明保存/导航等业务结果成功。
 
 ```sh
 vcu browser extract --tab <id> --selector 'a'

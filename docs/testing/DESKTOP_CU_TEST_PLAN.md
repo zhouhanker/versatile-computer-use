@@ -170,6 +170,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-420 | Allowlist process Chrome | **通过** observe `proc:Chrome` allowed 无 AppDenied；`poc_login_state.sh` PASS；`make check` 0。无 SendInput |
 | TC-D-430 | Observe merges extension tabs | **通过** `tabs_source=extension_tabs` tabs=5；HTTP `snapshot_merges_extension_tabs_for_empty_ax_edge`；不是 TC-B-040 |
 | TC-D-440 | Daemon login-state observe | **通过** `/v1/browser/observe` 标 `tab_id`；CLI/MCP 同路径；`poc_login_state.sh` PASS tab_id；`make check` 0 |
+| TC-D-450 | Bind DOM act to last observe | **通过** `tab_id_source=last_observe`；HTTP observe 后 click 无 tab_id 仍打 42；`poc_login_state.sh` PASS |
 
 ## 8. 未通过不得宣称完成
 

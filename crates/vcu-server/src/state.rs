@@ -7,6 +7,7 @@ use vcu_core::{Blackboard, Session, UserConfig, VcuPaths};
 use crate::browser::extension::ExtensionBridge;
 use crate::browser::BrowserBackend;
 use crate::app::{detect_app_backend_with_allowlist, AppBackend};
+use crate::login_state::LastObserve;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -15,6 +16,7 @@ pub struct AppState {
     pub sessions: Arc<RwLock<HashMap<String, SessionSlot>>>,
     pub extension_bridge: ExtensionBridge,
     pub app_backend: Arc<RwLock<Box<dyn AppBackend>>>,
+    pub last_observe: Arc<RwLock<Option<LastObserve>>>,
     pub started_at: chrono::DateTime<chrono::Utc>,
     pub version: String,
 }
@@ -40,6 +42,7 @@ impl AppState {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             extension_bridge: ExtensionBridge::new(),
             app_backend: Arc::new(RwLock::new(detect_app_backend_with_allowlist(allow))),
+            last_observe: Arc::new(RwLock::new(None)),
             started_at: chrono::Utc::now(),
             version: env!("CARGO_PKG_VERSION").to_string(),
         }

@@ -247,12 +247,9 @@ async fn browser_click(
             "selector": selector,
             "dry_run": req.dry_run,
         });
-        if let Some(id) = req.tab_id.as_deref() {
-            if let Ok(n) = id.parse::<i64>() {
-                params["tab_id"] = json!(n);
-            } else {
-                params["tab_id"] = json!(id);
-            }
+        let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+        if let Some(id) = tab.as_deref() {
+            params["tab_id"] = json_tab_param(id);
         }
         match state.extension_bridge.call_timeout("click", params, 8).await {
             Ok(v) => {
@@ -263,7 +260,8 @@ async fn browser_click(
                     "dry_run": req.dry_run,
                     "selector": selector,
                     "source": "extension_dom",
-                    "tab_id": v.get("tab_id").cloned().unwrap_or(json!(req.tab_id)),
+                    "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab)),
+                    "tab_id_source": tab_src,
                     "page_url": v.get("page_url").cloned().unwrap_or(json!(null)),
                     "focused": v.get("focused").cloned().unwrap_or(json!(null)),
                     "os_cursor_used": false,
@@ -281,16 +279,10 @@ async fn browser_click(
         return err_response(VcuError::coded(ErrorCode::InvalidInput, "pixel_y required"));
     };
     let space = req.space.as_deref().unwrap_or("window");
-    let id = if let Some(id) = req.app_id.clone() {
-        id
-    } else {
-        let Some(user) = login.user_browsers.first() else {
-            return err_response(VcuError::coded(
-                ErrorCode::ActionFailed,
-                "no user Chrome/Edge; login-state click needs the user browser window",
-            ));
-        };
-        format!("proc:{}:{}", user.name.replace(' ', "_"), user.pid)
+    let last = state.last_observe.read().await.clone();
+    let id = match login_user_app_id(&login, req.app_id.clone(), last.as_ref()) {
+        Ok(v) => v,
+        Err(e) => return err_response(e),
     };
     let sidecar = state.paths.captures_dir().join("login-latest.json");
     let side = fs::read(&sidecar)
@@ -416,8 +408,12 @@ async fn browser_click(
 }
 
 
-fn login_user_app_id(login: &crate::login_state::LoginBrowserReport, app_id: Option<String>) -> Result<String, VcuError> {
-    if let Some(id) = app_id {
+fn login_user_app_id(
+    login: &crate::login_state::LoginBrowserReport,
+    app_id: Option<String>,
+    last: Option<&crate::login_state::LastObserve>,
+) -> Result<String, VcuError> {
+    if let Some(id) = crate::login_state::bind_app_id(app_id.as_deref(), last, std::time::Instant::now()) {
         return Ok(id);
     }
     let Some(user) = login.user_browsers.first() else {
@@ -427,6 +423,29 @@ fn login_user_app_id(login: &crate::login_state::LoginBrowserReport, app_id: Opt
         ));
     };
     Ok(format!("proc:{}:{}", user.name.replace(' ', "_"), user.pid))
+}
+
+fn json_tab_param(id: &str) -> Value {
+    json!(id)
+}
+
+async fn remember_observe(state: &AppState, app_id: &str, snap: &Value) {
+    let tab_id = snap
+        .get("tab_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    *state.last_observe.write().await = Some(crate::login_state::LastObserve {
+        app_id: app_id.to_string(),
+        tab_id,
+        at: std::time::Instant::now(),
+    });
+}
+
+async fn bound_tab(state: &AppState, explicit: Option<&str>) -> (Option<String>, &'static str) {
+    let last = state.last_observe.read().await.clone();
+    crate::login_state::bind_tab_id(explicit, last.as_ref(), std::time::Instant::now())
 }
 
 #[derive(Deserialize)]
@@ -482,12 +501,9 @@ async fn browser_hover(
         "selector": selector,
         "dry_run": req.dry_run,
     });
-    if let Some(id) = req.tab_id.as_deref() {
-        if let Ok(n) = id.parse::<i64>() {
-            params["tab_id"] = json!(n);
-        } else {
-            params["tab_id"] = json!(id);
-        }
+    let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+    if let Some(id) = tab.as_deref() {
+        params["tab_id"] = json_tab_param(id);
     }
     match state.extension_bridge.call_timeout("hover", params, 8).await {
         Ok(v) => Json(Envelope::ok(json!({
@@ -497,7 +513,8 @@ async fn browser_hover(
             "dry_run": req.dry_run,
             "selector": selector,
             "source": "extension_dom",
-            "tab_id": v.get("tab_id").cloned().unwrap_or(json!(req.tab_id)),
+            "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab)),
+            "tab_id_source": tab_src,
             "page_url": v.get("page_url").cloned().unwrap_or(json!(null)),
             "os_cursor_used": false,
             "never_click_allow": true,
@@ -540,7 +557,9 @@ async fn browser_type(
             "text": req.text.clone().unwrap_or_default(),
             "dry_run": req.dry_run,
         });
-        if let Some(tab) = &req.tab_id { params["tab_id"] = json!(tab); }
+        let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+        if let Some(id) = tab.as_deref() { params["tab_id"] = json_tab_param(id); }
+        let _ = tab_src;
         match state.extension_bridge.call_timeout("type", params, 8).await {
             Ok(v) => {
                 return Json(Envelope::ok(json!({
@@ -550,7 +569,8 @@ async fn browser_type(
                     "dry_run": req.dry_run,
                     "selector": selector,
                     "source": "extension_dom",
-                    "tab_id": v.get("tab_id"),
+                    "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab)),
+                    "tab_id_source": tab_src,
                     "page_url": v.get("page_url"),
                     "focused": v.get("focused"),
                     "os_cursor_used": false,
@@ -564,7 +584,8 @@ async fn browser_type(
     if req.tab_id.is_some() {
         return err_response(VcuError::coded(ErrorCode::InvalidInput, "tab_id requires a DOM selector for type"));
     }
-    let id = match login_user_app_id(&login, req.app_id.clone()) {
+    let last = state.last_observe.read().await.clone();
+    let id = match login_user_app_id(&login, req.app_id.clone(), last.as_ref()) {
         Ok(v) => v,
         Err(e) => return err_response(e),
     };
@@ -647,7 +668,9 @@ async fn browser_scroll(
     });
     if state.extension_bridge.is_polling().await && state.extension_bridge.likely_user_profile().await {
         let mut params = json!({"dy": req.dy, "dry_run": req.dry_run});
-        if let Some(tab) = &req.tab_id { params["tab_id"] = json!(tab); }
+        let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+        if let Some(id) = tab.as_deref() { params["tab_id"] = json_tab_param(id); }
+        body["tab_id_source"] = json!(tab_src);
         match state.extension_bridge.call_timeout("scroll", params, 8).await {
             Ok(v) => {
                 body["scrolled"] = v.get("scrolled").cloned().unwrap_or(json!(false));
@@ -667,7 +690,8 @@ async fn browser_scroll(
     if req.dry_run {
         return Json(Envelope::ok(body)).into_response();
     }
-    let id = match login_user_app_id(&login, req.app_id.clone()) {
+    let last = state.last_observe.read().await.clone();
+    let id = match login_user_app_id(&login, req.app_id.clone(), last.as_ref()) {
         Ok(v) => v,
         Err(e) => return err_response(e),
     };
@@ -708,7 +732,8 @@ async fn browser_wait(
         return err_response(e);
     }
     let login = crate::login_state::inspect_login_browsers();
-    let id = match login_user_app_id(&login, req.app_id.clone()) {
+    let last = state.last_observe.read().await.clone();
+    let id = match login_user_app_id(&login, req.app_id.clone(), last.as_ref()) {
         Ok(v) => v,
         Err(e) => return err_response(e),
     };
@@ -861,10 +886,12 @@ async fn browser_extract(
         ));
     }
     let mut params = json!({"selector": req.selector});
-    // Resolve the focused tab in the extension; never substitute the first page.
-    if let Some(id) = &req.tab_id {
-        params["tab_id"] = json!(id);
+    // Prefer last observe tab; never substitute the first page in the other browser.
+    let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+    if let Some(id) = tab.as_deref() {
+        params["tab_id"] = json_tab_param(id);
     }
+    let _ = tab_src;
     match state.extension_bridge.call_timeout("extract", params, 8).await {
         Ok(v) => {
             let matches = v.get("matches").cloned().unwrap_or(json!([]));
@@ -2740,6 +2767,7 @@ async fn browser_observe(
         };
         return match snapshot_app_json(&state, &snap_req).await {
             Ok(snap) => {
+                remember_observe(&state, id, &snap).await;
                 let user = json!({"id": id});
                 Json(Envelope::ok(observe_envelope(id.to_string(), user, snap, extension_profile))).into_response()
             }
@@ -2782,6 +2810,7 @@ async fn browser_observe(
             VcuError::coded(ErrorCode::ActionFailed, "login-state observe failed")
         }));
     };
+    remember_observe(&state, &id, &snap_body).await;
     Json(Envelope::ok(observe_envelope(id, user, snap_body, extension_profile))).into_response()
 }
 

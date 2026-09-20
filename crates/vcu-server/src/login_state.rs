@@ -508,6 +508,56 @@ pub fn snapshot_has_png(body: &Value) -> bool {
             .unwrap_or(false)
 }
 
+
+pub const LAST_OBSERVE_TTL_SECS: u64 = 60;
+
+#[derive(Debug, Clone)]
+pub struct LastObserve {
+    pub app_id: String,
+    pub tab_id: Option<String>,
+    pub at: std::time::Instant,
+}
+
+impl LastObserve {
+    pub fn fresh(&self, now: std::time::Instant) -> bool {
+        now.saturating_duration_since(self.at).as_secs() < LAST_OBSERVE_TTL_SECS
+    }
+}
+
+/// Explicit tab wins. Else a fresh observe tab. Else the caller keeps implicit last-focused.
+pub fn bind_tab_id(
+    explicit: Option<&str>,
+    last: Option<&LastObserve>,
+    now: std::time::Instant,
+) -> (Option<String>, &'static str) {
+    if let Some(id) = explicit.map(str::trim).filter(|s| !s.is_empty()) {
+        return (Some(id.to_string()), "explicit");
+    }
+    if let Some(last) = last.filter(|l| l.fresh(now)) {
+        if let Some(id) = last
+            .tab_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            return (Some(id.to_string()), "last_observe");
+        }
+    }
+    (None, "implicit")
+}
+
+pub fn bind_app_id(
+    explicit: Option<&str>,
+    last: Option<&LastObserve>,
+    now: std::time::Instant,
+) -> Option<String> {
+    if let Some(id) = explicit.map(str::trim).filter(|s| !s.is_empty()) {
+        return Some(id.to_string());
+    }
+    last.filter(|l| l.fresh(now) && !l.app_id.is_empty())
+        .map(|l| l.app_id.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -752,6 +802,27 @@ mod tests {
         assert_eq!(kept["tabs_source"], "ax_scene");
         assert_eq!(kept["page_url"], "https://from-ax.example/");
         assert!(kept.get("page_url_source").is_none());
+    }
+
+    #[test]
+    fn bind_tab_id_prefers_explicit_then_fresh_observe() {
+        let now = std::time::Instant::now();
+        let last = LastObserve {
+            app_id: "proc:Chrome:1".into(),
+            tab_id: Some("42".into()),
+            at: now,
+        };
+        assert_eq!(bind_tab_id(Some("7"), Some(&last), now), (Some("7".into()), "explicit"));
+        assert_eq!(bind_tab_id(None, Some(&last), now), (Some("42".into()), "last_observe"));
+        assert_eq!(bind_tab_id(None, None, now), (None, "implicit"));
+        let stale = LastObserve {
+            app_id: "proc:Chrome:1".into(),
+            tab_id: Some("42".into()),
+            at: now - std::time::Duration::from_secs(LAST_OBSERVE_TTL_SECS + 1),
+        };
+        assert_eq!(bind_tab_id(None, Some(&stale), now), (None, "implicit"));
+        assert_eq!(bind_app_id(None, Some(&last), now).as_deref(), Some("proc:Chrome:1"));
+        assert!(bind_app_id(None, Some(&stale), now).is_none());
     }
 
 }

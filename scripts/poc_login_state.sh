@@ -26,7 +26,23 @@ assert data.get("never_click_allow") is True
 assert data.get("never_os_cursor") is True
 assert data.get("never_wechat") is True
 INNER
-vcu browser observe --selector "*" --json > /tmp/vcu-observe.json
+for i in 1 2 3 4 5 6 7 8; do
+  vcu browser observe --selector "*" --json > /tmp/vcu-observe.json
+  if python3 - <<'GATE'
+import json
+from pathlib import Path
+d=json.loads(Path("/tmp/vcu-observe.json").read_text())
+data=d.get("data") or d
+snap=data.get("snapshot") or {}
+src=snap.get("tabs_source") or data.get("tabs_source")
+tid=data.get("tab_id") or snap.get("tab_id")
+raise SystemExit(0 if src=="extension_tabs" and tid else 1)
+GATE
+  then
+    break
+  fi
+  sleep 0.4
+done
 vcu browser screenshot --json > /tmp/vcu-observe-shot.json
 python3 - <<'INNER'
 import json
@@ -71,6 +87,24 @@ if tabs_source=="extension_tabs" or obs.get("extension_profile")=="user":
     assert tab_id, "observe must stamp focused extension tab_id"
     print("tab_id", tab_id, "tab_id_source", snap.get("tab_id_source") or obs.get("tab_id_source"), "ext", obs.get("extension_profile"))
 print("PASS login-state observe hud=false scale", scale, "png_bytes", png.stat().st_size, "source", sdata.get("source"))
+INNER
+
+vcu browser click --selector body --dry-run --json > /tmp/vcu-click-obs.json
+python3 - <<'INNER'
+import json
+from pathlib import Path
+obs=json.loads(Path("/tmp/vcu-observe.json").read_text())
+odata=obs.get("data") or obs
+want=str(odata.get("tab_id") or (odata.get("snapshot") or {}).get("tab_id") or "")
+d=json.loads(Path("/tmp/vcu-click-obs.json").read_text())
+data=d.get("data") or d
+assert data.get("source")=="extension_dom"
+assert data.get("dry_run") is True
+assert data.get("pressed") is False
+got=str(data.get("tab_id") or "")
+assert got==want, (got, want, data.get("tab_id_source"))
+assert data.get("tab_id_source")=="last_observe"
+print("PASS login-state click selector bound to observe tab", got, "source", data.get("tab_id_source"))
 INNER
 
 vcu browser click --pixel-x 0 --pixel-y 0 --space webview --dry-run --guide > /tmp/vcu-click-map.json
