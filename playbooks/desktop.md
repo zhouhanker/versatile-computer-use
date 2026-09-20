@@ -30,7 +30,7 @@ Windows hover then click（CU-D-260，CI）：先 hover 再 `vcu click`，仍是
 
 Windows doctor（CU-D-270）：`vcu doctor` 的 `windows_desktop_scope` 为 warn，写明 CI 切片不是产品 Windows CU；`app_backend` 写 wm_settext/bm_click，不是 AXPress。
 
-MCP（CU-D-280 tools/list；CU-D-290/300/310/320/330/340/350/360/370/380 CI live）：`vcu_hover` → `guide_hover`；`vcu_click` → `bm_click`；`vcu_wait` → `scene_wait`；wait miss → `ActionFailed` timed out；`vcu_type` 无换行 → `wm_settext`（Notepad）；cmd 含换行 type → `FocusPolicyViolation`；`vcu_scroll` → `wm_vscroll`；`vcu_extract` 读回 Scene 值；`vcu_screenshot` → PrintWindow PNG；`vcu_act` key return 无 confirm_send → `FocusPolicyViolation`；`vcu_session_abort` 拆 HUD。不要把 `vcu_session_stop` 当成 Escape abort。live `vcu_doctor` 是 CU-D-390，尚未宣称。
+MCP（CU-D-280 tools/list；CU-D-290/300/310/320/330/340/350/360/370/380/390 CI live）：`vcu_hover` → `guide_hover`；`vcu_click` → `bm_click`；`vcu_wait` → `scene_wait`；wait miss → `ActionFailed` timed out；`vcu_type` 无换行 → `wm_settext`（Notepad）；cmd 含换行 type → `FocusPolicyViolation`；`vcu_scroll` → `wm_vscroll`；`vcu_extract` 读回 Scene 值；`vcu_screenshot` → PrintWindow PNG；`vcu_act` key return 无 confirm_send → `FocusPolicyViolation`；`vcu_doctor` `windows_desktop_scope` warn（不是产品 CU）；`vcu_session_abort` 拆 HUD。不要把 `vcu_session_stop` 当成 Escape abort。双浏览器 live 是 CU-D-400，尚未宣称。
 
 真机脚本：`scripts/poc_desktop_textedit.sh`（CU-D-023，文档必须出现标记才算过）。
 

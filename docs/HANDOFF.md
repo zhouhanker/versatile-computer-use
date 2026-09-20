@@ -1,11 +1,11 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-380 CI 已过。下一刀 CU-D-390。
+更新：2026-09-20。CU-D-390 CI 已过。下一刀 CU-D-400。
 
 ## 本轮
 
-- 380：run `35482614685` @ `27aa24d` `WAIT_MISS_OK via=mcp_tools_call` / `WAIT_REF_MISS_OK via=mcp_tools_call` / `CU-D-380 OK`。
+- 390：run `35483037087` @ `8304b65` `SCOPE_OK via=mcp_tools_call` / `BACKEND_OK via=mcp_tools_call` / `STAGE_OK via=mcp_tools_call` / `CU-D-390 OK`。
 
 ## 下一刀
 
-CU-D-390：MCP `tools/call` live `vcu_doctor` 诚实 Windows 范围。先写进 ROADMAP（已写）再写代码。不要 claim MAC-NEXT / FEISHU-001。
+CU-D-400：双浏览器 live Chrome lens hello + tabs 合并。先写进 ROADMAP（已写）再写代码。不要动用户组 1/3。不要 claim MAC-NEXT / FEISHU-001。
