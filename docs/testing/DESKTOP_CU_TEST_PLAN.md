@@ -172,6 +172,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-440 | Daemon login-state observe | **通过** `/v1/browser/observe` 标 `tab_id`；CLI/MCP 同路径；`poc_login_state.sh` PASS tab_id；`make check` 0 |
 | TC-D-450 | Bind DOM act to last observe | **通过** `tab_id_source=last_observe`；HTTP observe 后 click 无 tab_id 仍打 42；`poc_login_state.sh` PASS |
 | TC-D-460 | Target lens by observe browser | **通过** `browser_hint_targets_client_when_tab_unknown`；重启 daemon 后 selector click 无 wrong_extension_browser |
+| TC-D-470 | Screenshot binds last observe | **通过** HTTP screenshot tab_id=42 `tab_id_source=last_observe`；poc screenshot tab 与 observe 相同 |
 
 ## 8. 未通过不得宣称完成
 

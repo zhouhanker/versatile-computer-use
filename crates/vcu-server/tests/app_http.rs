@@ -197,6 +197,15 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!(null));
                     json!({"ok": true, "pressed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab, "page_url": "https://edge.example/live", "focused": true})
                 }
+                "capture_tab" => {
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    json!({
+                        "ok": true,
+                        "tab_id": tab,
+                        "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                        "viewport": {"document_id": "doc-1", "width": 100.0, "height": 80.0}
+                    })
+                }
                 _ => json!({"ok": false, "error": method}),
             };
             let _ = c
@@ -255,6 +264,19 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(clicked["data"]["source"], "extension_dom");
     assert_eq!(clicked["data"]["tab_id"], "42");
     assert_eq!(clicked["data"]["tab_id_source"], "last_observe");
+
+    let shot: serde_json::Value = auth(client.post(format!("{base}/v1/browser/screenshot")))
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(shot["ok"], true, "{shot}");
+    assert_eq!(shot["data"]["source"], "extension_viewport");
+    assert_eq!(shot["data"]["tab_id"], "42");
+    assert_eq!(shot["data"]["tab_id_source"], "last_observe");
     poller.abort();
 
     let textedit: serde_json::Value = auth(client.post(format!("{base}/v1/app/snapshot")))

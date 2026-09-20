@@ -1023,8 +1023,11 @@ async fn browser_screenshot(State(state): State<Arc<AppState>>, headers: HeaderM
     if let Err(e) = require_auth(&headers, &state).await { return err_response(e); }
     if let Err(e) = user_extension_ready(&state).await { return err_response(e); }
     let mut params = json!({});
-    if let Some(tab) = &req.tab_id { params["tab_id"] = json!(tab); }
-    let mut result = match state.extension_bridge.call_timeout("capture_tab", params, 8).await {
+    let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+    if let Some(id) = tab.as_deref() {
+        params["tab_id"] = json_tab_param(id);
+    }
+    let mut result = match extension_dom_call(&state, "capture_tab", params, 8).await {
         Ok(v) => v, Err(e) => return err_response(e),
     };
     let invalid = || VcuError::coded(ErrorCode::ActionFailed, "extension screenshot must contain a PNG and bound viewport metadata");
@@ -1058,6 +1061,7 @@ async fn browser_screenshot(State(state): State<Arc<AppState>>, headers: HeaderM
     result["screenshot_height"] = json!(height);
     result["coordinate_space"] = json!("viewport");
     result["source"] = json!("extension_viewport");
+    result["tab_id_source"] = json!(tab_src);
     result["vision_handoff"] = json!({"must_view": [path], "serial":true, "rule":"View this image before clicking. Use its capture_id and space=viewport; captures expire after 60s and a real click consumes the capture."});
     Json(Envelope::ok(result)).into_response()
 }

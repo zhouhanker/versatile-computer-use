@@ -55,6 +55,12 @@ shot=json.loads(Path("/tmp/vcu-observe-shot.json").read_text())
 sdata=shot.get("data") or shot
 assert shot.get("ok") is True or sdata.get("ok") is True
 assert sdata.get("source") == "extension_viewport" or sdata.get("screenshot_path")
+obs_tab=str((json.loads(Path("/tmp/vcu-observe.json").read_text()).get("data") or {}).get("tab_id") or "")
+shot_tab=str(sdata.get("tab_id") or "")
+if obs_tab:
+    assert shot_tab==obs_tab, (shot_tab, obs_tab, sdata.get("tab_id_source"))
+    assert sdata.get("tab_id_source")=="last_observe"
+    print("screenshot tab_id", shot_tab, "source", sdata.get("tab_id_source"))
 vh=(data.get("snapshot") or {}).get("vision_handoff") or data.get("vision_handoff") or sdata.get("vision_handoff") or {}
 must=vh.get("must_view") or []
 png_path=sdata.get("screenshot_path")
