@@ -2880,11 +2880,25 @@ async fn observe_via_lens(
         let kind = kind_from_tab(&tab).or_else(|| kind_from_frontmost(frontmost.as_deref()));
         (tab, kind)
     } else {
-        let kind = kind_from_frontmost(frontmost.as_deref());
-        let tab = focused_extension_tab(&tabs_v, kind).ok_or_else(|| {
-            VcuError::coded(ErrorCode::ActionFailed, "no focused USER tab for observe")
+        let kind = kind_from_frontmost(frontmost.as_deref()).ok_or_else(|| {
+            VcuError::coded(
+                ErrorCode::InvalidInput,
+                "frontmost is not USER Chrome/Edge; pass observe --tab",
+            )
         })?;
-        (tab, kind)
+        let tab = focused_extension_tab(&tabs_v, Some(kind)).ok_or_else(|| {
+            VcuError::coded(
+                ErrorCode::ActionFailed,
+                "no focused USER tab for observe; pass --tab",
+            )
+        })?;
+        if kind_from_tab(&tab) != Some(kind) || !tab_is_visible(&tab) {
+            return Err(VcuError::coded(
+                ErrorCode::ActionFailed,
+                "no focused USER tab for observe; pass --tab",
+            ));
+        }
+        (tab, Some(kind))
     };
     let tab_id = json_tab_id_value(&tab).ok_or_else(|| {
         VcuError::coded(ErrorCode::ActionFailed, "observe tab missing tab_id")
@@ -3071,6 +3085,7 @@ async fn browser_observe(
     {
         match observe_via_lens(&state, extension_profile, pixels, None).await {
             Ok(env) => return Json(Envelope::ok(env)).into_response(),
+            Err(e) if e.code() == ErrorCode::InvalidInput => return err_response(e),
             Err(_) => {}
         }
     }

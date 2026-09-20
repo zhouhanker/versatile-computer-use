@@ -271,6 +271,22 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(observed["data"]["tabs_source"], "extension_tabs");
     assert_eq!(observed["data"]["snapshot"]["tab_id"], "42");
 
+    vcu_server::login_state::set_frontmost_user_browser_override(None);
+    let missing_front: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
+        .json(&json!({"pixels": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(missing_front["ok"], false, "{missing_front}");
+    assert_eq!(missing_front["error"]["code"], "InvalidInput", "{missing_front}");
+    let miss_msg = missing_front["error"]["message"].as_str().unwrap_or("");
+    assert!(miss_msg.contains("frontmost is not USER Chrome/Edge"), "{missing_front}");
+    assert!(miss_msg.contains("observe --tab"), "{missing_front}");
+
+    vcu_server::login_state::set_frontmost_user_browser_override(Some("Microsoft Edge"));
     let lens_obs: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true}))
         .send()
@@ -360,6 +376,7 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(targeted_click["ok"], true, "{targeted_click}");
     assert_eq!(targeted_click["data"]["source"], "extension_dom");
     assert_eq!(targeted_click["data"]["tab_id"], "99");
+    vcu_server::login_state::clear_frontmost_user_browser_override();
     poller.abort();
 
     let textedit: serde_json::Value = auth(client.post(format!("{base}/v1/app/snapshot")))

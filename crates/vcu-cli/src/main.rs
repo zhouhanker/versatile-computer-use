@@ -368,7 +368,7 @@ enum BrowserCmd {
         #[arg(long)]
         from: Option<String>,
     },
-    /// Observe USER Chrome/Edge without Stage HUD. Stamps tab_id; later click/screenshot/open bind it for 60s.
+    /// Observe USER Chrome/Edge without Stage HUD. Without --tab, frontmost must be Chrome/Edge. Stamps tab_id; later click/screenshot/open bind it for 60s.
     Observe {
         #[arg(long, default_value_t = true)]
         pixels: bool,

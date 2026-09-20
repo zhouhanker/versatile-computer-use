@@ -397,8 +397,24 @@ pub fn browser_name_is_frontmost(name: &str, frontmost: &str) -> bool {
     n == f
 }
 
+static FRONTMOST_OVERRIDE: std::sync::Mutex<Option<Option<String>>> = std::sync::Mutex::new(None);
+
+/// Test helper. `None` forces "frontmost is not a USER browser". Clear after the test.
+pub fn set_frontmost_user_browser_override(name: Option<&str>) {
+    *FRONTMOST_OVERRIDE.lock().unwrap() = Some(name.map(|s| s.to_string()));
+}
+
+pub fn clear_frontmost_user_browser_override() {
+    *FRONTMOST_OVERRIDE.lock().unwrap() = None;
+}
+
 /// macOS frontmost app if it is USER Chrome/Edge. Never sets frontmost.
 pub fn frontmost_user_browser_name() -> Option<String> {
+    if let Ok(guard) = FRONTMOST_OVERRIDE.lock() {
+        if let Some(over) = guard.as_ref() {
+            return over.clone();
+        }
+    }
     #[cfg(target_os = "macos")]
     {
         let out = std::process::Command::new("osascript")

@@ -205,6 +205,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-570 | lens observe without AX walk | **完成（真机）** observe dt=0.49s `tabs_source=extension_tabs`。无 SendInput。 |
 | CU-D-580 | observe capture_id viewport click | **完成（真机）** observe capture 可 dry-run viewport click。无 SendInput。 |
 | CU-D-590 | observe --tab live viewport click | **完成（真机）** `observe --tab` 激活抛页且不抢 OS 前台；live capture click `#hit` 0→1。`poc_cu_d_590.py` OK。组 1/3 未动。不是 TC-B-040。无 SendInput。 |
+| CU-D-600 | observe requires frontmost browser or --tab | **完成（真机）** 前台非 USER Chrome/Edge 时无 `--tab` 的 observe 失败；`--tab` 仍可用。`poc_cu_d_600.py` OK。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -273,6 +274,7 @@ CU-D-000 文档
     → CU-D-570 lens observe without AX walk
     → CU-D-580 observe capture_id viewport click
     → CU-D-590 observe --tab live viewport click
+    → CU-D-600 observe requires frontmost browser or --tab
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

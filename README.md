@@ -73,7 +73,7 @@ vcu browser ping --json
 ```bash
 vcu browser login-state
 vcu browser tabs --json
-vcu browser observe --json
+vcu browser observe --json          # 前台须为 Chrome 或 Edge
 vcu browser observe --tab <id> --json
 vcu browser select --tab <id>
 vcu browser open --url https://example.com --background
