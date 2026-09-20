@@ -728,7 +728,9 @@ async function selectTab(params) {
       const group = await findGroup(groupId);
       if (group && group.collapsed) await chrome.tabGroups.update(groupId, { collapsed: false });
     }
-    await chrome.windows.update(tab.windowId, { focused: true });
+    if (params.focus_window !== false) {
+      await chrome.windows.update(tab.windowId, { focused: true });
+    }
     await chrome.tabs.update(id, { active: true });
   } catch (e) {
     return { ok: false, error: "select tab: " + String(e) };

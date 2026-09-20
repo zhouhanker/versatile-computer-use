@@ -376,6 +376,9 @@ enum BrowserCmd {
         selector: Option<String>,
         #[arg(long, default_value_t = 2500)]
         budget: u64,
+        /// Capture this USER tab. Activates it in-window without stealing OS frontmost.
+        #[arg(long)]
+        tab: Option<String>,
     },
     /// Capture a USER tab viewport PNG. Without --tab, uses last observe tab for 60s.
     Screenshot {
@@ -1098,10 +1101,14 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 pixels,
                 selector,
                 budget,
+                tab,
             } => {
                 let mut body = json!({"pixels": pixels, "budget": budget});
                 if let Some(sel) = selector {
                     body["selector"] = json!(sel);
+                }
+                if let Some(t) = tab {
+                    body["tab_id"] = json!(t);
                 }
                 let v = api_post(&paths, "/v1/browser/observe", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());

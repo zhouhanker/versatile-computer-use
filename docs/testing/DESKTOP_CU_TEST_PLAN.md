@@ -184,6 +184,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-560 | health/init observe-bind copy | **通过** health click 含 selector、无 pixel-x；init next 含 observe、无 tabs-then-screenshot；`scripts/poc_cu_d_560.py` CU-D-560 OK |
 | TC-D-570 | lens observe without AX walk | **通过** dt=0.49s extension_tabs 无 elements；`scripts/poc_cu_d_570.py` CU-D-570 OK。组 1/3 未动 |
 | TC-D-580 | observe capture_id viewport click | **通过** dry-run viewport click source=extension_dom；`scripts/poc_cu_d_580.py` CU-D-580 OK。组 1/3 未动 |
+| TC-D-590 | observe --tab live viewport click | **通过** 抛页 `#hit` 0→1，`observe --tab` source=extension_viewport，live click source=extension_dom os_cursor_used=false；`scripts/poc_cu_d_590.py` CU-D-590 OK。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 

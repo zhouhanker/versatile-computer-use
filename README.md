@@ -88,6 +88,8 @@ vcu browser ping --json    # 必须 pong；version 应为本 README 中的 Bridg
 ```bash
 vcu browser login-state
 vcu browser tabs --json
+vcu browser observe --json
+vcu browser observe --tab <id> --json   # 指定标签，不抢 OS 前台
 vcu browser select --tab <id>
 
 # 默认：现有窗口的新标签。只要独立窗口时才加 --new-window

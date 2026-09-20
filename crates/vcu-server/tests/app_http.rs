@@ -189,10 +189,21 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                         "active": true,
                         "focused": true,
                         "browser": "edge"
+                    }, {
+                        "tab_id": "99",
+                        "title": "edge-other",
+                        "url": "https://edge.example/other",
+                        "active": false,
+                        "focused": false,
+                        "browser": "edge"
                     }],
                     "groups": [],
                     "source": "extension_tabs"
                 }),
+                "select_tab" => {
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("99"));
+                    json!({"ok": true, "tab_id": tab, "source": "extension_tabs", "focused": false})
+                }
                 "click" => {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!(null));
                     json!({"ok": true, "pressed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab, "page_url": "https://edge.example/live", "focused": true})
@@ -324,6 +335,31 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(extracted["data"]["source"], "extension_dom");
     assert_eq!(extracted["data"]["tab_id"], "42");
     assert_eq!(extracted["data"]["tab_id_source"], "last_observe");
+
+    let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
+        .json(&json!({"pixels": true, "tab_id": "99"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(targeted["ok"], true, "{targeted}");
+    assert_eq!(targeted["data"]["tab_id"], "99");
+    assert_eq!(targeted["data"]["tabs_source"], "extension_tabs");
+    let targeted_capture = targeted["data"]["capture_id"].as_str().unwrap();
+    assert_eq!(targeted_capture.len(), 26, "{targeted}");
+    let targeted_click: serde_json::Value = auth(client.post(format!("{base}/v1/browser/click")))
+        .json(&json!({"space":"viewport","capture_id":targeted_capture,"pixel_x":0.0,"pixel_y":0.0,"dry_run":true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(targeted_click["ok"], true, "{targeted_click}");
+    assert_eq!(targeted_click["data"]["source"], "extension_dom");
+    assert_eq!(targeted_click["data"]["tab_id"], "99");
     poller.abort();
 
     let textedit: serde_json::Value = auth(client.post(format!("{base}/v1/app/snapshot")))

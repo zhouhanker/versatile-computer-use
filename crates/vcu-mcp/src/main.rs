@@ -128,12 +128,13 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_browser_login_state", "Classify user vs empty Agent browser. Login-state is the USER window, not ~/.vcu/edge-agent-profile.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_next", "Next login-state action only (load unpacked / observe). Never clicks Allow.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_install_lens", "Copy VCU extension to ~/.vcu/lens-extension. Optional reload hot-restarts every connected Edge/Chrome SW. Does not click UI or Allow.", json!({"type":"object","properties":{"reload":{"type":"boolean","default":false}}})),
-        tool("vcu_browser_observe", "Observe USER Chrome/Edge without Stage HUD. Walks all user browsers; stamps focused tab_id from extension_tabs. Returns PNG plus JSON (vision_handoff.must_view). Look at the image before clicking.", json!({
+        tool("vcu_browser_observe", "Observe USER Chrome/Edge without Stage HUD. Default: focused tab of frontmost USER Chrome/Edge. Optional tab_id captures that tab (activates in-window, does not steal OS frontmost). Returns PNG plus JSON (vision_handoff.must_view). Look at the image before clicking.", json!({
             "type":"object",
             "properties":{
                 "pixels":{"type":"boolean","default":true},
                 "selector":{"type":"string","description":"Scene extract filter; default *"},
-                "budget":{"type":"integer","default":2500}
+                "budget":{"type":"integer","default":2500},
+                "tab_id":{"type":"string","description":"Exact USER tab to capture; does not steal OS frontmost"}
             }
         })),
         tool("vcu_browser_screenshot", "Capture a USER tab viewport as PNG. Without tab_id, uses last observe tab for 60s. View image before click with space=viewport and capture_id. Expires in 60s; real click consumes capture.", json!({"type":"object","properties":{"tab_id":{"type":"string"}}})),

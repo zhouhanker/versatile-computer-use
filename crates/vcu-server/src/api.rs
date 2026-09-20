@@ -2771,6 +2771,8 @@ struct BrowserObserveReq {
     #[serde(default)]
     id: Option<String>,
     #[serde(default)]
+    tab_id: Option<String>,
+    #[serde(default)]
     pixels: Option<bool>,
     #[serde(default)]
     selector: Option<String>,
@@ -2814,6 +2816,26 @@ fn json_tab_id_value(tab: &Value) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+fn find_extension_tab(tabs: &Value, want: &str) -> Option<Value> {
+    let arr = tabs.get("tabs")?.as_array()?;
+    arr.iter()
+        .find(|t| json_tab_id_value(t).as_deref() == Some(want))
+        .cloned()
+}
+
+fn kind_from_tab(tab: &Value) -> Option<&'static str> {
+    match tab.get("browser").and_then(Value::as_str) {
+        Some("edge") => Some("edge"),
+        Some("chrome") => Some("chrome"),
+        _ => None,
+    }
+}
+
+fn tab_is_visible(tab: &Value) -> bool {
+    tab.get("active").and_then(Value::as_bool).unwrap_or(false)
+        || tab.get("focused").and_then(Value::as_bool).unwrap_or(false)
+}
+
 fn focused_extension_tab(tabs: &Value, kind: Option<&str>) -> Option<Value> {
     let arr = tabs.get("tabs")?.as_array()?;
     let matches_kind = |t: &Value| match kind {
@@ -2845,17 +2867,43 @@ async fn observe_via_lens(
     state: &AppState,
     extension_profile: &str,
     pixels: bool,
+    want_tab: Option<&str>,
 ) -> Result<Value, VcuError> {
     user_extension_ready(state).await?;
     let frontmost = crate::login_state::frontmost_user_browser_name();
-    let kind = kind_from_frontmost(frontmost.as_deref());
-    let tabs_v = state.extension_bridge.list_tabs_merged().await?;
-    let tab = focused_extension_tab(&tabs_v, kind).ok_or_else(|| {
-        VcuError::coded(ErrorCode::ActionFailed, "no focused USER tab for observe")
-    })?;
+    let mut tabs_v = state.extension_bridge.list_tabs_merged().await?;
+    let requested = want_tab.map(str::trim).filter(|s| !s.is_empty());
+    let (mut tab, kind) = if let Some(want) = requested {
+        let tab = find_extension_tab(&tabs_v, want).ok_or_else(|| {
+            VcuError::coded(ErrorCode::ActionFailed, "observe tab not found")
+        })?;
+        let kind = kind_from_tab(&tab).or_else(|| kind_from_frontmost(frontmost.as_deref()));
+        (tab, kind)
+    } else {
+        let kind = kind_from_frontmost(frontmost.as_deref());
+        let tab = focused_extension_tab(&tabs_v, kind).ok_or_else(|| {
+            VcuError::coded(ErrorCode::ActionFailed, "no focused USER tab for observe")
+        })?;
+        (tab, kind)
+    };
     let tab_id = json_tab_id_value(&tab).ok_or_else(|| {
-        VcuError::coded(ErrorCode::ActionFailed, "focused tab missing tab_id")
+        VcuError::coded(ErrorCode::ActionFailed, "observe tab missing tab_id")
     })?;
+    if requested.is_some() && !tab_is_visible(&tab) {
+        state
+            .extension_bridge
+            .call_timeout_hinted(
+                "select_tab",
+                json!({"tab_id": tab_id, "focus_window": false}),
+                8,
+                kind,
+            )
+            .await?;
+        tabs_v = state.extension_bridge.list_tabs_merged().await?;
+        if let Some(fresh) = find_extension_tab(&tabs_v, &tab_id) {
+            tab = fresh;
+        }
+    }
     let report = crate::login_state::inspect_login_browsers();
     let users = crate::login_state::order_user_browsers_frontmost_first(
         report.user_browsers.clone(),
@@ -2981,6 +3029,26 @@ async fn browser_observe(
     } else {
         report.extension_profile
     };
+    let want_tab = req
+        .tab_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let lens_ready = state.extension_bridge.is_polling().await
+        && state.extension_bridge.likely_user_profile().await;
+    if let Some(tab) = want_tab.as_deref() {
+        if !lens_ready {
+            return err_response(VcuError::coded(
+                ErrorCode::ExtensionDisconnected,
+                "observe --tab needs USER lens polling",
+            ));
+        }
+        return match observe_via_lens(&state, extension_profile, pixels, Some(tab)).await {
+            Ok(env) => Json(Envelope::ok(env)).into_response(),
+            Err(e) => err_response(e),
+        };
+    }
     if let Some(id) = req.id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         let snap_req = AppSnapshotReq {
             id: id.to_string(),
@@ -3001,7 +3069,7 @@ async fn browser_observe(
         && state.extension_bridge.is_polling().await
         && state.extension_bridge.likely_user_profile().await
     {
-        match observe_via_lens(&state, extension_profile, pixels).await {
+        match observe_via_lens(&state, extension_profile, pixels, None).await {
             Ok(env) => return Json(Envelope::ok(env)).into_response(),
             Err(_) => {}
         }

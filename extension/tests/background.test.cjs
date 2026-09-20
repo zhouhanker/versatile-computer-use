@@ -248,6 +248,23 @@ test("list tabs exposes native group metadata and select_tab expands and focuses
   assert.equal(state.focusedWindowId, 2);
 });
 
+test("select_tab can activate without stealing OS window focus", async () => {
+  const { api, state } = makeHarness({
+    focusedWindowId: 1,
+    tabs: [
+      { id: 10, windowId: 1, url: "https://one.example/", active: true },
+      { id: 11, windowId: 2, url: "https://two.example/", active: false },
+    ],
+  });
+  const selected = await api.handleCommand({ method: "select_tab", params: { tab_id: "11", focus_window: false } });
+  assert.equal(selected.ok, true, selected.error);
+  assert.equal(selected.tab_id, "11");
+  assert.equal(state.focusedWindowId, 1);
+  const updates = state.calls.filter((c) => c.method === "windows.update");
+  assert.equal(updates.length, 0);
+  assert.equal(state.tabs.find((t) => t.id === 11).active, true);
+});
+
 test("select_tab rejects restricted browser pages", async () => {
   const { api } = makeHarness({ tabs: [{ id: 1, windowId: 1, url: "chrome://settings/", active: true }] });
   const result = await api.handleCommand({ method: "select_tab", params: { tab_id: "1" } });
