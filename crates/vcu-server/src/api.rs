@@ -2634,6 +2634,13 @@ async fn app_snapshot(
                 }
                 stamp_vision_handoff(&mut body);
             }
+            if crate::login_state::browser_kind_from_app_id(&req.id).is_some()
+                && state.extension_bridge.is_polling().await
+            {
+                if let Ok(tabs) = state.extension_bridge.list_tabs_merged().await {
+                    crate::login_state::merge_extension_tabs_into_scene(&mut body, &req.id, &tabs);
+                }
+            }
             Json(Envelope::ok(body)).into_response()
         }
         Err(e) => err_response(e),

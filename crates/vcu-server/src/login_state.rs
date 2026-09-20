@@ -3,6 +3,7 @@
 //! Never click Chromium "Allow debugging".
 
 use serde::Serialize;
+use serde_json::{json, Value};
 use vcu_core::{ErrorCode, TabInfo, VcuError, VcuResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -367,6 +368,97 @@ pub fn plan_login_key(key: &str, confirm_send: bool, has_send_ref: bool) -> VcuR
     }
 }
 
+/// Map a desktop app id (`proc:Chrome:123`) to an extension browser kind.
+pub fn browser_kind_from_app_id(id: &str) -> Option<&'static str> {
+    let s = id.to_ascii_lowercase();
+    if s.contains("wechat") || s.contains("微信") {
+        return None;
+    }
+    if s.contains("edge") {
+        return Some("edge");
+    }
+    if s.contains("chrome") {
+        return Some("chrome");
+    }
+    None
+}
+
+fn http_url(v: &Value) -> Option<String> {
+    v.as_str()
+        .filter(|u| u.starts_with("http://") || u.starts_with("https://"))
+        .map(|s| s.to_string())
+}
+
+fn tab_is_active(t: &Value) -> bool {
+    t.get("active").and_then(Value::as_bool).unwrap_or(false)
+        || t.get("selected").and_then(Value::as_bool).unwrap_or(false)
+        || t.get("focused").and_then(Value::as_bool).unwrap_or(false)
+}
+
+/// Fill empty AX tabs/url from the extension list. Never writes `source=extension_dom`
+/// and never mutates AX `elements` (webpage clicks stay on the DOM lens).
+pub fn merge_extension_tabs_into_scene(body: &mut Value, app_id: &str, ext: &Value) {
+    let Some(kind) = browser_kind_from_app_id(app_id) else {
+        return;
+    };
+    let Some(all) = ext.get("tabs").and_then(Value::as_array) else {
+        return;
+    };
+    let browsers = ext
+        .get("browsers")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let only_kind = browsers.len() == 1 && browsers[0].as_str() == Some(kind);
+    let filtered: Vec<Value> = all
+        .iter()
+        .filter(|t| match t
+            .get("browser")
+            .and_then(Value::as_str)
+            .map(|s| s.to_ascii_lowercase())
+        {
+            Some(b) if !b.is_empty() => b == kind,
+            _ => only_kind,
+        })
+        .cloned()
+        .collect();
+    if filtered.is_empty() {
+        return;
+    }
+    body["scene_source"] = json!("ax_scene");
+    let ax_tabs_empty = body
+        .get("tabs")
+        .and_then(Value::as_array)
+        .map(|a| a.is_empty())
+        .unwrap_or(true);
+    if ax_tabs_empty {
+        body["tabs"] = json!(filtered.clone());
+        body["tabs_source"] = json!("extension_tabs");
+    } else if body.get("tabs_source").is_none() {
+        body["tabs_source"] = json!("ax_scene");
+    }
+    let ax_url_empty = body
+        .get("page_url")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .is_empty();
+    if ax_url_empty {
+        let url = filtered
+            .iter()
+            .find(|t| tab_is_active(t))
+            .and_then(|t| http_url(t.get("url").unwrap_or(&Value::Null)))
+            .or_else(|| {
+                filtered
+                    .iter()
+                    .find_map(|t| http_url(t.get("url").unwrap_or(&Value::Null)))
+            });
+        if let Some(url) = url {
+            body["page_url"] = json!(url);
+            body["page_url_source"] = json!("extension_tabs");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -554,4 +646,57 @@ mod tests {
         assert!(r.never_os_cursor);
         assert!(r.never_wechat);
     }
+
+
+    #[test]
+    fn browser_kind_from_app_id_maps_chrome_and_edge() {
+        assert_eq!(browser_kind_from_app_id("proc:Chrome:51370"), Some("chrome"));
+        assert_eq!(browser_kind_from_app_id("proc:Google_Chrome:1"), Some("chrome"));
+        assert_eq!(browser_kind_from_app_id("proc:Microsoft_Edge:10"), Some("edge"));
+        assert_eq!(browser_kind_from_app_id("proc:TextEdit:1"), None);
+        assert_eq!(browser_kind_from_app_id("proc:WeChat:2"), None);
+    }
+
+    #[test]
+    fn merge_extension_tabs_fills_empty_ax_chrome_scene() {
+        let ext = json!({
+            "tabs": [
+                {"tab_id":"1","url":"https://chrome.example/","title":"c","active":true,"browser":"chrome"},
+                {"tab_id":"2","url":"https://edge.example/","title":"e","active":true,"browser":"edge"}
+            ],
+            "browsers": ["chrome","edge"]
+        });
+        let mut body = json!({"tabs":[], "page_url": null, "elements":[{"ref":"e_web"}]});
+        merge_extension_tabs_into_scene(&mut body, "proc:Chrome:9", &ext);
+        assert_eq!(body["tabs"].as_array().unwrap().len(), 1);
+        assert_eq!(body["tabs"][0]["tab_id"], "1");
+        assert_eq!(body["tabs_source"], "extension_tabs");
+        assert_eq!(body["page_url"], "https://chrome.example/");
+        assert_eq!(body["page_url_source"], "extension_tabs");
+        assert_eq!(body["scene_source"], "ax_scene");
+        assert_eq!(body["elements"].as_array().unwrap().len(), 1);
+        assert!(body.get("source").is_none());
+    }
+
+    #[test]
+    fn merge_extension_tabs_does_not_overwrite_ax_or_cross_browser() {
+        let ext = json!({
+            "tabs": [
+                {"tab_id":"1","url":"https://chrome.example/","active":true,"browser":"chrome"}
+            ],
+            "browsers": ["chrome"]
+        });
+        let mut edge = json!({"tabs":[], "page_url": Value::Null});
+        merge_extension_tabs_into_scene(&mut edge, "proc:Microsoft_Edge:10", &ext);
+        assert!(edge.get("tabs").and_then(|t| t.as_array()).map(|a| a.is_empty()).unwrap_or(true));
+        assert!(edge.get("tabs_source").is_none());
+
+        let mut kept = json!({"tabs":[{"name":"AX tab","selected":true}], "page_url":"https://from-ax.example/"});
+        merge_extension_tabs_into_scene(&mut kept, "proc:Chrome:1", &ext);
+        assert_eq!(kept["tabs"][0]["name"], "AX tab");
+        assert_eq!(kept["tabs_source"], "ax_scene");
+        assert_eq!(kept["page_url"], "https://from-ax.example/");
+        assert!(kept.get("page_url_source").is_none());
+    }
+
 }

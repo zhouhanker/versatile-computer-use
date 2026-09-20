@@ -58,8 +58,15 @@ if meta.exists():
 if scale is None:
     scale=sdata.get("screenshot_scale") or 1.0
 obs=data
-url=obs.get("page_url") or (obs.get("snapshot") or {}).get("page_url") or sdata.get("page_url")
-print("page_url", url, "tabs", len(obs.get("tabs") or (obs.get("snapshot") or {}).get("tabs") or []))
+snap=obs.get("snapshot") or {}
+url=obs.get("page_url") or snap.get("page_url") or sdata.get("page_url")
+tabs=obs.get("tabs") or snap.get("tabs") or []
+tabs_source=snap.get("tabs_source") or obs.get("tabs_source")
+print("page_url", url, "tabs", len(tabs), "tabs_source", tabs_source, "page_url_source", snap.get("page_url_source"))
+if obs.get("extension_profile")=="user":
+    assert tabs_source=="extension_tabs", tabs_source
+    assert tabs, "login-state observe must merge extension tabs when AX tree is empty"
+    assert url and str(url).startswith("http"), url
 print("PASS login-state observe hud=false scale", scale, "png_bytes", png.stat().st_size, "source", sdata.get("source"))
 INNER
 

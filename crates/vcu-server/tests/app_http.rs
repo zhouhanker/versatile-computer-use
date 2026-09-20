@@ -1,3 +1,4 @@
+use std::time::Duration;
 use serde_json::json;
 use vcu_core::{UserConfig, VcuPaths};
 use vcu_server::app::mock_app::MockAppBackend;
@@ -125,5 +126,112 @@ async fn app_http_windows_snapshot_policy() {
     assert_eq!(fs_pix["data"]["webview_screenshot_width"], 1424);
     assert_eq!(fs_pix["data"]["webview_screenshot_height"], 1038);
 
+    handle.join.abort();
+}
+
+
+#[tokio::test]
+async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = VcuPaths::from_root(dir.path());
+    let mut cfg = UserConfig::default();
+    cfg.daemon_port = 0;
+    paths.save_config(&cfg).unwrap();
+    let token = cfg.pairing_token.clone();
+    let handle = vcu_server::start_daemon(paths, cfg).await.unwrap();
+    {
+        let mut b = handle.state.app_backend.write().await;
+        *b = Box::new(MockAppBackend::default());
+    }
+    let base = format!("http://{}", handle.addr);
+    let client = reqwest::Client::new();
+    let auth = |r: reqwest::RequestBuilder| r.header("X-Vcu-Token", &token);
+
+    assert!(auth(client.post(format!("{base}/v1/extension/hello")))
+        .json(&json!({
+            "likely_user_profile": true,
+            "browser": "edge",
+            "client_id": "edge-test"
+        }))
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+
+    let poller_base = base.clone();
+    let poller_token = token.clone();
+    let poller = tokio::spawn(async move {
+        let c = reqwest::Client::new();
+        for _ in 0..80 {
+            let body: serde_json::Value = c
+                .get(format!("{poller_base}/v1/extension/poll?wait_ms=150&browser=edge&client_id=edge-test"))
+                .header("X-Vcu-Token", &poller_token)
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+            let data = body.get("data").cloned().unwrap_or(json!({}));
+            let id = data.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let method = data.get("method").and_then(|v| v.as_str()).unwrap_or("");
+            if id.is_empty() || method.is_empty() {
+                continue;
+            }
+            let result = match method {
+                "list_tabs" => json!({
+                    "ok": true,
+                    "tabs": [{
+                        "tab_id": "42",
+                        "title": "edge-live",
+                        "url": "https://edge.example/live",
+                        "active": true,
+                        "focused": true,
+                        "browser": "edge"
+                    }],
+                    "groups": [],
+                    "source": "extension_tabs"
+                }),
+                _ => json!({"ok": false, "error": method}),
+            };
+            let _ = c
+                .post(format!("{poller_base}/v1/extension/result"))
+                .header("X-Vcu-Token", &poller_token)
+                .json(&json!({"id": id, "result": result}))
+                .send()
+                .await;
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(250)).await;
+
+    let snap: serde_json::Value = auth(client.post(format!("{base}/v1/app/snapshot")))
+        .json(&json!({"id": "proc:Microsoft_Edge:10", "budget": 1000}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    poller.abort();
+    assert_eq!(snap["ok"], true, "{snap}");
+    assert_eq!(snap["data"]["tabs_source"], "extension_tabs");
+    assert_eq!(snap["data"]["page_url"], "https://edge.example/live");
+    assert_eq!(snap["data"]["page_url_source"], "extension_tabs");
+    assert_eq!(snap["data"]["scene_source"], "ax_scene");
+    assert_eq!(snap["data"]["tabs"][0]["tab_id"], "42");
+    assert!(snap["data"]["elements"].as_array().unwrap().iter().any(|e| e["ref"] == "e_web"));
+    assert_ne!(snap["data"].get("source").and_then(|v| v.as_str()), Some("extension_dom"));
+
+    let textedit: serde_json::Value = auth(client.post(format!("{base}/v1/app/snapshot")))
+        .json(&json!({"id": "proc:TextEdit:1", "budget": 1000}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(textedit["ok"], true, "{textedit}");
+    assert!(textedit["data"].get("tabs_source").is_none());
     handle.join.abort();
 }

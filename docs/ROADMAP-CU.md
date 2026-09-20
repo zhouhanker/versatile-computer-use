@@ -188,6 +188,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-400 | Dual-browser live lens hello | **完成（真机）** `CHROME_HELLO_OK` / `EDGE_HELLO_OK` / `MERGE_OK browser_count=2` / `CU-D-400 OK`；tabs chrome=5 edge=13；`lens_dual_browser` pass。同路径 unpacked 共用 runtime id，client key=`browser:id`。组 1/3 未动。不是产品 Windows CU。 |
 | CU-D-410 | Drop placeholder lens client | **完成（真机）** health `chrome+edge` count=2，无占位 `browser`；doctor `lens polling chrome+edge`。poll 无 browser= 不登记。 |
 | CU-D-420 | Allowlist process Chrome | **完成（真机）** observe `app_id=proc:Chrome:*` `target.allowed=true` 无 AppDenied；`poc_login_state.sh` PASS hud=false source=extension_viewport；`make check` 0。无 SendInput。不是产品 Windows CU。 |
+| CU-D-430 | Observe merges extension tabs | **完成（真机）** Chrome AX 空树时 `tabs_source=extension_tabs` tabs=5 `page_url_source=extension_tabs`；不覆盖已有 AX tabs；不写 `source=extension_dom`。不是 TC-B-040。无 SendInput。 |
 
 ## 4. 建议执行顺序（编排）
 
@@ -239,6 +240,7 @@ CU-D-000 文档
     → CU-D-400 dual-browser live lens hello
     → CU-D-410 drop placeholder lens client
     → CU-D-420 allowlist process Chrome
+    → CU-D-430 observe merges extension tabs
 ```
 
 同一时间只 claim 一个 CU-D 主切片。浏览器 bugfix 可并行，但不要和 Actuator 抢同一批真机窗口。

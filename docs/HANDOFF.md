@@ -1,10 +1,10 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-420 真机已过。
+更新：2026-09-20。CU-D-430 真机已过。
 
 ## 本轮
 
-- 420：macOS 默认 allowlist 含 `Google Chrome` / `Chrome`；`vcu browser observe` 遍历全部 `user_browsers`，失败快照不吞错误；真机 `app_id=proc:Chrome:*` `allowed=true` 无 AppDenied。`poc_login_state.sh` PASS；`make check` 0。组 1/3 未动。无 SendInput。
+- 430：login-state observe 在 Chrome/Edge AX tabs 为空时合并 `extension_tabs`；真机 `tabs=5` `tabs_source=extension_tabs` `page_url_source=extension_tabs`。不写 `source=extension_dom`，不宣称 AX 网页像素点击。`poc_login_state.sh` PASS；`make check` 0。组 1/3 未动。无 SendInput。
 
 ## 下一刀
 

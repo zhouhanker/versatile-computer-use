@@ -168,6 +168,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-400 | Dual-browser live lens hello | **通过** `CHROME_HELLO_OK` / `EDGE_HELLO_OK` / `MERGE_OK browser_count=2` / `CU-D-400 OK`。组 1/3 未动 |
 | TC-D-410 | Drop placeholder lens client | **通过** health chrome+edge count=2，无占位 `browser` |
 | TC-D-420 | Allowlist process Chrome | **通过** observe `proc:Chrome` allowed 无 AppDenied；`poc_login_state.sh` PASS；`make check` 0。无 SendInput |
+| TC-D-430 | Observe merges extension tabs | **通过** `tabs_source=extension_tabs` tabs=5；HTTP `snapshot_merges_extension_tabs_for_empty_ax_edge`；不是 TC-B-040 |
 
 ## 8. 未通过不得宣称完成
 
