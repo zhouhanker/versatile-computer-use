@@ -704,8 +704,8 @@ fn ax_set_address_script(process: &str, val: &str) -> String {
     ax_chrome_bfs_script(
         process,
         &format!(
-            r#"                        if r is "AXTextField" then
-                          if (nm contains "地址") or (nm contains "Address") or (nm contains "Search") then
+            r#"                        if (r contains "TextField") or (r contains "ComboBox") or (r contains "text field") or (r contains "combo box") then
+                          if (nm contains "地址") or (nm contains "网址") or (nm contains "Address") or (nm contains "Search") or (nm contains "搜索") or (nm contains "URL") or (nm contains "Url") then
                             try
                               set value of el to "{val}"
                               return "ok-address"
@@ -717,6 +717,25 @@ fn ax_set_address_script(process: &str, val: &str) -> String {
         ),
         r#"return "not-found""#,
     )
+}
+
+pub fn looks_like_address_field(role: &str, name: &str) -> bool {
+    let r = role.to_ascii_lowercase();
+    let n = name.to_ascii_lowercase();
+    let role_ok = r.contains("textfield")
+        || r.contains("text field")
+        || r.contains("combobox")
+        || r.contains("combo box");
+    if !role_ok {
+        return false;
+    }
+    n.contains("地址")
+        || n.contains("网址")
+        || n.contains("address")
+        || n.contains("search")
+        || n.contains("搜索")
+        || n.contains("url")
+        || n.contains("omnibox")
 }
 
 pub fn login_find_address_field(app_id: &str) -> Option<(String, String)> {
@@ -744,8 +763,8 @@ pub fn login_find_address_field(app_id: &str) -> Option<(String, String)> {
 fn ax_find_address_script(process: &str) -> String {
     ax_chrome_bfs_script(
         process,
-        r#"                        if r is "AXTextField" then
-                          if (nm contains "地址") or (nm contains "Address") or (nm contains "Search") then
+        r#"                        if (r contains "TextField") or (r contains "ComboBox") or (r contains "text field") or (r contains "combo box") then
+                          if (nm contains "地址") or (nm contains "网址") or (nm contains "Address") or (nm contains "Search") or (nm contains "搜索") or (nm contains "URL") or (nm contains "Url") then
                             set vcuVal to ""
                             try
                               set vcuVal to value of el as text
@@ -1669,6 +1688,15 @@ impl AppBackend for MacosAppBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn address_field_matcher_accepts_edge_and_chrome_names() {
+        assert!(looks_like_address_field("AXTextField", "地址和搜索栏"));
+        assert!(looks_like_address_field("AXComboBox", "Address and search bar"));
+        assert!(looks_like_address_field("AXComboBox", "搜索或输入网址"));
+        assert!(!looks_like_address_field("AXButton", "Search"));
+        assert!(!looks_like_address_field("AXTextField", "Username"));
+    }
 
     #[test]
     fn browser_window_selection_enables_accessibility_before_enumeration() {

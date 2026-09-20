@@ -1,10 +1,10 @@
 # VCU 会话交接
 
-更新：2026-09-20。CU-D-540 真机已过。
+更新：2026-09-20。CU-D-550 真机已过。
 
 ## 本轮
 
-- 540：前台 Microsoft Edge 时 `login-state` 的 `user_browsers[0]` 为 Edge pid 60318，与 observe `proc:Microsoft_Edge:60318` 一致。`scripts/poc_cu_d_540.py` CU-D-540 OK。组 1/3 未动。无 SendInput。不是 TC-B-040。
+- 550：observe 后无 tab 的 extract 标 `tab_id_source=last_observe`，tab 与 observe 相同（1828168410，`source=extension_dom`）。`scripts/poc_cu_d_550.py` CU-D-550 OK。组 1/3 未动。无 SendInput。不是 TC-B-040。Edge 无 selector 的 AX 地址栏 type 仍诚实失败（无 AX window），不宣称完成。
 
 ## 下一刀
 

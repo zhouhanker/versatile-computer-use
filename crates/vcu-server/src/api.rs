@@ -907,7 +907,6 @@ async fn browser_extract(
     if let Some(id) = tab.as_deref() {
         params["tab_id"] = json_tab_param(id);
     }
-    let _ = tab_src;
     match extension_dom_call(&state, "extract", params, 8).await {
         Ok(v) => {
             let matches = v.get("matches").cloned().unwrap_or(json!([]));
@@ -919,7 +918,8 @@ async fn browser_extract(
                 "hud": false,
                 "extension_profile": "user",
                 "source": "extension_dom",
-                "tab_id": v.get("tab_id").cloned().unwrap_or(json!(req.tab_id)),
+                "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab.clone())),
+                "tab_id_source": tab_src,
                 "selector": req.selector,
                 "page_url": v.get("page_url"),
                 "focused": v.get("focused"),

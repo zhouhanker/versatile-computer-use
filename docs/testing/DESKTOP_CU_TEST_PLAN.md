@@ -180,6 +180,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-520 | Dual-browser tabs include Edge | **通过** 同一次 tabs chrome=6 edge=7 `browsers_failed=[]`；`scripts/poc_cu_d_520.py` CU-D-520 OK。组 1/3 未动 |
 | TC-D-530 | Observe frontmost USER browser | **通过** 前台 Edge → observe `proc:Microsoft_Edge` `frontmost_matched=true`；`scripts/poc_cu_d_530.py` CU-D-530 OK。组 1/3 未动 |
 | TC-D-540 | login-state lists frontmost first | **通过** 前台 Edge → `user_browsers[0]` Edge pid 60318；`scripts/poc_cu_d_540.py` CU-D-540 OK。组 1/3 未动 |
+| TC-D-550 | extract stamps last_observe | **通过** extract tab 与 observe 相同 `tab_id_source=last_observe`；`scripts/poc_cu_d_550.py` CU-D-550 OK。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 
