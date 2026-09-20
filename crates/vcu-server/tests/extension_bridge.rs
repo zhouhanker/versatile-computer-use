@@ -375,3 +375,21 @@ async fn same_runtime_id_two_browsers_are_two_clients() {
     assert_eq!(names, vec!["chrome".to_string(), "edge".to_string()]);
     assert_eq!(bridge.active_client_ids().await.len(), 2);
 }
+
+#[tokio::test]
+async fn poll_without_browser_does_not_register_placeholder() {
+    let bridge = ExtensionBridge::new();
+    let id = "cedlbclnijpladccmmfpihhgkeeldfhc";
+    bridge
+        .mark_hello_client(true, Some(id.into()), Some("edge".into()))
+        .await;
+    bridge
+        .mark_hello_client(true, Some(id.into()), Some("chrome".into()))
+        .await;
+    let _ = bridge.poll_for(20, Some(id.into()), None).await;
+    let mut names = bridge.active_browsers().await;
+    names.sort();
+    assert_eq!(names, vec!["chrome".to_string(), "edge".to_string()]);
+    assert_eq!(bridge.active_client_ids().await.len(), 2);
+    assert!(!names.iter().any(|n| n == "browser"));
+}

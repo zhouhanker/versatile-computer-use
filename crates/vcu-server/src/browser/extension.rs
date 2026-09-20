@@ -61,12 +61,18 @@ pub struct ExtensionCommand {
     pub params: serde_json::Value,
 }
 
+fn named_browser(name: &str) -> Option<&str> {
+    match name.trim().to_ascii_lowercase().as_str() {
+        "chrome" => Some("chrome"),
+        "edge" => Some("edge"),
+        _ => None,
+    }
+}
+
 fn client_key(client_id: Option<&str>, browser: Option<&str>) -> Option<String> {
     let id = client_id.map(str::trim).filter(|s| !s.is_empty())?;
-    match browser.map(str::trim).filter(|s| !s.is_empty()) {
-        Some(b) => Some(format!("{b}:{id}")),
-        None => Some(id.to_string()),
-    }
+    let b = named_browser(browser.unwrap_or(""))?;
+    Some(format!("{b}:{id}"))
 }
 
 impl ExtensionBridge {
@@ -117,7 +123,10 @@ impl ExtensionBridge {
         let now = now_ms();
         g.clients
             .iter()
-            .filter(|(_, c)| now.saturating_sub(c.last_poll_ms) < 15_000)
+            .filter(|(_, c)| {
+                named_browser(&c.browser).is_some()
+                    && now.saturating_sub(c.last_poll_ms) < 15_000
+            })
             .map(|(id, _)| id.clone())
             .collect()
     }
@@ -128,8 +137,11 @@ impl ExtensionBridge {
         let mut names: Vec<String> = g
             .clients
             .iter()
-            .filter(|(_, c)| now.saturating_sub(c.last_poll_ms) < 15_000)
-            .map(|(_, c)| c.browser.clone())
+            .filter(|(_, c)| {
+                named_browser(&c.browser).is_some()
+                    && now.saturating_sub(c.last_poll_ms) < 15_000
+            })
+            .filter_map(|(_, c)| named_browser(&c.browser).map(|s| s.to_string()))
             .collect();
         names.sort();
         names.dedup();
