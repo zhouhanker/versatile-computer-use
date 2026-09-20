@@ -216,6 +216,14 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
                     json!({"ok": true, "pressed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
                 }
+                "type" => {
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    json!({"ok": true, "typed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
+                }
+                "scroll" => {
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    json!({"ok": true, "scrolled": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
+                }
                 "capture_tab" => {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
                     json!({
@@ -351,6 +359,36 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(extracted["data"]["source"], "extension_dom");
     assert_eq!(extracted["data"]["tab_id"], "42");
     assert_eq!(extracted["data"]["tab_id_source"], "last_observe");
+
+    let typed: serde_json::Value = auth(client.post(format!("{base}/v1/browser/type")))
+        .json(&json!({"selector": "input", "text": "hello", "dry_run": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(typed["ok"], true, "{typed}");
+    assert_eq!(typed["data"]["source"], "extension_dom");
+    assert_eq!(typed["data"]["tab_id"], "42");
+    assert_eq!(typed["data"]["tab_id_source"], "last_observe");
+    assert_eq!(typed["data"]["typed"], false);
+    assert_eq!(typed["data"]["os_cursor_used"], false);
+
+    let scrolled: serde_json::Value = auth(client.post(format!("{base}/v1/browser/scroll")))
+        .json(&json!({"dy": 80, "dry_run": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(scrolled["ok"], true, "{scrolled}");
+    assert_eq!(scrolled["data"]["source"], "extension_dom");
+    assert_eq!(scrolled["data"]["tab_id"], "42");
+    assert_eq!(scrolled["data"]["tab_id_source"], "last_observe");
+    assert_eq!(scrolled["data"]["scrolled"], false);
+    assert_eq!(scrolled["data"]["os_cursor_used"], false);
 
     let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true, "tab_id": "99"}))

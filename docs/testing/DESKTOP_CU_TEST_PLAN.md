@@ -186,6 +186,7 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 | TC-D-580 | observe capture_id viewport click | **通过** dry-run viewport click source=extension_dom；`scripts/poc_cu_d_580.py` CU-D-580 OK。组 1/3 未动 |
 | TC-D-590 | observe --tab live viewport click | **通过** 抛页 `#hit` 0→1，`observe --tab` source=extension_viewport，live click source=extension_dom os_cursor_used=false；`scripts/poc_cu_d_590.py` CU-D-590 OK。组 1/3 未动 |
 | TC-D-600 | observe without --tab needs frontmost browser | **通过** 前台非 Chrome/Edge 时 InvalidInput「pass observe --tab」；`--tab` 仍绿；`scripts/poc_cu_d_600.py` CU-D-600 OK。组 1/3 未动 |
+| TC-D-610 | observe-bind live type/scroll | **通过** type `vcu-d-610`、scroll y=900、`tab_id_source=last_observe`；`scripts/poc_cu_d_610.py` CU-D-610 OK。组 1/3 未动 |
 
 ## 8. 未通过不得宣称完成
 

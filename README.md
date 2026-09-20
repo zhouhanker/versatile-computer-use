@@ -81,6 +81,7 @@ vcu browser extract --tab <id> --selector a --json
 vcu browser click --tab <id> --selector '#continue'
 vcu browser hover --tab <id> --selector '#continue'
 vcu browser type --tab <id> --selector 'input[name=q]' --text 'hello'
+vcu browser scroll --tab <id> --dy 600
 vcu browser screenshot --tab <id> --json
 vcu browser click --space viewport --capture <capture_id> --pixel-x <x> --pixel-y <y>
 vcu browser close --tab <id>
