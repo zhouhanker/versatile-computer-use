@@ -1157,4 +1157,11 @@ if (typeof module !== "undefined" && module.exports) {
     },
   };
 }
+  try {
+    if (globalThis.chrome?.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({ type: "vcu_wake" }, () => {
+        void chrome.runtime.lastError;
+      });
+    }
+  } catch (_) {}
 })();

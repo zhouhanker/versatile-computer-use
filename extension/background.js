@@ -45,6 +45,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(await handleCommand({ method: command.method, params: command.params || {} }));
       return;
     }
+    if (msg.type === "vcu_wake") {
+      void bootstrapAndStart();
+      sendResponse({ ok: true, woke: true });
+      return;
+    }
     if (msg.type === "set_config") {
       endpoint = msg.endpoint || endpoint;
       pairingToken = msg.token || pairingToken;
