@@ -210,7 +210,16 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                 }
                 "extract" => {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
-                    json!({"ok": true, "source": "extension_dom", "tab_id": tab, "count": 1, "matches": [{"text": "edge-live"}]})
+                    let sel = data.get("params").and_then(|p| p.get("selector")).and_then(|v| v.as_str()).unwrap_or("");
+                    if sel.contains("missing") {
+                        json!({"ok": true, "source": "extension_dom", "tab_id": tab, "count": 0, "matches": []})
+                    } else {
+                        json!({"ok": true, "source": "extension_dom", "tab_id": tab, "count": 1, "matches": [{"text": "edge-live"}]})
+                    }
+                }
+                "hover" => {
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    json!({"ok": true, "hovered": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
                 }
                 "click_point" => {
                     let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
@@ -389,6 +398,45 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(scrolled["data"]["tab_id_source"], "last_observe");
     assert_eq!(scrolled["data"]["scrolled"], false);
     assert_eq!(scrolled["data"]["os_cursor_used"], false);
+
+    let hovered: serde_json::Value = auth(client.post(format!("{base}/v1/browser/hover")))
+        .json(&json!({"selector": "#pad", "dry_run": true}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(hovered["ok"], true, "{hovered}");
+    assert_eq!(hovered["data"]["source"], "extension_dom");
+    assert_eq!(hovered["data"]["tab_id"], "42");
+    assert_eq!(hovered["data"]["tab_id_source"], "last_observe");
+    assert_eq!(hovered["data"]["hovered"], false);
+
+    let waited: serde_json::Value = auth(client.post(format!("{base}/v1/browser/wait")))
+        .json(&json!({"selector": "title", "text": "edge-live", "ms": 500}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(waited["ok"], true, "{waited}");
+    assert_eq!(waited["data"]["source"], "extension_dom");
+    assert_eq!(waited["data"]["tab_id"], "42");
+    assert_eq!(waited["data"]["tab_id_source"], "last_observe");
+    assert_eq!(waited["data"]["found"], true);
+
+    let wait_miss: serde_json::Value = auth(client.post(format!("{base}/v1/browser/wait")))
+        .json(&json!({"selector": "#missing", "ms": 120}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(wait_miss["ok"], false, "{wait_miss}");
+    assert_eq!(wait_miss["error"]["code"], "ActionFailed", "{wait_miss}");
 
     let targeted: serde_json::Value = auth(client.post(format!("{base}/v1/browser/observe")))
         .json(&json!({"pixels": true, "tab_id": "99"}))

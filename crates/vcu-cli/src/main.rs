@@ -512,7 +512,7 @@ enum BrowserCmd {
         #[arg(long)]
         tab: Option<String>,
     },
-    /// Wait ms, or until a Scene name/role/ref appears on the USER browser (no HUD)
+    /// Wait ms, until a DOM selector/text appears, or until a Scene name/role/ref appears (no HUD)
     Wait {
         #[arg(long, default_value_t = 200)]
         ms: u64,
@@ -522,6 +522,14 @@ enum BrowserCmd {
         name: Option<String>,
         #[arg(long)]
         role: Option<String>,
+        /// CSS selector; polls USER extension DOM (binds last observe for 60s)
+        #[arg(long)]
+        selector: Option<String>,
+        /// Optional substring of extract text/value
+        #[arg(long)]
+        text: Option<String>,
+        #[arg(long)]
+        tab: Option<String>,
     },
 }
 
@@ -1269,6 +1277,9 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 target_ref,
                 name,
                 role,
+                selector,
+                text,
+                tab,
             } => {
                 let mut body = json!({ "ms": ms });
                 if let Some(r) = target_ref {
@@ -1279,6 +1290,15 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 }
                 if let Some(r) = role {
                     body["role"] = json!(r);
+                }
+                if let Some(s) = selector {
+                    body["selector"] = json!(s);
+                }
+                if let Some(t) = text {
+                    body["text"] = json!(t);
+                }
+                if let Some(t) = tab {
+                    body["tab_id"] = json!(t);
                 }
                 let v = api_post(&paths, "/v1/browser/wait", body).await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());

@@ -736,8 +736,33 @@ struct BrowserWaitReq {
     role: Option<String>,
     #[serde(default)]
     app_id: Option<String>,
+    #[serde(default)]
+    selector: Option<String>,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    tab_id: Option<String>,
 }
 fn default_wait_ms() -> u64 { 200 }
+
+fn extract_match_text(m: &Value) -> String {
+    let text = m.get("text").and_then(Value::as_str).unwrap_or("");
+    let value = m.get("value").and_then(Value::as_str).unwrap_or("");
+    format!("{text}{value}")
+}
+
+fn extract_has_text(matches: &Value, needle: Option<&str>) -> bool {
+    let Some(arr) = matches.as_array() else {
+        return false;
+    };
+    if arr.is_empty() {
+        return false;
+    }
+    let Some(needle) = needle.map(str::trim).filter(|s| !s.is_empty()) else {
+        return true;
+    };
+    arr.iter().any(|m| extract_match_text(m).contains(needle))
+}
 
 async fn browser_wait(
     State(state): State<Arc<AppState>>,
@@ -747,13 +772,66 @@ async fn browser_wait(
     if let Err(e) = require_auth(&headers, &state).await {
         return err_response(e);
     }
+    let ms = req.ms.min(8000);
+    if let Some(selector) = req.selector.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        if let Err(e) = user_extension_ready(&state).await {
+            return err_response(e);
+        }
+        let (tab, tab_src) = bound_tab(&state, req.tab_id.as_deref()).await;
+        let started = std::time::Instant::now();
+        let budget = std::time::Duration::from_millis(ms.max(1));
+        let needle = req.text.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        loop {
+            let mut params = json!({"selector": selector});
+            if let Some(id) = tab.as_deref() {
+                params["tab_id"] = json_tab_param(id);
+            }
+            match extension_dom_call(&state, "extract", params, 8).await {
+                Ok(v) => {
+                    let matches = v.get("matches").cloned().unwrap_or(json!([]));
+                    let count = v.get("count").and_then(Value::as_u64).unwrap_or_else(|| {
+                        matches.as_array().map(|a| a.len() as u64).unwrap_or(0)
+                    });
+                    if count > 0 && extract_has_text(&matches, needle) {
+                        return Json(Envelope::ok(json!({
+                            "login_state": true,
+                            "hud": false,
+                            "waited_ms": started.elapsed().as_millis() as u64,
+                            "found": true,
+                            "count": count,
+                            "selector": selector,
+                            "text": req.text,
+                            "source": "extension_dom",
+                            "tab_id": v.get("tab_id").cloned().unwrap_or(json!(tab.clone())),
+                            "tab_id_source": tab_src,
+                            "os_cursor_used": false,
+                        }))).into_response();
+                    }
+                }
+                Err(e) => {
+                    if started.elapsed() >= budget {
+                        return err_response(e);
+                    }
+                }
+            }
+            if started.elapsed() >= budget {
+                return err_response(VcuError::coded(
+                    ErrorCode::ActionFailed,
+                    format!(
+                        "wait timed out after {ms}ms for selector={selector:?} text={:?}",
+                        req.text
+                    ),
+                ));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+        }
+    }
     let login = crate::login_state::inspect_login_browsers();
     let last = state.last_observe.read().await.clone();
     let id = match login_user_app_id(&login, req.app_id.clone(), last.as_ref()) {
         Ok(v) => v,
         Err(e) => return err_response(e),
     };
-    let ms = req.ms.min(5000);
     let conditioned = req.r#ref.is_some() || req.name.is_some() || req.role.is_some();
     let started = std::time::Instant::now();
     let role_l = req.role.as_deref().unwrap_or("").to_ascii_lowercase();

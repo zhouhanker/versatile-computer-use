@@ -184,12 +184,15 @@ fn tool_defs() -> Vec<Value> {
                 "ref":{"type":"string"}
             }
         })),
-        tool("vcu_browser_wait", "Wait on USER browser without HUD. Optional name/role/ref; else sleep ms.", json!({
+        tool("vcu_browser_wait", "Wait on USER browser without HUD. selector polls DOM (last observe for 60s). Optional text substring. name/role/ref still Scene AX. Else sleep ms.", json!({
             "type":"object","properties":{
                 "ms":{"type":"integer","default":200},
                 "ref":{"type":"string"},
                 "name":{"type":"string"},
-                "role":{"type":"string"}
+                "role":{"type":"string"},
+                "selector":{"type":"string","description":"CSS selector; DOM wait via USER extension"},
+                "text":{"type":"string","description":"Optional extract text/value substring"},
+                "tab_id":{"type":"string"}
             }
         })),
         tool("vcu_browser_tabs", "List USER browser tabs and native groups, including focus and collapsed state.", json!({"type":"object","properties":{}})),
@@ -497,6 +500,9 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(r) = args.get("ref") { body["ref"] = r.clone(); }
             if let Some(n) = args.get("name") { body["name"] = n.clone(); }
             if let Some(r) = args.get("role") { body["role"] = r.clone(); }
+            if let Some(s) = args.get("selector") { body["selector"] = s.clone(); }
+            if let Some(t) = args.get("text") { body["text"] = t.clone(); }
+            if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
             client.post("/v1/browser/wait", body).await?
         }
         "vcu_browser_tabs" => client.get("/v1/browser/tabs").await?,
