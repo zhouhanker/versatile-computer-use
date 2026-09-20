@@ -1571,6 +1571,18 @@ mod tests {
         assert!(!l370.contains("sendinput("));
         assert!(!l370.contains("[system.windows.forms.sendkeys"));
         assert!(!l370.contains("mouse_event"));
+        let p380 = root.join("scripts/poc_cu_d_380.ps1");
+        let s380 = std::fs::read_to_string(&p380).unwrap_or_default();
+        assert!(s380.contains("WAIT_MISS_OK"), "{}", p380.display());
+        assert!(s380.contains("WAIT_REF_MISS_OK"));
+        assert!(s380.contains("ActionFailed"));
+        assert!(s380.contains("mcp_tools_call"));
+        assert!(s380.contains("vcu_wait"));
+        assert!(s380.contains("CU-D-380 OK"));
+        let l380 = s380.to_ascii_lowercase();
+        assert!(!l380.contains("sendinput("));
+        assert!(!l380.contains("[system.windows.forms.sendkeys"));
+        assert!(!l380.contains("mouse_event"));
         let p190 = root.join("scripts/poc_cu_d_190.ps1");
         let s190 = std::fs::read_to_string(&p190).unwrap_or_default();
         assert!(s190.contains("EXTRACT_OK"), "{}", p190.display());
