@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框和滑块已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块和标签页已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -372,8 +372,22 @@
 - 写入后标签变成 `VCU-TRACK-40`，场景值是 `track=40`。超出范围和非整数被拒绝。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成 RangeValuePattern，也不写成拖动滑块拖块，也不写成完整产品 CU。
 
+
+## CU-WIN-SESSION-032 会话按名字选择标签页
+
+状态：**2026-09-26 本机复测通过。** 不是展开后点标签，也不是完整 Windows 产品 CU。
+
+- 未选中的标签页不在 UIA 树里。`vcu type` 用辅助功能按名字找到标签，选中后再发反射的选择变化，让 WinForms 的 `SelectedIndexChanged` 跟着跑。没有同名标签不会报成功。
+- 场景值带 `tab=` 加当前选中标签的名字。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，里面有 VCU-TAB-A 和 VCU-TAB-B。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_tab.ps1`
+- 结果：`CU-WIN-SESSION-032 OK win:powershell:18444 ... ref=e3 path=tab_select value=VCU-TAB-B cursor=1187,239`
+- 选中后标签变成 `VCU-TAB-SHOW-B`，场景值是 `tab=VCU-TAB-B`。不存在的标签被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点标签像素，也不写成完整产品 CU。
+
 ## 还没做
 
+- 会话可以按名字选中自建标签页。这是 `tab_select`，不是点标签像素。
 - 会话可以向自建滑块写入整数位置。这是 `track_select`，不是 RangeValuePattern，也不是拖动拖块。
 - 不把这次会话写成完整 `vcu session` 产品 CU。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。

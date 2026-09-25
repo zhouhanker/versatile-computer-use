@@ -395,6 +395,33 @@ public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lp
       if ([string]::IsNullOrWhiteSpace($val)) {{ $val = $mark }} else {{ $val = "$val $mark" }}
     }}
   }}
+  if ($cls -match 'TabControl') {{
+    $nhTab = [int64]$el.Current.NativeWindowHandle
+    if ($nhTab -ne 0) {{
+      if (-not ("Vcu.VcuTabRead" -as [type])) {{
+        Add-Type -MemberDefinition '[DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object acc);' -Name VcuTabRead -Namespace Vcu | Out-Null
+      }}
+      $iidTab = [Guid]"618736e0-3c3d-11cf-810c-00aa00389b71"
+      $accTab = $null
+      $hrTab = [Vcu.VcuTabRead]::AccessibleObjectFromWindow([IntPtr]$nhTab, [uint32]4294967292, [ref]$iidTab, [ref]$accTab)
+      if ($hrTab -eq 0 -and $null -ne $accTab) {{
+        $tabCount = [int]$accTab.GetType().InvokeMember("accChildCount", [Reflection.BindingFlags]::GetProperty, $null, $accTab, $null)
+        for ($ti = 1; $ti -le $tabCount; $ti++) {{
+          $roleTab = [int]$accTab.GetType().InvokeMember("accRole", [Reflection.BindingFlags]::GetProperty, $null, $accTab, @($ti))
+          if ($roleTab -ne 37) {{ continue }}
+          $stateTab = [int]$accTab.GetType().InvokeMember("accState", [Reflection.BindingFlags]::GetProperty, $null, $accTab, @($ti))
+          if (($stateTab -band 2) -eq 0) {{ continue }}
+          $nameTab = [string]$accTab.GetType().InvokeMember("accName", [Reflection.BindingFlags]::GetProperty, $null, $accTab, @($ti))
+          if ($nameTab) {{
+            $markTab = "tab=$nameTab"
+            if ([string]::IsNullOrWhiteSpace($val)) {{ $val = $markTab }} else {{ $val = "$val $markTab" }}
+          }}
+          break
+        }}
+      }}
+    }}
+  }}
+
   $val = ($val -replace '[\r\n\|]', ' ')
   if ($val.Length -gt 200) {{ $val = $val.Substring(0, 200) }}
   $r = $el.Current.BoundingRectangle
@@ -604,6 +631,71 @@ function Select-VcuList([IntPtr]$h, [string]$expect) {
     }
   }
 }
+function Test-VcuTabClass([string]$cls) {
+  if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
+  $c = $cls.ToLowerInvariant()
+  return $c.Contains("tabcontrol") -or $c.Contains("systabcontrol32")
+}
+function Select-VcuTab([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if (-not ("Vcu.VcuTabSelect" -as [type])) {
+    $sig = @"
+[DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object acc);
+[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+[DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+[DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect);
+[DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, IntPtr buffer, UIntPtr size, out UIntPtr written);
+[DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type);
+[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);
+[StructLayout(LayoutKind.Sequential)] public struct NMHDR { public IntPtr hwndFrom; public IntPtr idFrom; public int code; }
+public static bool Notify(int pid, IntPtr hwnd) {
+  IntPtr proc = OpenProcess(0x0438, false, pid);
+  if (proc == IntPtr.Zero) return false;
+  int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(NMHDR));
+  IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04);
+  if (remote == IntPtr.Zero) { CloseHandle(proc); return false; }
+  NMHDR hdr = new NMHDR();
+  hdr.hwndFrom = hwnd;
+  hdr.code = -551;
+  IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(size);
+  System.Runtime.InteropServices.Marshal.StructureToPtr(hdr, local, false);
+  UIntPtr wrote;
+  bool ok = WriteProcessMemory(proc, remote, local, (UIntPtr)size, out wrote);
+  System.Runtime.InteropServices.Marshal.FreeHGlobal(local);
+  if (ok) SendMessage(hwnd, 0x204E, IntPtr.Zero, remote);
+  VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000);
+  CloseHandle(proc);
+  return ok;
+}
+"@
+    Add-Type -MemberDefinition $sig -Name VcuTabSelect -Namespace Vcu | Out-Null
+  }
+  $iid = [Guid]"618736e0-3c3d-11cf-810c-00aa00389b71"
+  $acc = $null
+  $hr = [Vcu.VcuTabSelect]::AccessibleObjectFromWindow($h, [uint32]4294967292, [ref]$iid, [ref]$acc)
+  if ($hr -ne 0 -or $null -eq $acc) { return }
+  $count = [int]$acc.GetType().InvokeMember("accChildCount", [Reflection.BindingFlags]::GetProperty, $null, $acc, $null)
+  $child = 0
+  $tabs = 0
+  for ($i = 1; $i -le $count; $i++) {
+    $role = [int]$acc.GetType().InvokeMember("accRole", [Reflection.BindingFlags]::GetProperty, $null, $acc, @($i))
+    if ($role -ne 37) { continue }
+    $tabs++
+    $name = [string]$acc.GetType().InvokeMember("accName", [Reflection.BindingFlags]::GetProperty, $null, $acc, @($i))
+    if ($name -eq $expect) { $child = $i; break }
+  }
+  if ($tabs -eq 0) { return }
+  if ($child -eq 0) { 'error:tab-name'; exit 0 }
+  [void]$acc.GetType().InvokeMember("accSelect", [Reflection.BindingFlags]::InvokeMethod, $null, $acc, @(2, $child))
+  $cur = [int][Vcu.VcuPaste140]::SendMessage($h, 0x130B, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($cur -ne ($child - 1)) {
+    [void][Vcu.VcuPaste140]::SendMessage($h, 0x130C, [IntPtr]($child - 1), [IntPtr]::Zero)
+    $cur = [int][Vcu.VcuPaste140]::SendMessage($h, 0x130B, [IntPtr]::Zero, [IntPtr]::Zero)
+  }
+  if ($cur -ne ($child - 1)) { 'error:tab-index'; exit 0 }
+  [void][Vcu.VcuTabSelect]::Notify($ownerPid, $h)
+  "ok:tab_select"
+  exit 0
+}
 function Set-VcuElement($el, [string]$expect) {
   try {
     $vp = $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -616,6 +708,7 @@ function Set-VcuElement($el, [string]$expect) {
   $nh = [int64]$el.Current.NativeWindowHandle
   if ($nh -eq 0) { return }
   $cls = Get-VcuClass ([IntPtr]$nh)
+  $uiaCls = [string]$el.Current.ClassName
   if (Test-VcuComboClass $cls) {
     Select-VcuCombo ([IntPtr]$nh) $expect
     return
@@ -628,6 +721,8 @@ function Set-VcuElement($el, [string]$expect) {
     Select-VcuTrack ([IntPtr]$nh) $expect
     return
   }
+  Select-VcuTab ([IntPtr]$nh) $expect $targetPid
+  if ((Test-VcuTabClass $cls) -or (Test-VcuTabClass $uiaCls)) { return }
   if (Test-VcuConsoleClass $cls) { return }
   if (-not (Test-VcuEditClass $cls)) { return }
   [void][Vcu.VcuSetValue070]::SendMessage([IntPtr]$nh, 12, [IntPtr]::Zero, $expect)
@@ -956,6 +1051,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:combo_select")
         || out.contains("ok:list_select")
         || out.contains("ok:track_select")
+        || out.contains("ok:tab_select")
     {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
@@ -965,6 +1061,8 @@ pub fn set_value_from_uia_output(
             "list_select"
         } else if out.contains("ok:track_select") {
             "track_select"
+        } else if out.contains("ok:tab_select") {
+            "tab_select"
         } else if out.contains("ok:wm_settext") {
             "wm_settext"
         } else {
@@ -1599,6 +1697,8 @@ mod tests {
         assert!(setv.contains("0x0186"));
         assert!(setv.contains("ok:track_select"));
         assert!(setv.contains("0x0405"));
+        assert!(setv.contains("ok:tab_select"));
+        assert!(setv.contains("Test-VcuTabClass"));
         assert!(setv.contains("Test-VcuTrackClass"));
         let tree = uia_tree_script(1, 8);
         assert!(tree.contains("TRACKBAR"));

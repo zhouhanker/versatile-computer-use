@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-032 已在本机复测：会话按名字把自建标签从 VCU-TAB-A 选成 VCU-TAB-B，路径是 tab_select。不存在的标签被拒绝。没有移动系统光标。不是点标签像素，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-031 已在本机复测：会话把自建滑块从 10 设成 40，路径是 track_select。超出范围和非整数被拒绝。没有移动系统光标。不是 RangeValuePattern，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。Release `v0.2.8` 上的 `vcu-lens-extension.zip` 已随 `lens-asset` run `36199818913` 更新。本机下载 41527 字节，里面的 `content.js` 含 `data-vcu-fog` 和 72px 雾盒。不是新的产品 Release。
