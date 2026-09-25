@@ -138,12 +138,15 @@ function New-HudBitmap {
   $g.FillPath($fill, $path)
   $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(115, 255, 255, 255)), 1
   $g.DrawPath($pen, $path)
-  $font = New-Object System.Drawing.Font "Segoe UI", ([single](9 * $script:DpiScale))
+  $fontPx = [single](12 * $script:DpiScale)
+  $font = New-Object System.Drawing.Font "Segoe UI", $fontPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
+  $textY = [single](($script:HudH - $fontPx) / 2)
+  $pad = 12 * $script:DpiScale
   $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
   $dim = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(210, 255, 255, 255))
-  $g.DrawString("VCU 正在使用这台 PC", $font, $white, (12 * $script:DpiScale), (4 * $script:DpiScale))
+  $g.DrawString("VCU 正在使用这台 PC", $font, $white, $pad, $textY)
   $measured = $g.MeasureString("Esc 取消", $font)
-  $g.DrawString("Esc 取消", $font, $dim, ($script:HudW - $measured.Width - 10), 4)
+  $g.DrawString("Esc 取消", $font, $dim, ($script:HudW - $measured.Width - $pad), $textY)
   $g.Dispose()
   return $bmp
 }
@@ -970,6 +973,7 @@ mod tests {
         assert!(STAGE_WINPS.contains("UpdateLayeredWindow"));
         assert!(STAGE_WINPS.contains("SetProcessDpiAwareness"));
         assert!(STAGE_WINPS.contains("GetDpiForSystem"));
+        assert!(STAGE_WINPS.contains("GraphicsUnit]::Pixel"));
         assert!(!STAGE_WINPS.contains("New-PillRegion"));
         assert!(!STAGE_WINPS.contains("FromArgb(255, 107, 56)"));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));
