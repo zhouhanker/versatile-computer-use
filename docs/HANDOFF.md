@@ -1,5 +1,8 @@
 # VCU 会话交接
 
+更新：2026-09-26。WIN-FIX-001 已在本机复测：Windows 登录态能看到 USER Edge，扩展轮询时 next_action 不再要求打开浏览器或 install-lens。其余 WIN-FIX-002…007 未开工。详见 docs/PLAN-WINDOWS-FIX.md。
+
+
 更新：2026-09-25。HEAD `e5d47df`，`main` 与 `origin/main` 同步，工作区在写入本交接前是干净的。上一轮功能收尾是 2026-09-20 的 CU-D-680/690/700（当时 HEAD `b627506`，交接提交 `5a3ae97`）。
 
 ## 当前进度

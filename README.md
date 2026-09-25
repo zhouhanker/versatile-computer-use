@@ -38,6 +38,8 @@ Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。
 - 不搬系统光标，不代点 Edge「允许调试」，不自动化微信，不修改 Codex CU 安装
 - 跨源 iframe、trusted 手势、通用 AX 网页像素真点（TC-B-040）未做
 - Windows 证据是 CI 上的 Notepad / Explorer / cmd / 计算器切片，不是带 Stage HUD 的产品会话
+- Windows 登录态会枚举本机 Edge/Chrome 主进程，不再依赖 Unix `ps`。扩展已轮询且 lens 已安装时，`login-state` 不应再要求打开浏览器或重新加载扩展
+
 - 飞书只观察，不自动发送；macOS 深 AX 全树停放
 
 ## 安装

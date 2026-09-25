@@ -47,7 +47,7 @@ pub fn classify_browser_command(process_name: &str, command: &str) -> BrowserPro
     }
     if cmd.contains("edge-agent-profile")
         || cmd.contains("chrome-agent-profile")
-        || (cmd.contains("--user-data-dir=") && cmd.contains("/.vcu/"))
+        || (cmd.contains("--user-data-dir=") && command_uses_vcu_dir(&cmd))
     {
         return BrowserProfile::Agent;
     }
@@ -170,9 +170,32 @@ pub fn login_next_action(
     "Login-state DOM lens is on the USER browser. `vcu browser ping` must pong; then `vcu browser observe` and view the PNG. For 60s, click/screenshot/open without tab_id bind last observe. `vcu browser extract` source must be extension_dom. Do not use Agent Edge. CDP is abandoned; never click Allow.".into()
 }
 
+fn login_home_dir() -> std::path::PathBuf {
+    // Windows USERPROFILE is the real profile. HOME may be unset or a Git-bash path.
+    let keys: &[&str] = if cfg!(windows) {
+        &["USERPROFILE", "HOME"]
+    } else {
+        &["HOME", "USERPROFILE"]
+    };
+    for key in keys {
+        if let Ok(home) = std::env::var(key) {
+            if !home.is_empty() {
+                return std::path::PathBuf::from(home);
+            }
+        }
+    }
+    std::path::PathBuf::new()
+}
+
+fn command_uses_vcu_dir(cmd: &str) -> bool {
+    cmd.contains("/.vcu/")
+        || cmd.contains("\\.vcu\\")
+        || cmd.contains("/.vcu\\")
+        || cmd.contains("\\.vcu/")
+}
+
 fn lens_status() -> (bool, String) {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let dir = std::path::PathBuf::from(home).join(".vcu/lens-extension");
+    let dir = login_home_dir().join(".vcu").join("lens-extension");
     let copied = dir.join("manifest.json").exists();
     (copied, dir.display().to_string())
 }
@@ -198,50 +221,155 @@ pub fn classify_extension_profile(user: &[BrowserProc], agent: &[BrowserProc]) -
     }
 }
 
-/// Scan running Chrome/Edge main processes. Helpers are ignored.
-pub fn inspect_login_browsers() -> LoginBrowserReport {
+
+fn browser_display_name(process_name: &str, command: &str) -> String {
+    let blob = format!("{process_name} {command}").to_ascii_lowercase();
+    if blob.contains("edge") {
+        "Microsoft Edge".into()
+    } else {
+        "Chrome".into()
+    }
+}
+
+fn ingest_scanned_browser(
+    pid: i32,
+    process_name: &str,
+    command: &str,
+    user_browsers: &mut Vec<BrowserProc>,
+    agent_browsers: &mut Vec<BrowserProc>,
+) {
+    let kind = classify_browser_command(process_name, command);
+    match kind {
+        BrowserProfile::User => user_browsers.push(BrowserProc {
+            pid,
+            name: browser_display_name(process_name, command),
+            profile: kind.as_str().to_string(),
+            command_excerpt: excerpt(command),
+        }),
+        BrowserProfile::Agent => agent_browsers.push(BrowserProc {
+            pid,
+            name: "Agent Edge".into(),
+            profile: kind.as_str().to_string(),
+            command_excerpt: excerpt(command),
+        }),
+        _ => {}
+    }
+}
+
+fn parse_windows_browser_line(line: &str) -> Option<(i32, String, String)> {
+    let mut parts = line.splitn(3, '\t');
+    let pid = parts.next()?.trim().parse::<i32>().ok()?;
+    let name = parts.next()?.trim().to_string();
+    let cmd = parts.next()?.trim().to_string();
+    if name.is_empty() {
+        return None;
+    }
+    Some((pid, name, cmd))
+}
+
+fn scan_login_browsers() -> (Vec<BrowserProc>, Vec<BrowserProc>) {
     let mut user_browsers = Vec::new();
     let mut agent_browsers = Vec::new();
-    if let Ok(out) = std::process::Command::new("ps")
+    for (pid, name, cmd) in scan_browser_process_rows() {
+        ingest_scanned_browser(pid, &name, &cmd, &mut user_browsers, &mut agent_browsers);
+    }
+    (user_browsers, agent_browsers)
+}
+
+fn scan_browser_process_rows() -> Vec<(i32, String, String)> {
+    #[cfg(windows)]
+    {
+        return scan_browser_process_rows_windows();
+    }
+    #[cfg(not(windows))]
+    {
+        scan_browser_process_rows_ps()
+    }
+}
+
+#[cfg(not(windows))]
+fn scan_browser_process_rows_ps() -> Vec<(i32, String, String)> {
+    let mut rows = Vec::new();
+    let Ok(out) = std::process::Command::new("ps")
         .args(["-ax", "-o", "pid=,command="])
         .output()
-    {
-        if out.status.success() {
-            for line in String::from_utf8_lossy(&out.stdout).lines() {
-                let line = line.trim();
-                if line.is_empty() {
-                    continue;
-                }
-                let Some((pid_s, cmd)) = line.split_once(char::is_whitespace) else {
-                    continue;
-                };
-                let Ok(pid) = pid_s.trim().parse::<i32>() else {
-                    continue;
-                };
-                let cmd = cmd.trim();
-                let kind = classify_browser_command("", cmd);
-                match kind {
-                    BrowserProfile::User => user_browsers.push(BrowserProc {
-                        pid,
-                        name: if cmd.to_ascii_lowercase().contains("edge") {
-                            "Microsoft Edge".into()
-                        } else {
-                            "Chrome".into()
-                        },
-                        profile: kind.as_str().to_string(),
-                        command_excerpt: excerpt(cmd),
-                    }),
-                    BrowserProfile::Agent => agent_browsers.push(BrowserProc {
-                        pid,
-                        name: "Agent Edge".into(),
-                        profile: kind.as_str().to_string(),
-                        command_excerpt: excerpt(cmd),
-                    }),
-                    _ => {}
-                }
-            }
-        }
+    else {
+        return rows;
+    };
+    if !out.status.success() {
+        return rows;
     }
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Some((pid_s, cmd)) = line.split_once(char::is_whitespace) else {
+            continue;
+        };
+        let Ok(pid) = pid_s.trim().parse::<i32>() else {
+            continue;
+        };
+        rows.push((pid, String::new(), cmd.trim().to_string()));
+    }
+    rows
+}
+
+#[cfg(windows)]
+fn scan_browser_process_rows_windows() -> Vec<(i32, String, String)> {
+    let script = r#"
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$tab = [char]9
+Get-CimInstance Win32_Process | Where-Object {
+  $_.Name -match '^(msedge|chrome|chromium)(\.exe)?$'
+} | ForEach-Object {
+  $cmd = if ($null -eq $_.CommandLine) { '' } else { [string]$_.CommandLine }
+  $cmd = $cmd -replace "[\r\n\t]", ' '
+  '{0}{1}{2}{1}{3}' -f $_.ProcessId, $tab, $_.Name, $cmd
+}
+"#;
+    let path = std::env::temp_dir().join(format!(
+        "vcu-login-ps-{}-{}.ps1",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    let mut bytes = vec![0xEF, 0xBB, 0xBF];
+    bytes.extend_from_slice(script.as_bytes());
+    if std::fs::write(&path, &bytes).is_err() {
+        return Vec::new();
+    }
+    let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+    let ps = std::path::PathBuf::from(root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
+    let output = std::process::Command::new(ps)
+        .args([
+            "-NoProfile",
+            "-STA",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            path.to_string_lossy().as_ref(),
+        ])
+        .output();
+    let _ = std::fs::remove_file(&path);
+    let Ok(output) = output else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(parse_windows_browser_line)
+        .collect()
+}
+
+/// Scan running Chrome/Edge main processes. Helpers are ignored.
+pub fn inspect_login_browsers() -> LoginBrowserReport {
+    let (mut user_browsers, agent_browsers) = scan_login_browsers();
     let frontmost = frontmost_user_browser_name();
     user_browsers = order_user_browsers_frontmost_first(user_browsers, frontmost.as_deref());
     let extension_profile = classify_extension_profile(&user_browsers, &agent_browsers);
@@ -977,6 +1105,59 @@ mod tests {
         assert_eq!(body["page_url"], "https://edge.example/");
         assert_eq!(body["tab_id"], "42");
         assert_ne!(body.get("source").and_then(|v| v.as_str()), Some("extension_dom"));
+    }
+
+    #[test]
+    fn windows_edge_main_is_user_helper_skipped_agent_backslash() {
+        assert_eq!(
+            classify_browser_command(
+                "msedge.exe",
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+            ),
+            BrowserProfile::User
+        );
+        assert_eq!(
+            classify_browser_command(
+                "msedge.exe",
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe --type=renderer"
+            ),
+            BrowserProfile::Helper
+        );
+        assert_eq!(
+            classify_browser_command(
+                "msedge.exe",
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe --user-data-dir=C:\Users\me\.vcu\edge-agent-profile"
+            ),
+            BrowserProfile::Agent
+        );
+    }
+
+    #[test]
+    fn windows_scan_line_keeps_user_edge_drops_helper() {
+        let mut user = Vec::new();
+        let mut agent = Vec::new();
+        ingest_scanned_browser(
+            16520,
+            "msedge.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            &mut user,
+            &mut agent,
+        );
+        ingest_scanned_browser(
+            1520,
+            "msedge.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe --type=gpu-process",
+            &mut user,
+            &mut agent,
+        );
+        assert_eq!(user.len(), 1);
+        assert_eq!(user[0].pid, 16520);
+        assert_eq!(user[0].name, "Microsoft Edge");
+        assert_eq!(user[0].profile, "user");
+        assert!(agent.is_empty());
+        let parsed = parse_windows_browser_line("16520\tmsedge.exe\tC:\\Edge\\msedge.exe").unwrap();
+        assert_eq!(parsed.0, 16520);
+        assert_eq!(parsed.1, "msedge.exe");
     }
 
 }

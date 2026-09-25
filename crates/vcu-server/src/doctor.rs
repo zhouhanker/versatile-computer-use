@@ -271,7 +271,7 @@ pub async fn build_report(paths: &VcuPaths, live: Option<&AppState>) -> DoctorRe
             login_report.extension_profile = "user";
         }
         login_report.next_action = crate::login_state::login_next_action(
-            login_report.user_browsers.is_empty(),
+            login_report.user_browsers.is_empty() && login_report.extension_profile != "user",
             login_report.lens_copied,
             login_report.extension_profile,
             false,

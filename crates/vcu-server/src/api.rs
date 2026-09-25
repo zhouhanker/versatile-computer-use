@@ -136,7 +136,7 @@ async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         login.extension_profile = "user";
     }
     login.next_action = crate::login_state::login_next_action(
-        login.user_browsers.is_empty(),
+        login.user_browsers.is_empty() && login.extension_profile != "user",
         login.lens_copied,
         login.extension_profile,
         false,
