@@ -1,6 +1,6 @@
 # Windows 视觉对齐
 
-更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 009 已在本机复测。009 在 Windows 11 上用系统 Acrylic 做胶囊，白字叠在点击穿透层。失败时仍退回采样模糊。不是 macOS `NSVisualEffectView`，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 010 已在本机复测。009 在 Windows 11 上用系统 Acrylic 做胶囊，白字叠在点击穿透层。失败时仍退回采样模糊。不是 macOS `NSVisualEffectView`，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
 
 ## 边界
 
@@ -103,3 +103,12 @@
 - Acrylic 调用失败时退回 008 的采样模糊。没有 SendInput，没有移动系统光标。
 - 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_009_acrylic.ps1` 输出 `WIN-VIS-009 OK acrylic green=24,59,37 red=75,25,28 bright=101 cursor=1780,358`。背后从绿变红后 220ms 内胶囊跟着变，快于 480ms 采样。左侧能读出白字。测完 Abort，只关闭自建窗。
 - 不做：不写成和 macOS 材质逐像素相同，也不写成完整产品 CU。没有在 100% DPI 上复测。
+
+## WIN-VIS-010 描边、半粗标题和轻阴影
+
+状态：**2026-09-26 本机复测通过。** 不是 `NSVisualEffectView`，也不是完整 Windows 产品 CU。
+
+- macOS 胶囊有 0.5pt 分隔线、semibold 标题和窗口阴影。009 的 Acrylic 只有白字，没有这三样。
+- 现在文字层用 Segoe UI Semibold，并画 1px 半透明白描边。胶囊外另有一层点击穿透的轻阴影，向下偏 2 个设计像素。Acrylic 失败时采样模糊路径也用同一套半粗字体。没有 SendInput。
+- 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_010_hairline.ps1` 输出 `WIN-VIS-010 OK acrylic hairline=404/119 shadow=122/260 green=23,55,35 red=70,23,26 bright=139 cursor=1780,358`。描边亮于胶囊中心，阴影暗于更下方的背景，颜色仍在 220ms 内跟着变。系统光标没有动。测完 Abort，只关闭自建窗。
+- 不做：不写成和 macOS 逐像素相同，也不写成完整产品 CU。没有在 100% DPI 上复测。

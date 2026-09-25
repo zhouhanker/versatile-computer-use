@@ -152,10 +152,21 @@ function Set-HudPill($form) {
 function New-HudTextBitmap {
   $bmp = New-Object System.Drawing.Bitmap $script:HudW, $script:HudH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
   $g.Clear([System.Drawing.Color]::Transparent)
+  $inset = [Math]::Max(1, [int][Math]::Round($script:DpiScale))
+  $d = $script:HudH - (2 * $inset)
+  $ring = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $ring.AddArc($inset, $inset, $d, $d, 90, 180)
+  $ring.AddArc(($script:HudW - $d - $inset), $inset, $d, $d, 270, 180)
+  $ring.CloseFigure()
+  $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(115, 255, 255, 255)), 1
+  $g.DrawPath($pen, $ring)
+  $pen.Dispose()
+  $ring.Dispose()
   $fontPx = [single](12 * $script:DpiScale)
-  $font = New-Object System.Drawing.Font "Segoe UI", $fontPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
+  $font = New-Object System.Drawing.Font "Segoe UI Semibold", $fontPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
   $textY = [single](($script:HudH - $fontPx) / 2)
   $pad = 12 * $script:DpiScale
   $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
@@ -172,6 +183,50 @@ $g.DrawString("VCU 正在使用这台 PC", $font, $white, $pad, $textY)
 function Show-HudText {
   if (-not $script:HudAcrylic -or $null -eq $script:HudText -or -not $script:HudText.Visible) { return }
   [void][VcuStageWin]::ShowBitmap($script:HudText.Handle, $script:HudTextBmp, $hud.Left, $hud.Top, $true)
+}
+
+function New-HudShadowBitmap {
+  $pad = [int][Math]::Round(10 * $script:DpiScale)
+  $w = $script:HudW + (2 * $pad)
+  $h = $script:HudH + (2 * $pad)
+  $bmp = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.Clear([System.Drawing.Color]::Transparent)
+  $shift = [int][Math]::Round(2 * $script:DpiScale)
+  foreach ($spread in @(8, 5, 3)) {
+    $s = [int][Math]::Round($spread * $script:DpiScale)
+    $alpha = 22 - $spread
+    if ($alpha -lt 6) { $alpha = 6 }
+    $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($alpha, 0, 0, 0))
+    $x = $pad - $s
+    $y = $pad - $s + $shift
+    $rw = $script:HudW + (2 * $s)
+    $rh = $script:HudH + (2 * $s)
+    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $path.AddArc($x, $y, $rh, $rh, 90, 180)
+    $path.AddArc(($x + $rw - $rh), $y, $rh, $rh, 270, 180)
+    $path.CloseFigure()
+    $g.FillPath($brush, $path)
+    $path.Dispose()
+    $brush.Dispose()
+  }
+  $g.Dispose()
+  return $bmp
+}
+function Show-HudShadow {
+  if (-not $script:HudAcrylic -or $null -eq $script:HudShadow -or -not $script:HudShadow.Visible) { return }
+  $pad = [int][Math]::Round(10 * $script:DpiScale)
+  $shift = [int][Math]::Round(2 * $script:DpiScale)
+  $left = $hud.Left - $pad
+  $top = $hud.Top - $pad + $shift
+  [void][VcuStageWin]::ShowBitmap($script:HudShadow.Handle, $script:HudShadowBmp, $left, $top, $true)
+}
+function Sync-HudLayers {
+  if ($script:HudShadow -and $script:HudShadow.Visible) { Show-HudShadow }
+  if ($script:HudAcrylic -and $hud.Visible) { $hud.BringToFront() }
+  Show-HudText
+  if ($script:HudText -and $script:HudText.Visible) { $script:HudText.BringToFront() }
 }
 function Get-HudBackdrop([int]$x, [int]$y, [int]$w, [int]$h) {
   $bmp = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -268,7 +323,7 @@ function New-HudBitmap {
   $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(115, 255, 255, 255)), 1
   $g.DrawPath($pen, $path)
   $fontPx = [single](12 * $script:DpiScale)
-  $font = New-Object System.Drawing.Font "Segoe UI", $fontPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
+  $font = New-Object System.Drawing.Font "Segoe UI Semibold", $fontPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
   $textY = [single](($script:HudH - $fontPx) / 2)
   $pad = 12 * $script:DpiScale
   $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
@@ -391,8 +446,18 @@ if ($script:HudAcrylic) {
   $script:HudText.Left = $hudLeft
   $script:HudText.Top = $hudTop
   $script:HudText.Show()
-  Show-HudText
-  $script:HudText.BringToFront()
+  $pad = [int][Math]::Round(10 * $script:DpiScale)
+  $script:HudShadowBmp = New-HudShadowBitmap
+  $script:HudShadow = New-Object System.Windows.Forms.Form
+  $script:HudShadow.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+  $script:HudShadow.ShowInTaskbar = $false
+  $script:HudShadow.TopMost = $true
+  $script:HudShadow.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+  $script:HudShadow.ClientSize = New-Object System.Drawing.Size $script:HudShadowBmp.Width, $script:HudShadowBmp.Height
+  $script:HudShadow.Left = $hudLeft - $pad
+  $script:HudShadow.Top = $hudTop - $pad
+  $script:HudShadow.Show()
+  Sync-HudLayers
 } else {
   [void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hudLeft, $hudTop, $false)
 }
@@ -417,12 +482,13 @@ $timer.Add_Tick({
     if ($c.hud -eq $false) {
       $hud.Hide()
       if ($script:HudText) { $script:HudText.Hide() }
+      if ($script:HudShadow) { $script:HudShadow.Hide() }
     } else {
       if (-not $hud.Visible) { $hud.Show() }
       if ($script:HudAcrylic) {
         if ($script:HudText -and -not $script:HudText.Visible) { $script:HudText.Show() }
-        Show-HudText
-        if ($script:HudText) { $script:HudText.BringToFront() }
+        if ($script:HudShadow -and -not $script:HudShadow.Visible) { $script:HudShadow.Show() }
+        Sync-HudLayers
       } else {
         [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
       }
@@ -445,12 +511,12 @@ $timer.Add_Tick({
   }
 })
 $hud.Add_Shown({
-  if ($script:HudAcrylic) { Show-HudText; if ($script:HudText) { $script:HudText.BringToFront() } } else {
+  if ($script:HudAcrylic) { Sync-HudLayers } else {
     [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
   }
 })
 $timer.Start()
-$hud.Add_FormClosed({ $timer.Stop(); try { if ($script:HudText) { $script:HudText.Close() } } catch {}; try { $guide.Close() } catch {} })
+$hud.Add_FormClosed({ $timer.Stop(); try { if ($script:HudText) { $script:HudText.Close() } } catch {}; try { if ($script:HudShadow) { $script:HudShadow.Close() } } catch {}; try { $guide.Close() } catch {} })
 [System.Windows.Forms.Application]::Run($hud)
 "#;
 
@@ -1189,6 +1255,10 @@ mod tests {
         assert!(STAGE_WINPS.contains("HudAcrylic"));
         assert!(STAGE_WINPS.contains("New-HudTextBitmap"));
         assert!(STAGE_WINPS.contains("0x99221C18"));
+        assert!(STAGE_WINPS.contains("Segoe UI Semibold"));
+        assert!(STAGE_WINPS.contains("New-HudShadowBitmap"));
+        assert!(STAGE_WINPS.contains("Sync-HudLayers"));
+        assert!(STAGE_WINPS.contains("FromArgb(115, 255, 255, 255)"));
         assert!(STAGE_WINPS.contains("FromArgb(150, 24, 28, 34)"));
         assert!(!STAGE_WINPS.contains("FromArgb(245, 18, 46, 107)"));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));
