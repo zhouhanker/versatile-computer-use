@@ -1,3 +1,5 @@
+更新：2026-09-26。本机 Edge 复测通过：只打开自建 127.0.0.1 页，extract/click/type 的 source 是 extension_dom，点击使 #hit 从 0 变为 1，输入读回 vcu-edge-dom，只关闭这个新标签。已有标签未改。没有测 Chrome，没有点允许调试，没有移动系统光标。详见 scripts/poc_win_edge_dom.py。
+
 更新：2026-09-26。CU-WIN-SESSION-017 已在本机复测：科学模式 sin(π) 角度显示约 0.0548，弧度显示为 0，并切回标准模式。不是完整科学计算器。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-016 已在本机复测：科学模式 tan(45°) 显示「显示为 1」，并切回标准模式。不是完整科学计算器。详见 docs/PLAN-EPIC-WIN-SESSION.md。

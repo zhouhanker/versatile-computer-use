@@ -38,7 +38,7 @@ Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。
 - 不搬系统光标，不代点 Edge「允许调试」，不自动化微信，不修改 Codex CU 安装
 - 跨源 iframe、trusted 手势、通用 AX 网页像素真点（TC-B-040）未做
 - Windows 证据是 CI 上的 Notepad / Explorer / cmd / 计算器切片，不是带 Stage HUD 的产品会话
-- Windows 登录态会枚举本机 Edge/Chrome 主进程，不再依赖 Unix `ps`。扩展已轮询且 lens 已安装时，`login-state` 不应再要求打开浏览器或重新加载扩展
+- Windows 登录态会枚举本机 Edge/Chrome 主进程，不再依赖 Unix `ps`。扩展已轮询且 lens 已安装时，`login-state` 不应再要求打开浏览器或重新加载扩展。2026-09-26 本机只复测了 Edge：自建 `127.0.0.1` 页的 extract、选择器点击和输入都是 `source=extension_dom`，已有标签没有被改，没有测 Chrome
 - 桌面会话如果点名的窗口没有可见窗体，会拒绝并保持不改绑到其他应用
 - Windows 商店版记事本的启动桩进程会解析到唯一的可见记事本窗口；多开时仍拒绝，不猜窗口
 - Windows Terminal 进程名 `WindowsTerminal` 在允许名单内，可以观察
