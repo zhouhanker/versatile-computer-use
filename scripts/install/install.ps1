@@ -57,6 +57,11 @@ try {
   & $vcu init --json
   Write-Host "OK: installed to $BinDir"
   Write-Host "Ensure PATH contains $BinDir"
+  if (Test-Path $destExt) {
+    Write-Host "Extension folder: $destExt"
+    Write-Host "Edge: edge://extensions, Developer mode, Load unpacked, select that folder."
+    Write-Host "Do not click the debugging consent dialog."
+  }
 } finally {
   Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }

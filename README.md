@@ -70,6 +70,14 @@ bash scripts/pack-release.sh
 VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
 ```
 
+浏览器扩展不用商店上架。Windows 可以直接从已有的 GitHub Release 压缩包解出扩展，不点调试同意弹窗：
+
+```powershell
+powershell -File scripts/install/install-lens.ps1 -FromRelease -Open
+```
+
+下一次打 tag 发布会额外带上 `vcu-lens-extension.zip`。现在的 `v0.2.8` 压缩包里已经有 `extension/`。
+
 安装说明见 [`docs/INSTALL.md`](docs/INSTALL.md)。
 
 ## 开始使用

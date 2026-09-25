@@ -84,3 +84,17 @@ vcu self uninstall --yes --purge-config
 ```
 
 **Never** removes Codex Computer Use or other third-party computer-use apps.
+
+## Browser extension
+
+The runtime tarball on GitHub Releases already contains `extension/`. A separate `vcu-lens-extension.zip` is added to the release workflow for the next tag. It is not on the existing `v0.2.8` asset list.
+
+Windows, without clicking the debugging consent dialog:
+
+```powershell
+powershell -File scripts/install/install-lens.ps1 -FromRelease -Open
+```
+
+That downloads `vcu-latest-windows-x64.tar.gz`, copies `extension/` to `%USERPROFILE%\.vcu\lens-extension`, and can open that folder. Then in Edge: `edge://extensions`, Developer mode, Load unpacked. Do not start CDP.
+
+From a source checkout, omit `-FromRelease` to copy `extension/` directly.

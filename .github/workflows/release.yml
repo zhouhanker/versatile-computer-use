@@ -110,6 +110,9 @@ jobs:
             Set-Content "dist/vcu-$ver-$plat.tar.gz.sha256"
           Copy-Item "dist/vcu-$ver-$plat.tar.gz.sha256" "dist/vcu-latest-$plat.tar.gz.sha256"
           Copy-Item scripts/install/install.sh,scripts/install/install.ps1 dist/
+          if (Test-Path "$stage/extension/manifest.json") {
+            python scripts/install/package_lens.py --source "$stage/extension" --dest "dist/vcu-lens-extension.zip"
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: release-windows
@@ -127,8 +130,8 @@ jobs:
       - name: collect
         run: |
           mkdir -p dist
-          find artifacts -type f \( -name 'vcu-*.tar.gz' -o -name 'vcu-*.sha256' -o -name 'install.sh' -o -name 'install.ps1' \) -exec cp -n {} dist/ \; || true
-          find artifacts -type f \( -name 'vcu-*.tar.gz' -o -name 'vcu-*.sha256' -o -name 'install.sh' -o -name 'install.ps1' \) -exec cp {} dist/ \;
+          find artifacts -type f \( -name 'vcu-*.tar.gz' -o -name 'vcu-*.sha256' -o -name 'install.sh' -o -name 'install.ps1' -o -name 'vcu-lens-extension.zip' \) -exec cp -n {} dist/ \; || true
+          find artifacts -type f \( -name 'vcu-*.tar.gz' -o -name 'vcu-*.sha256' -o -name 'install.sh' -o -name 'install.ps1' -o -name 'vcu-lens-extension.zip' \) -exec cp {} dist/ \;
           # The windows artifact carries a CRLF install.sh (checkout autocrlf);
           # normalize with tr (portable) so `curl | sh` works on macOS/Linux.
           if [ -f dist/install.sh ]; then
@@ -145,6 +148,7 @@ jobs:
             dist/vcu-*.sha256
             dist/install.sh
             dist/install.ps1
+            dist/vcu-lens-extension.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

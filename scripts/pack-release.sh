@@ -91,3 +91,7 @@ echo "Also: dist/vcu-latest-${PLAT}.tar.gz"
 cp scripts/install/install.sh dist/install.sh
 cp scripts/install/install.ps1 dist/install.ps1 2>/dev/null || true
 echo "Installers: dist/install.sh dist/install.ps1"
+if [[ -f "$STAGE/extension/manifest.json" ]]; then
+  python "$ROOT/scripts/install/package_lens.py" --source "$STAGE/extension" --dest "$ROOT/dist/vcu-lens-extension.zip"
+fi
+
