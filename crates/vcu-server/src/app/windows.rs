@@ -461,6 +461,18 @@ public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lp
       }}
     }}
   }}
+
+  if ($cls -match 'Progress') {{
+    $nhProg = [int64]$el.Current.NativeWindowHandle
+    if ($nhProg -ne 0) {{
+      if (-not ("Vcu.VcuProgressRead" -as [type])) {{
+        Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);' -Name VcuProgressRead -Namespace Vcu | Out-Null
+      }}
+      $progPos = [int][Vcu.VcuProgressRead]::SendMessage([IntPtr]$nhProg, 0x0408, [IntPtr]::Zero, [IntPtr]::Zero)
+      $markProg = "progress=$progPos"
+      if ([string]::IsNullOrWhiteSpace($val)) {{ $val = $markProg }} else {{ $val = "$val $markProg" }}
+    }}
+  }}
   $val = ($val -replace '[\r\n\|]', ' ')
   if ($val.Length -gt 200) {{ $val = $val.Substring(0, 200) }}
   $r = $el.Current.BoundingRectangle
@@ -915,6 +927,21 @@ public static bool SelectIndex(int pid, IntPtr hwnd, int index) {
   "ok:listview_select"
   exit 0
 }
+function Test-VcuProgressClass([string]$cls) {
+  if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
+  $c = $cls.ToLowerInvariant()
+  return $c.Contains("progress") -or $c.Contains("msctls_progress32")
+}
+function Select-VcuProgress([IntPtr]$h, [string]$expect) {
+  $pos = 0
+  if (-not [int]::TryParse($expect, [ref]$pos)) { return }
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0402, [IntPtr]$pos, [IntPtr]::Zero)
+  $got = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0408, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($got -eq $pos) {
+    "ok:progress_set"
+    exit 0
+  }
+}
 function Set-VcuElement($el, [string]$expect) {
   try {
     $vp = $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -948,6 +975,10 @@ function Set-VcuElement($el, [string]$expect) {
   }
   if ((Test-VcuListViewClass $cls) -or (Test-VcuListViewClass $uiaCls)) {
     Select-VcuListView ([IntPtr]$nh) $expect $targetPid
+    return
+  }
+  if ((Test-VcuProgressClass $cls) -or (Test-VcuProgressClass $uiaCls)) {
+    Select-VcuProgress ([IntPtr]$nh) $expect
     return
   }
   if (Test-VcuConsoleClass $cls) { return }
@@ -1281,6 +1312,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:tab_select")
         || out.contains("ok:tree_select")
         || out.contains("ok:listview_select")
+        || out.contains("ok:progress_set")
     {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
@@ -1296,6 +1328,8 @@ pub fn set_value_from_uia_output(
             "tree_select"
         } else if out.contains("ok:listview_select") {
             "listview_select"
+        } else if out.contains("ok:progress_set") {
+            "progress_set"
         } else if out.contains("ok:wm_settext") {
             "wm_settext"
         } else {
@@ -1936,6 +1970,9 @@ mod tests {
         assert!(setv.contains("Test-VcuTreeClass"));
         assert!(setv.contains("0x110B"));
         assert!(setv.contains("ok:listview_select"));
+        assert!(setv.contains("ok:progress_set"));
+        assert!(setv.contains("Test-VcuProgressClass"));
+        assert!(setv.contains("0x0402"));
         assert!(setv.contains("Test-VcuListViewClass"));
         assert!(setv.contains("0x102B"));
         assert!(setv.contains("Test-VcuTrackClass"));
