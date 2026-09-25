@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-020 已在本机复测：会话等待按文本框的值找到 VCU-VAL-020，缺失值诚实超时。没有移动系统光标。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-019 已在本机复测：会话等待找到自建按钮 VCU-WAIT-019，缺失名字诚实超时。没有移动系统光标。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-018 已在本机复测：会话截图自建品红窗口，中心像素是 220,30,160，不是黑图。PrintWindow 空白时只复制窗口矩形。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
