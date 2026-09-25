@@ -162,7 +162,8 @@ impl VcuPaths {
             ));
         }
         let text = fs::read_to_string(&path)?;
-        let cfg: UserConfig = serde_json::from_str(&text)?;
+        let text = text.trim_start_matches('\u{feff}');
+        let cfg: UserConfig = serde_json::from_str(text)?;
         Ok(cfg)
     }
 

@@ -1890,9 +1890,21 @@ async fn session_start_inner(
         tabs = backend.list_tabs().await?;
     }
     let active = if matches!(surface, SurfaceKind::Desktop) {
-        if let Some(bound) =
-            crate::login_state::require_desktop_window(&tabs, req.app_id.as_deref())?
-        {
+        // Packaged Notepad can take a moment to publish its real window.
+        let mut resolved =
+            crate::login_state::require_desktop_window(&tabs, req.app_id.as_deref());
+        if resolved.is_err() && req.app_id.as_deref().unwrap_or("").starts_with("win:") {
+            for _ in 0..8 {
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                tabs = backend.list_tabs().await?;
+                resolved =
+                    crate::login_state::require_desktop_window(&tabs, req.app_id.as_deref());
+                if resolved.is_ok() {
+                    break;
+                }
+            }
+        }
+        if let Some(bound) = resolved? {
             Some(bound)
         } else {
             tabs.iter()
@@ -2265,6 +2277,12 @@ fn desktop_tab_ids_equiv(listed: &str, requested: &str) -> bool {
 
 async fn resolve_tab(slot: &mut SessionSlot, tab_id: Option<String>) -> Result<String, VcuError> {
     if let Some(t) = tab_id {
+        if t.to_ascii_lowercase().starts_with("win:notepad:") {
+            let tabs = slot.backend.list_tabs().await?;
+            if let Ok(Some(bound)) = crate::login_state::require_desktop_window(&tabs, Some(&t)) {
+                return Ok(bound);
+            }
+        }
         return Ok(t);
     }
     let tabs = slot.backend.list_tabs().await?;

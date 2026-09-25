@@ -455,12 +455,59 @@ pub fn pick_login_tab(tabs: &[TabInfo], browser: &str, app_id: Option<&str>) -> 
 /// Feishu/Lark composer Send lives in the Electron webview, not AX.
 /// A scene whose AX names contain 发送/Send is lying or is not the messenger UI.
 /// Desktop session must not fall back to another window when the requested id is missing.
+fn win_ids_same_window(listed: &str, requested: &str) -> bool {
+    if listed == requested || listed.eq_ignore_ascii_case(requested) {
+        return true;
+    }
+    let Some(listed_pid) = listed.rsplit(':').next() else {
+        return false;
+    };
+    let Some(requested_pid) = requested.rsplit(':').next() else {
+        return false;
+    };
+    listed.to_ascii_lowercase().starts_with("win:")
+        && requested.to_ascii_lowercase().starts_with("win:")
+        && listed_pid == requested_pid
+        && !listed_pid.is_empty()
+        && listed_pid.chars().all(|c| c.is_ascii_digit())
+}
+
+
+fn packaged_family(requested: &str) -> Option<&'static str> {
+    let req = requested.to_ascii_lowercase();
+    if req.starts_with("win:notepad:") {
+        Some("notepad")
+    } else {
+        None
+    }
+}
+
+fn unique_packaged_window<'a>(tabs: &'a [TabInfo], requested: &str) -> Option<&'a str> {
+    let family = packaged_family(requested)?;
+    let matches: Vec<_> = tabs
+        .iter()
+        .filter(|t| {
+            let id = t.tab_id.to_ascii_lowercase();
+            let title = t.title.to_ascii_lowercase();
+            id.contains(family) || title.contains(family) || title.contains("记事本")
+        })
+        .collect();
+    if matches.len() == 1 {
+        Some(matches[0].tab_id.as_str())
+    } else {
+        None
+    }
+}
+
 pub fn require_desktop_window(tabs: &[TabInfo], app_id: Option<&str>) -> VcuResult<Option<String>> {
     let Some(requested) = app_id.map(str::trim).filter(|s| !s.is_empty()) else {
         return Ok(None);
     };
-    if tabs.iter().any(|t| t.tab_id == requested) {
-        return Ok(Some(requested.to_string()));
+    if let Some(tab) = tabs.iter().find(|t| win_ids_same_window(&t.tab_id, requested)) {
+        return Ok(Some(tab.tab_id.clone()));
+    }
+    if let Some(resolved) = unique_packaged_window(tabs, requested) {
+        return Ok(Some(resolved.to_string()));
     }
     Err(VcuError::coded(
         ErrorCode::TabNotFound,
@@ -1158,7 +1205,25 @@ mod tests {
             require_desktop_window(&tabs, Some("win:cmd:1")).unwrap().as_deref(),
             Some("win:cmd:1")
         );
+        let noted = vec![tab("win:Notepad:9", "Notepad", None, true)];
+        assert_eq!(
+            require_desktop_window(&noted, Some("win:notepad:9")).unwrap().as_deref(),
+            Some("win:Notepad:9")
+        );
         assert!(require_desktop_window(&tabs, None).unwrap().is_none());
+        let noted = vec![
+            tab("win:Notepad:20", "无标题 - Notepad", None, true),
+            tab("win:cmd:3", "cmd", None, true),
+        ];
+        assert_eq!(
+            require_desktop_window(&noted, Some("win:notepad:9")).unwrap().as_deref(),
+            Some("win:Notepad:20")
+        );
+        let two = vec![
+            tab("win:Notepad:20", "a", None, true),
+            tab("win:Notepad:21", "b", None, true),
+        ];
+        assert!(require_desktop_window(&two, Some("win:notepad:9")).is_err());
     }
 
     #[test]

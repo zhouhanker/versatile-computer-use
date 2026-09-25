@@ -1,6 +1,6 @@
 # Windows 真机修复计划
 
-更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 与 WIN-FIX-002 已在本机复测通过，其余未开工。
+更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001、002、003 已在本机复测通过。计算器宿主窗口仍未放行。004 起未开工。
 
 测的是已安装 Release `v0.2.8`（`vcu --version` 仍打印 crate `0.1.0`）。对照当前源码后，下面的缺陷在 HEAD 里也还在。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
 
@@ -67,10 +67,12 @@
 
 ### WIN-FIX-003 商店应用窗口 pid
 
-- 现象：`Start-Process notepad.exe` 的 pid 没有 HWND。真正窗口在另一个 `Notepad` 进程。用真实 pid 时，UIA 有 35 个节点，输入是 `uia_set_value`，截图成功。
-- 计算器窗口在 `ApplicationFrameHost`，标题「计算器」，进程名不在允许名单，快照被拒绝。
-- 修：从启动的桩进程解析到真正拥有可见窗口的 pid，或明确拒绝并给出真实 pid。`ApplicationFrameHost` 只在能证明是允许的商店应用时放行，否则保持拒绝。不要为了计算器去放行整个 ApplicationFrameHost。
-- 验收：官方 `poc_cu_d_090.ps1` 在这台 25H2 / `Microsoft.WindowsNotepad` 上能找到 Edit/Document 并写入。计算器要么诚实成功，要么错误里写明宿主进程，而不是笼统的 allowlist。
+状态：**记事本桩进程已修，2026-09-26 本机 `scripts/poc_cu_d_090.ps1` 通过。** 计算器仍拒绝，没有放行整个 `ApplicationFrameHost`。
+
+- 现象：`Start-Process notepad.exe` 返回的进程没有窗口，而且经常马上退出。真正窗口在另一个 `Notepad` 进程。
+- 修：请求 `win:notepad:<桩pid>` 时，如果当前只有一个可见记事本窗口，会话和后续 snapshot/type 绑定到那个窗口。有两个及以上记事本时仍然拒绝，不猜。配置读取会去掉 UTF-8 BOM，否则官方 POC 写的 `config.json` 会让 daemon 解析失败。
+- 验收：`poc_cu_d_090.ps1` 输出 `STAGE_OK`、`SNAP_OK source=uia_scene ref=e6`、`TYPE_OK path=uia_set_value os_cursor_used=False`、`CU-D-090 OK`。单测覆盖桩 pid 绑到唯一记事本，以及两个记事本时拒绝。
+- 计算器：窗口仍在 `ApplicationFrameHost`，标题「计算器」。`app snapshot win:ApplicationFrameHost:<pid>` 继续报该进程不在允许名单。没有为了计算器放行整个宿主进程。
 - 不做：不把这次成功写成完整 Windows 产品 CU。
 
 ### WIN-FIX-004 允许名单进程名
@@ -115,7 +117,7 @@
 
 1. WIN-FIX-001 登录态进程扫描。已完成并复测。
 2. WIN-FIX-002 禁止静默改绑。已完成并复测。
-3. WIN-FIX-003 商店应用真实窗口 pid。
+3. WIN-FIX-003 商店应用真实窗口 pid。记事本桩进程已完成并复测。计算器宿主未放行。
 4. WIN-FIX-004 Windows Terminal 名单。
 5. WIN-FIX-005 截图错误文案。
 6. WIN-FIX-006 UIA 编码。

@@ -195,7 +195,26 @@ function Get-VcuHwnd([int]$ProcessId) {
   if ($null -eq $p) { return [IntPtr]::Zero }
   try { $p.Refresh() } catch {}
   if ($p.MainWindowHandle -ne [IntPtr]::Zero) { return [IntPtr]$p.MainWindowHandle }
-  return [VcuHwndResolve]::ForPid([uint32]$ProcessId)
+  $owned = [VcuHwndResolve]::ForPid([uint32]$ProcessId)
+  if ($owned -ne [IntPtr]::Zero) { return $owned }
+  # Store Notepad: Start-Process notepad.exe often returns a windowless stub.
+  # Use the unique visible Notepad window. Do not guess when several are open.
+  $name = [string]$p.ProcessName
+  if ($name -eq "Notepad") {
+    $wins = @(Get-Process -Name Notepad -ErrorAction SilentlyContinue | Where-Object {
+      $_.Id -ne $ProcessId -and $_.MainWindowHandle -ne 0
+    })
+    $near = @()
+    foreach ($w in $wins) {
+      try {
+        $delta = [Math]::Abs(($w.StartTime - $p.StartTime).TotalSeconds)
+        if ($delta -lt 8) { $near += $w }
+      } catch {}
+    }
+    if ($near.Count -eq 1) { return [IntPtr]$near[0].MainWindowHandle }
+    if ($wins.Count -eq 1) { return [IntPtr]$wins[0].MainWindowHandle }
+  }
+  return [IntPtr]::Zero
 }
 function Wait-VcuHwnd([int]$ProcessId) {
   $hwnd = [IntPtr]::Zero
@@ -815,6 +834,25 @@ Get-Process | Where-Object {
   @('cmd','conhost','powershell','pwsh','WindowsTerminal','Calculator','calc','CalculatorApp','SystemSettings') -contains $_.ProcessName
 } |
   ForEach-Object { '{0}|{1}|{2}' -f $_.ProcessName, $_.Id, ($_.MainWindowTitle -replace '[\r\n\t]',' ') }
+# Windowless Notepad stubs alias onto the list when one nearby visible Notepad exists.
+$visibleNp = @(Get-Process -Name Notepad -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+Get-Process -Name Notepad -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -eq 0 } | ForEach-Object {
+  $stub = $_
+  $near = @()
+  foreach ($w in $visibleNp) {
+    try {
+      $delta = [Math]::Abs(($w.StartTime - $stub.StartTime).TotalSeconds)
+      if ($delta -lt 8) { $near += $w }
+    } catch {}
+  }
+  $pick = $null
+  if ($near.Count -eq 1) { $pick = $near[0] }
+  elseif ($visibleNp.Count -eq 1) { $pick = $visibleNp[0] }
+  if ($null -ne $pick) {
+    $title = [string]$pick.MainWindowTitle
+    '{0}|{1}|{2}' -f $stub.ProcessName, $stub.Id, ($title -replace '[\r\n\t]',' ')
+  }
+}
 "#;
             let raw = Self::run_powershell(script)?;
             Ok(parse_process_list_lines(&raw, |n| self.allowed(n)))
