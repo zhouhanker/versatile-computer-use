@@ -1,3 +1,5 @@
+更新：2026-09-26。Release `v0.2.8` 上的 `vcu-lens-extension.zip` 已随 `lens-asset` run `36199818913` 更新。本机下载 41527 字节，里面的 `content.js` 含 `data-vcu-fog` 和 72px 雾盒。不是新的产品 Release。
+
 更新：2026-09-26。WIN-VIS-012 已在本机 Edge 复测：共享网页指针的雾心是箭尖 + (6, 6)，半径 36，和 macOS 短箭同一点。点击使 #hit 从 0 变成 1，source=extension_dom。没有移动系统光标。详见 docs/PLAN-WINDOWS-VISUAL.md。
 
 更新：2026-09-26。`vcu-lens-extension.zip` 已挂到 Release `v0.2.8`。工作流 `lens-asset` run `36199325828` 成功。本机下载 41483 字节，15 个文件，`manifest.json` 版本 0.2.8。`install-lens.ps1 -FromRelease` 装到临时目录回执 `LENS_FROM zip`。没有点允许调试，没有新的产品 Release。
