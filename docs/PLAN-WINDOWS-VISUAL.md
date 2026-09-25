@@ -1,6 +1,6 @@
 # Windows 视觉对齐
 
-更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 010 已在本机复测。009 在 Windows 11 上用系统 Acrylic 做胶囊，白字叠在点击穿透层。失败时仍退回采样模糊。不是 macOS `NSVisualEffectView`，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 011 已在本机复测。011 把胶囊内容排成 macOS 那一组：系统强调色圆点、半粗标题、常规字重的 Esc 取消，宽度随内容收缩并限制在 220 到 320。不是两端拆开的半粗字。009 在 Windows 11 上用系统 Acrylic 做胶囊，白字叠在点击穿透层。失败时仍退回采样模糊。不是 macOS `NSVisualEffectView`，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
 
 ## 边界
 
@@ -112,3 +112,12 @@
 - 现在文字层用 Segoe UI Semibold，并画 1px 半透明白描边。胶囊外另有一层点击穿透的轻阴影，向下偏 2 个设计像素。Acrylic 失败时采样模糊路径也用同一套半粗字体。没有 SendInput。
 - 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_010_hairline.ps1` 输出 `WIN-VIS-010 OK acrylic hairline=404/119 shadow=122/260 green=23,55,35 red=70,23,26 bright=139 cursor=1780,358`。描边亮于胶囊中心，阴影暗于更下方的背景，颜色仍在 220ms 内跟着变。系统光标没有动。测完 Abort，只关闭自建窗。
 - 不做：不写成和 macOS 逐像素相同，也不写成完整产品 CU。没有在 100% DPI 上复测。
+
+## WIN-VIS-011 胶囊内容按 macOS 排成一组
+
+状态：**2026-09-26 本机复测通过。** 不是 `NSVisualEffectView`，也不是完整 Windows 产品 CU。
+
+- macOS 胶囊是强调色圆点、半粗标题、常规字重的「Esc 取消」排在一起，宽度随内容收缩，限制在 220 到 320。010 的 Windows 胶囊把两段字都画成半粗，并拆到左右两端。
+- 现在标题仍是 Segoe UI Semibold，「Esc 取消」改为 Segoe UI 常规字重。左侧圆点读 Windows 强调色，对应 macOS `controlAccentColor`。读不到或过暗时退回 `0,120,215`。宽度按内容计算，再限制在 220 到 320 设计像素。没有 SendInput，没有移动系统光标。
+- 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_011_grouped.ps1` 输出 `WIN-VIS-011 OK acrylic grouped w=330 h=42 dot=80/16 text=211/43 right=0 accent=0,120,215 cursor=1780,358`。这台机器 DPI 是 144，330 是 220 设计像素的下限。圆点在白字左侧，胶囊右端没有再钉住的白字。系统光标没有动。测完 Abort，只关闭自建窗。
+- 不做：不写成和 macOS 逐像素相同，也不写成完整产品 CU。没有在 100% DPI 上复测。网页指针仍是共享的 `content.js`，这轮没有改。

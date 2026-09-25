@@ -128,19 +128,76 @@ public static class VcuStageWin {
 }
 "@ -ReferencedAssemblies System.Drawing -Language CSharp
 
-$script:HudW = 280
 $script:HudH = 28
 $script:GuideW = 84
 $script:GuideH = 84
 $script:HotX = 32
 $script:HotY = 34
-$script:HudW = [int][Math]::Round(280 * $script:DpiScale)
+# macOS HudRoot groups circle.fill, a semibold title, and regular Esc.
+# Width fits that row, then clamps to 220...320 design px. Not NSVisualEffectView.
+$script:HudTitle = "VCU 正在使用这台 PC"
+$script:HudSub = "Esc 取消"
+$script:LabelPx = [single](11 * $script:DpiScale)
+$script:TitleFont = New-Object System.Drawing.Font "Segoe UI Semibold", $script:LabelPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
+$script:SubFont = New-Object System.Drawing.Font "Segoe UI", $script:LabelPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
+$measureBmp = New-Object System.Drawing.Bitmap 4, 4
+$measureG = [System.Drawing.Graphics]::FromImage($measureBmp)
+$measureG.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+$titleW = $measureG.MeasureString($script:HudTitle, $script:TitleFont).Width
+$subW = $measureG.MeasureString($script:HudSub, $script:SubFont).Width
+$measureG.Dispose()
+$measureBmp.Dispose()
+$leftPad = 10 * $script:DpiScale
+$rightPad = 12 * $script:DpiScale
+$dotBox = 10 * $script:DpiScale
+$gap = 6 * $script:DpiScale
+$content = $leftPad + $dotBox + $gap + $titleW + $gap + $subW + $rightPad
+$minW = 220 * $script:DpiScale
+$maxW = 320 * $script:DpiScale
+if ($content -lt $minW) { $content = $minW }
+if ($content -gt $maxW) { $content = $maxW }
+$script:HudW = [int][Math]::Round($content)
 $script:HudH = [int][Math]::Round(28 * $script:DpiScale)
 $script:GuideW = [int][Math]::Round(84 * $script:DpiScale)
 $script:GuideH = $script:GuideW
 $script:HotX = [int][Math]::Round(32 * $script:DpiScale)
 $script:HotY = [int][Math]::Round(34 * $script:DpiScale)
 
+
+function Get-WinAccentColor {
+  # Windows stand-in for macOS controlAccentColor. Registry AccentColor, else default blue.
+  try {
+    $raw = (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\DWM" -Name AccentColor -ErrorAction Stop).AccentColor
+    $u = [uint32]$raw
+    $r = [int]($u -band 0xFF)
+    $g = [int](($u -shr 8) -band 0xFF)
+    $b = [int](($u -shr 16) -band 0xFF)
+    if (($r + $g + $b) -lt 24) { throw "accent too dark" }
+    return [System.Drawing.Color]::FromArgb(255, $r, $g, $b)
+  } catch {
+    return [System.Drawing.Color]::FromArgb(255, 0, 120, 215)
+  }
+}
+function Draw-HudLabels($g) {
+  $scale = $script:DpiScale
+  $textY = [single](($script:HudH - $script:LabelPx) / 2)
+  $x = 10 * $scale
+  $dot = 7 * $scale
+  $dotY = ($script:HudH - $dot) / 2
+  $accent = Get-WinAccentColor
+  $brush = New-Object System.Drawing.SolidBrush $accent
+  $g.FillEllipse($brush, $x, $dotY, $dot, $dot)
+  $brush.Dispose()
+  $x = $x + (10 * $scale) + (6 * $scale)
+  $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
+  $g.DrawString($script:HudTitle, $script:TitleFont, $white, $x, $textY)
+  $titleWidth = $g.MeasureString($script:HudTitle, $script:TitleFont).Width
+  $x = $x + $titleWidth + (6 * $scale)
+  $dim = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(180, 255, 255, 255))
+  $g.DrawString($script:HudSub, $script:SubFont, $dim, $x, $textY)
+  $white.Dispose()
+  $dim.Dispose()
+}
 function Set-HudPill($form) {
   $path = New-Object System.Drawing.Drawing2D.GraphicsPath
   $d = $script:HudH
@@ -165,18 +222,7 @@ function New-HudTextBitmap {
   $g.DrawPath($pen, $ring)
   $pen.Dispose()
   $ring.Dispose()
-  $fontPx = [single](12 * $script:DpiScale)
-  $font = New-Object System.Drawing.Font "Segoe UI Semibold", $fontPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
-  $textY = [single](($script:HudH - $fontPx) / 2)
-  $pad = 12 * $script:DpiScale
-  $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
-  $dim = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(210, 255, 255, 255))
-$g.DrawString("VCU 正在使用这台 PC", $font, $white, $pad, $textY)
-  $measured = $g.MeasureString("Esc 取消", $font)
-  $g.DrawString("Esc 取消", $font, $dim, ($script:HudW - $measured.Width - $pad), $textY)
-    $white.Dispose()
-  $dim.Dispose()
-  $font.Dispose()
+  Draw-HudLabels $g
   $g.Dispose()
   return $bmp
 }
@@ -322,15 +368,7 @@ function New-HudBitmap {
   $g.ResetClip()
   $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(115, 255, 255, 255)), 1
   $g.DrawPath($pen, $path)
-  $fontPx = [single](12 * $script:DpiScale)
-  $font = New-Object System.Drawing.Font "Segoe UI Semibold", $fontPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
-  $textY = [single](($script:HudH - $fontPx) / 2)
-  $pad = 12 * $script:DpiScale
-  $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
-  $dim = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(210, 255, 255, 255))
-  $g.DrawString("VCU 正在使用这台 PC", $font, $white, $pad, $textY)
-  $measured = $g.MeasureString("Esc 取消", $font)
-  $g.DrawString("Esc 取消", $font, $dim, ($script:HudW - $measured.Width - $pad), $textY)
+  Draw-HudLabels $g
   $g.Dispose()
   return $bmp
 }
@@ -409,6 +447,11 @@ function Read-Control {
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $hudLeft = [int]($screen.Left + ($screen.Width - $script:HudW) / 2)
 $hudTop = [int]($screen.Top + 8)
+try {
+  $accent = Get-WinAccentColor
+  $geo = "w=$($script:HudW) h=$($script:HudH) x=$hudLeft y=$hudTop accent=$($accent.R),$($accent.G),$($accent.B)"
+  Set-Content -LiteralPath (Join-Path $env:TEMP "vcu-stage-hud.txt") -Value $geo -Encoding ascii
+} catch {}
 $backdrop = Get-HudBackdrop $hudLeft $hudTop $script:HudW $script:HudH
 $script:HudAvg = Get-BitmapKey $backdrop
 $script:HudBmp = New-HudBitmap $backdrop
@@ -1217,8 +1260,15 @@ mod tests {
 
     #[test]
     fn windows_stage_matches_macos_capsule_and_dart() {
-        assert!(STAGE_WINPS.contains("$script:HudW = 280"));
         assert!(STAGE_WINPS.contains("$script:HudH = 28"));
+        assert!(STAGE_WINPS.contains("220 * $script:DpiScale"));
+        assert!(STAGE_WINPS.contains("320 * $script:DpiScale"));
+        assert!(STAGE_WINPS.contains("Draw-HudLabels"));
+        assert!(STAGE_WINPS.contains("Get-WinAccentColor"));
+        assert!(STAGE_WINPS.contains("FillEllipse"));
+        assert!(STAGE_WINPS.contains("controlAccentColor"));
+        assert!(STAGE_WINPS.contains("New-Object System.Drawing.Font \"Segoe UI\","));
+        assert!(!STAGE_WINPS.contains("$script:HudW - $measured.Width"));
         assert!(STAGE_WINPS.contains("$script:GuideW = 84"));
         assert!(STAGE_WINPS.contains("$script:HotX = 32"));
         assert!(STAGE_WINPS.contains("$script:HotY = 34"));
