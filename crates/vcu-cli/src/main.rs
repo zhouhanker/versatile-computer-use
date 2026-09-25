@@ -617,8 +617,31 @@ enum Harness {
     Pi,
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
+    let started = std::thread::Builder::new()
+        .name("vcu-main".into())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("tokio runtime");
+            runtime.block_on(cli_main());
+        });
+    match started {
+        Ok(handle) => {
+            if handle.join().is_err() {
+                std::process::exit(2);
+            }
+        }
+        Err(err) => {
+            eprintln!("failed to start vcu: {err}");
+            std::process::exit(2);
+        }
+    }
+}
+
+async fn cli_main() {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_target(false)
