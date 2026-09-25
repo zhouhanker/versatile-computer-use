@@ -26,9 +26,20 @@
 - 同一 pid 的 `win:ApplicationFrameHost:<pid>` 仍然被拒绝
 - 没有移动系统光标，测完关闭了 CalculatorApp
 
+
+## CU-WIN-SESSION-003 会话计算 1+1
+
+状态：**2026-09-26 本机复测通过。**
+
+- 命令：`powershell -File scripts/poc_win_session_calc_add.ps1`
+- 结果：`CU-WIN-SESSION-003 OK win:Calculator:18668 ... 1+1=2`
+- 顺序按「一」「加」「一」「等于」。每次都是 `uia_invoke`，`os_cursor_used=false`，`hid_injected=false`
+- 显示从「显示为 0」变成「显示为 2」
+- 没有移动系统光标，测完关闭了 CalculatorApp
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
-- 只验证了按一次「七」。没有做连续运算，也没有把这写成完整计算器产品。
+- 只验证了 1+1。没有覆盖科学模式、内存键或连续长表达式，也不写成完整计算器产品。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
