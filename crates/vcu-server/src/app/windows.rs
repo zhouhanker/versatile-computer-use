@@ -402,6 +402,33 @@ while ($q.Count -gt 0) {{
       'ok:selection_item'
       exit 0
     }} catch {{}}
+    try {{
+      $exp = $el.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+      $exp.Expand()
+      'ok:expand_collapse'
+      exit 0
+    }} catch {{}}
+    $inner = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($k in $inner) {{
+      try {{
+        $ktog = $k.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+        $ktog.Toggle()
+        'ok:toggle'
+        exit 0
+      }} catch {{}}
+      try {{
+        $kinv = $k.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+        $kinv.Invoke()
+        'ok:uia_invoke'
+        exit 0
+      }} catch {{}}
+      try {{
+        $kexp = $k.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+        $kexp.Expand()
+        'ok:expand_collapse'
+        exit 0
+      }} catch {{}}
+    }}
     if (-not ("Vcu.VcuInvoke100" -as [type])) {{
       $sig = @'
 [DllImport("user32.dll")]
@@ -767,6 +794,10 @@ pub fn invoke_from_uia_output(
         "legacy_invoke"
     } else if out.contains("ok:selection_item") {
         "selection_item"
+    } else if out.contains("ok:expand_collapse") {
+        "expand_collapse"
+    } else if out.contains("ok:toggle") {
+        "toggle"
     } else if out.contains("ok:bm_click") {
         "bm_click"
     } else {
@@ -1522,6 +1553,11 @@ mod tests {
         assert!(inv.contains("ok:uia_invoke"));
         assert!(inv.contains("SelectionItemPattern"));
         assert!(inv.contains("ok:selection_item"));
+        assert!(inv.contains("ExpandCollapsePattern"));
+        assert!(inv.contains("TogglePattern"));
+        assert!(inv.contains("ok:toggle"));
+        assert!(inv.contains("TreeScope]::Children"));
+        assert!(inv.contains("ok:expand_collapse"));
         assert!(!inv.to_ascii_lowercase().contains("sendinput"));
         assert!(!inv.to_ascii_lowercase().contains("mouse_event"));
         assert_eq!(pid_from_win_id("win:notepad:4242"), Some(4242));
@@ -1540,6 +1576,9 @@ mod tests {
         assert_eq!(ok["os_cursor_used"], false);
         let sel = invoke_from_uia_output("form", "e2", "ok:selection_item").unwrap();
         assert_eq!(sel["input_path"], "selection_item");
+        let exp = invoke_from_uia_output("form", "e2", "ok:expand_collapse").unwrap();
+        assert_eq!(exp["input_path"], "expand_collapse");
+        assert_eq!(exp["os_cursor_used"], false);
         assert_eq!(sel["os_cursor_used"], false);
         let bm = invoke_from_uia_output("form", "e2", "ok:bm_click").unwrap();
         assert_eq!(bm["input_path"], "bm_click");

@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、常用对数和自然对数已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数和 sin(30°) 已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -165,9 +165,21 @@
 - 切回标准模式后「自然对数」按钮消失。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
 - 没有覆盖三角函数。
 
+## CU-WIN-SESSION-014 会话科学模式计算正弦
+
+状态：**2026-09-26 本机复测通过。** 不是完整科学计算器，也不是完整 Windows 产品 CU。
+
+- 开始前没有已打开的计算器窗口。脚本自己启动。测完切回标准模式，再只关闭 CalculatorApp。
+- 命令：`powershell -File scripts/poc_win_session_calc_sin.ps1`
+- 结果：`CU-WIN-SESSION-014 OK win:Calculator:18668 ... sin(30)=0.5 restored`
+- 「三角学」外层列表项没有 Invoke。里面的同名按钮有 TogglePattern。点击走 `toggle`，展开后按「三」「零」「正弦」。
+- 显示是「显示为 0.5」。如果第一次不是 0.5，会按一次「度数切换」再算。这次第一次就是 0.5。
+- 没有 SendInput，没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
+- 没有覆盖余弦、正切和弧度模式的完整矩阵。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
-- 科学模式验证了切换、π、log10(100) 和 ln(e)。没有覆盖三角函数。
+- 科学模式验证了切换、π、log10(100)、ln(e) 和 sin(30°)。没有覆盖余弦、正切和弧度矩阵。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
