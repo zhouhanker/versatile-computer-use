@@ -73,10 +73,16 @@ VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
 浏览器扩展不用商店上架。Windows 可以直接从已有的 GitHub Release 压缩包解出扩展，不点调试同意弹窗：
 
 ```powershell
+irm https://raw.githubusercontent.com/zhouhanker/versatile-computer-use/main/scripts/install/install-lens.ps1 | iex
+```
+
+不需要先克隆仓库。脚本优先下载 Release 上的 `vcu-lens-extension.zip`；当前 `v0.2.8` 还没有这个独立包，会改用已经在 GitHub 上的 `vcu-latest-windows-x64.tar.gz` 里的 `extension/`。装到 `%USERPROFILE%\.vcu\lens-extension` 后，仍要在 Edge 里手动“加载解压缩的扩展”。不要点允许调试。已有检出时也可以：
+
+```powershell
 powershell -File scripts/install/install-lens.ps1 -FromRelease -Open
 ```
 
-下一次打 tag 发布会额外带上 `vcu-lens-extension.zip`。现在的 `v0.2.8` 压缩包里已经有 `extension/`。
+下一次打 tag 会把 `vcu-lens-extension.zip` 和 `install-lens.ps1` 放进 Release 资产。这不是新的 GitHub Release。
 
 安装说明见 [`docs/INSTALL.md`](docs/INSTALL.md)。
 
