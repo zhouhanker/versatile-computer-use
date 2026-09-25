@@ -906,6 +906,14 @@ fn scene_extract_matches(refs: &[DomRef], selector: &str) -> Vec<serde_json::Val
         .collect()
 }
 
+fn is_desktop_window_role(role: &str) -> bool {
+    let role = role.to_ascii_lowercase();
+    role == "window"
+        || role == "axwindow"
+        || role.starts_with("controltype.window")
+        || role.contains("axwindow")
+}
+
 fn scene_wait_match(
     refs: &[DomRef],
     want_ref: Option<&str>,
@@ -913,30 +921,40 @@ fn scene_wait_match(
     want_role: Option<&str>,
     want_value: Option<&str>,
 ) -> Option<String> {
-    refs.iter().find_map(|r| {
-        if let Some(w) = want_ref {
-            if r.r#ref != w {
-                return None;
+    let matches: Vec<&DomRef> = refs
+        .iter()
+        .filter(|r| {
+            if let Some(w) = want_ref {
+                if r.r#ref != w {
+                    return false;
+                }
             }
-        }
-        if let Some(w) = want_name {
-            if !r.name.to_lowercase().contains(&w.to_lowercase()) {
-                return None;
+            if let Some(w) = want_name {
+                if !r.name.to_lowercase().contains(&w.to_lowercase()) {
+                    return false;
+                }
             }
-        }
-        if let Some(w) = want_role {
-            if !r.role.eq_ignore_ascii_case(w) {
-                return None;
+            if let Some(w) = want_role {
+                if !r.role.eq_ignore_ascii_case(w) {
+                    return false;
+                }
             }
-        }
-        if let Some(w) = want_value {
-            let hay = format!("{} {}", r.name, r.value.as_deref().unwrap_or(""));
-            if !hay.to_lowercase().contains(&w.to_lowercase()) {
-                return None;
+            if let Some(w) = want_value {
+                let hay = format!("{} {}", r.name, r.value.as_deref().unwrap_or(""));
+                if !hay.to_lowercase().contains(&w.to_lowercase()) {
+                    return false;
+                }
             }
-        }
-        Some(r.r#ref.clone())
-    })
+            true
+        })
+        .collect();
+    if want_ref.is_some() {
+        return matches.first().map(|r| r.r#ref.clone());
+    }
+    if let Some(control) = matches.iter().find(|r| !is_desktop_window_role(&r.role)) {
+        return Some(control.r#ref.clone());
+    }
+    matches.first().map(|r| r.r#ref.clone())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1434,6 +1452,33 @@ mod tests {
             Some("e2")
         );
         assert!(scene_wait_match(&with_val, None, None, None, Some("nope")).is_none());
+        let same_name = vec![
+            DomRef {
+                r#ref: "e1".into(),
+                role: "ControlType.Window".into(),
+                name: "VCU-SAME".into(),
+                value: Some("VCU-SAME".into()),
+                selector: None,
+                frame: None,
+            },
+            DomRef {
+                r#ref: "e2".into(),
+                role: "ControlType.Button".into(),
+                name: "VCU-SAME".into(),
+                value: None,
+                selector: None,
+                frame: None,
+            },
+        ];
+        assert_eq!(
+            scene_wait_match(&same_name, None, Some("VCU-SAME"), None, None).as_deref(),
+            Some("e2")
+        );
+        assert_eq!(
+            scene_wait_match(&same_name, Some("e1"), None, None, None).as_deref(),
+            Some("e1")
+        );
+        assert!(!is_desktop_window_role("ControlType.Pane/WindowsForms10.EDIT.app"));
     }
 
     #[test]
