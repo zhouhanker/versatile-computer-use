@@ -45,7 +45,7 @@ Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。
 - Windows 桌面截图失败会说明没有可见窗口或 PrintWindow 没产出 PNG，不再提示 macOS 的屏幕录制权限
 - Windows UIA 名称按 UTF-8 返回，记事本的「文件」和 Windows Terminal 中文标题不再是乱码
 - Windows 上的官方 POC 按 UTF-8 读取 vcu 输出，避免中文系统的 GBK 解码把验收脚本打崩。这不代表 CU-D-610 的截图 dry-run 已通过
-- Windows Stage 条是 280x28 半透明圆角胶囊，桌面 Guide 是和 macOS 相同几何的短箭加软雾，箭尖对准坐标，不移动系统光标。Stage 按物理像素摆指针，和这台 144 DPI 机器的 UIA 窗口框一致。胶囊上的标题和 Esc 取消左右分开。桌面短箭雾色和网页指针使用同一组蓝灰。 Windows 胶囊在升起前采样背后桌面并模糊，再盖半透明石墨；刷新时短暂排除自身截图，采的是正后方，不是只采下方。这不是 macOS 系统材质。Windows 计算器窗口可以按标题绑定，不放行整个 ApplicationFrameHost。`vcu session start --surface desktop --app-id win:Calculator:<pid>` 会拉起 Stage，Abort 会拆掉 HUD。经会话按「七」、1+1、12+7、记忆、科学模式的 π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°) 和 sin(π) 的角度/弧度 走 UIA，不移动系统光标。列表项用 SelectionItem，不用系统光标。会话悬停只移动 Guide，系统光标坐标不变。会话滚动会先找列表；顶行没变就不把窗体滚动当成成功。这不是完整 Windows 产品 CU。powershell.exe 托管的图形编辑框会先写子控件；只有控制台窗口类才剪贴板粘贴，写不进就不报成功
+- Windows Stage 条是 280x28 半透明圆角胶囊，桌面 Guide 是和 macOS 相同几何的短箭加软雾，箭尖对准坐标，不移动系统光标。Stage 按物理像素摆指针，和这台 144 DPI 机器的 UIA 窗口框一致。胶囊上的标题和 Esc 取消左右分开。桌面短箭雾色和网页指针使用同一组蓝灰。 Windows 胶囊在升起前采样背后桌面并模糊，再盖半透明石墨；刷新时短暂排除自身截图，采的是正后方，不是只采下方。Windows 11 上胶囊优先用系统 Acrylic，白字在点击穿透层；Acrylic 不可用时才退回采样模糊。这不是 macOS `NSVisualEffectView`。Windows 计算器窗口可以按标题绑定，不放行整个 ApplicationFrameHost。`vcu session start --surface desktop --app-id win:Calculator:<pid>` 会拉起 Stage，Abort 会拆掉 HUD。经会话按「七」、1+1、12+7、记忆、科学模式的 π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°) 和 sin(π) 的角度/弧度 走 UIA，不移动系统光标。列表项用 SelectionItem，不用系统光标。会话悬停只移动 Guide，系统光标坐标不变。会话滚动会先找列表；顶行没变就不把窗体滚动当成成功。这不是完整 Windows 产品 CU。powershell.exe 托管的图形编辑框会先写子控件；只有控制台窗口类才剪贴板粘贴，写不进就不报成功
 
 - 飞书只观察，不自动发送；macOS 深 AX 全树停放
 

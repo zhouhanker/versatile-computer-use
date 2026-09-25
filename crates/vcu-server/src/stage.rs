@@ -66,6 +66,25 @@ public static class VcuStageWin {
   [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
   [DllImport("user32.dll")] public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
   [DllImport("gdi32.dll")] public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFO bmi, uint usage, out IntPtr bits, IntPtr section, uint offset);
+  [StructLayout(LayoutKind.Sequential)] public struct AccentPolicy { public int AccentState; public int AccentFlags; public int GradientColor; public int AnimationId; }
+  [StructLayout(LayoutKind.Sequential)] public struct Wca { public int Attribute; public IntPtr Data; public int SizeOfData; }
+  [DllImport("user32.dll")] public static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref Wca data);
+  public static bool EnableAcrylic(IntPtr hwnd) {
+    AccentPolicy accent = new AccentPolicy();
+    accent.AccentState = 4;
+    accent.AccentFlags = 2;
+    accent.GradientColor = unchecked((int)0x99221C18);
+    int size = Marshal.SizeOf(typeof(AccentPolicy));
+    IntPtr ptr = Marshal.AllocHGlobal(size);
+    Marshal.StructureToPtr(accent, ptr, false);
+    Wca data = new Wca();
+    data.Attribute = 19;
+    data.Data = ptr;
+    data.SizeOfData = size;
+    int hr = SetWindowCompositionAttribute(hwnd, ref data);
+    Marshal.FreeHGlobal(ptr);
+    return hr != 0;
+  }
   public static bool ShowBitmap(IntPtr hwnd, Bitmap bitmap, int x, int y, bool clickThrough) {
     int ex = GetWindowLong(hwnd, -20);
     int style = ex | 0x80000 | 0x08000000;
@@ -122,6 +141,38 @@ $script:GuideH = $script:GuideW
 $script:HotX = [int][Math]::Round(32 * $script:DpiScale)
 $script:HotY = [int][Math]::Round(34 * $script:DpiScale)
 
+function Set-HudPill($form) {
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $d = $script:HudH
+  $path.AddArc(0, 0, $d, $d, 90, 180)
+  $path.AddArc(($script:HudW - $d), 0, $d, $d, 270, 180)
+  $path.CloseFigure()
+  $form.Region = New-Object System.Drawing.Region $path
+}
+function New-HudTextBitmap {
+  $bmp = New-Object System.Drawing.Bitmap $script:HudW, $script:HudH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+  $g.Clear([System.Drawing.Color]::Transparent)
+  $fontPx = [single](12 * $script:DpiScale)
+  $font = New-Object System.Drawing.Font "Segoe UI", $fontPx, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
+  $textY = [single](($script:HudH - $fontPx) / 2)
+  $pad = 12 * $script:DpiScale
+  $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
+  $dim = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(210, 255, 255, 255))
+$g.DrawString("VCU 正在使用这台 PC", $font, $white, $pad, $textY)
+  $measured = $g.MeasureString("Esc 取消", $font)
+  $g.DrawString("Esc 取消", $font, $dim, ($script:HudW - $measured.Width - $pad), $textY)
+    $white.Dispose()
+  $dim.Dispose()
+  $font.Dispose()
+  $g.Dispose()
+  return $bmp
+}
+function Show-HudText {
+  if (-not $script:HudAcrylic -or $null -eq $script:HudText -or -not $script:HudText.Visible) { return }
+  [void][VcuStageWin]::ShowBitmap($script:HudText.Handle, $script:HudTextBmp, $hud.Left, $hud.Top, $true)
+}
 function Get-HudBackdrop([int]$x, [int]$y, [int]$w, [int]$h) {
   $bmp = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -320,8 +371,35 @@ $hud.Left = $hudLeft
 $hud.Top = $hudTop
 $hud.KeyPreview = $true
 $hud.Add_KeyDown({ if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Escape) { [System.IO.File]::WriteAllText($abortPath, "1") } })
+$hud.BackColor = [System.Drawing.Color]::Black
+$hud.Text = "VCU-STAGE-HUD"
 $null = $hud.Handle
-[void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hudLeft, $hudTop, $false)
+$script:HudAcrylic = $false
+$script:HudText = $null
+try {
+  Set-HudPill $hud
+  if ([VcuStageWin]::EnableAcrylic($hud.Handle)) { $script:HudAcrylic = $true }
+} catch { $script:HudAcrylic = $false }
+if ($script:HudAcrylic) {
+  $script:HudTextBmp = New-HudTextBitmap
+  $script:HudText = New-Object System.Windows.Forms.Form
+  $script:HudText.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+  $script:HudText.ShowInTaskbar = $false
+  $script:HudText.TopMost = $true
+  $script:HudText.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+  $script:HudText.ClientSize = New-Object System.Drawing.Size $script:HudW, $script:HudH
+  $script:HudText.Left = $hudLeft
+  $script:HudText.Top = $hudTop
+  $script:HudText.Show()
+  Show-HudText
+  $script:HudText.BringToFront()
+} else {
+  [void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hudLeft, $hudTop, $false)
+}
+try {
+  $mat = if ($script:HudAcrylic) { "acrylic" } else { "sampled" }
+  Set-Content -LiteralPath (Join-Path $env:TEMP "vcu-stage-material.txt") -Value $mat -Encoding ascii
+} catch {}
 $guide = New-Object System.Windows.Forms.Form
 $guide.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
 $guide.ShowInTaskbar = $false
@@ -336,13 +414,22 @@ $timer.Add_Tick({
   if ($null -eq $c) { return }
   if ($c.stop) { $timer.Stop(); $hud.Close(); return }
   if ($c.PSObject.Properties.Name -contains "hud") {
-    if ($c.hud -eq $false) { $hud.Hide() } else {
+    if ($c.hud -eq $false) {
+      $hud.Hide()
+      if ($script:HudText) { $script:HudText.Hide() }
+    } else {
       if (-not $hud.Visible) { $hud.Show() }
-      [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
+      if ($script:HudAcrylic) {
+        if ($script:HudText -and -not $script:HudText.Visible) { $script:HudText.Show() }
+        Show-HudText
+        if ($script:HudText) { $script:HudText.BringToFront() }
+      } else {
+        [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
+      }
     }
   }
   $script:HudTick++
-  if ($script:HudTick % 6 -eq 0) { Update-HudBackdropIfChanged }
+  if (-not $script:HudAcrylic -and $script:HudTick % 6 -eq 0) { Update-HudBackdropIfChanged }
   if ($c.guide) {
     $gx = 0; $gy = 0
     try { $gx = [int]$c.guide.x } catch {}
@@ -358,10 +445,12 @@ $timer.Add_Tick({
   }
 })
 $hud.Add_Shown({
-  [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
+  if ($script:HudAcrylic) { Show-HudText; if ($script:HudText) { $script:HudText.BringToFront() } } else {
+    [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
+  }
 })
 $timer.Start()
-$hud.Add_FormClosed({ $timer.Stop(); try { $guide.Close() } catch {} })
+$hud.Add_FormClosed({ $timer.Stop(); try { if ($script:HudText) { $script:HudText.Close() } } catch {}; try { $guide.Close() } catch {} })
 [System.Windows.Forms.Application]::Run($hud)
 "#;
 
@@ -1094,6 +1183,12 @@ mod tests {
         assert!(STAGE_WINPS.contains("0x11"));
         assert!(STAGE_WINPS.contains("HudTick"));
         assert!(STAGE_WINPS.contains("NSVisualEffectView"));
+        assert!(STAGE_WINPS.contains("EnableAcrylic"));
+        assert!(STAGE_WINPS.contains("AccentState = 4"));
+        assert!(STAGE_WINPS.contains("SetWindowCompositionAttribute"));
+        assert!(STAGE_WINPS.contains("HudAcrylic"));
+        assert!(STAGE_WINPS.contains("New-HudTextBitmap"));
+        assert!(STAGE_WINPS.contains("0x99221C18"));
         assert!(STAGE_WINPS.contains("FromArgb(150, 24, 28, 34)"));
         assert!(!STAGE_WINPS.contains("FromArgb(245, 18, 46, 107)"));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));

@@ -1,6 +1,6 @@
 # Windows 视觉对齐
 
-更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 008 已在本机复测。008 刷新时采的是胶囊正后方，仍不是 macOS 系统材质，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 009 已在本机复测。009 在 Windows 11 上用系统 Acrylic 做胶囊，白字叠在点击穿透层。失败时仍退回采样模糊。不是 macOS `NSVisualEffectView`，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
 
 ## 边界
 
@@ -94,3 +94,12 @@
 - 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_008_behind.ps1` 先让正后方全蓝，胶囊像素 `14,49,125`；不重启 Stage，只把正后方改成绿、下方仍是蓝，像素变成 `14,121,36`。这不是纯绿，说明排除截图已经恢复。测完 Abort，只关闭这个自建窗。
 - 不做：不写成系统材质，也不写成每一帧都在更新。
 
+## WIN-VIS-009 胶囊使用系统 Acrylic
+
+状态：**2026-09-26 本机复测通过。** 不是 `NSVisualEffectView`，也不是完整 Windows 产品 CU。
+
+- 006 到 008 是 `CopyFromScreen` 采样后再模糊，最快大约 480ms 才跟着背后变。macOS HUD 用的是系统材质，背后一变就糊进胶囊。
+- 现在 Windows 11 上胶囊走 `SetWindowCompositionAttribute` 的 `ACCENT_ENABLE_ACRYLICBLURBEHIND`，圆角仍是胶囊，不是分层窗口。白字「VCU 正在使用这台 PC」和「Esc 取消」画在单独的点击穿透层上，避免被 Acrylic 染色。
+- Acrylic 调用失败时退回 008 的采样模糊。没有 SendInput，没有移动系统光标。
+- 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_009_acrylic.ps1` 输出 `WIN-VIS-009 OK acrylic green=24,59,37 red=75,25,28 bright=101 cursor=1780,358`。背后从绿变红后 220ms 内胶囊跟着变，快于 480ms 采样。左侧能读出白字。测完 Abort，只关闭自建窗。
+- 不做：不写成和 macOS 材质逐像素相同，也不写成完整产品 CU。没有在 100% DPI 上复测。

@@ -1,3 +1,5 @@
+更新：2026-09-26。WIN-VIS-009 已在本机复测：Windows 11 胶囊使用系统 Acrylic，背后从绿变红后 220ms 内跟着变，白字仍可读。不是 macOS NSVisualEffectView。详见 docs/PLAN-WINDOWS-VISUAL.md。
+
 更新：2026-09-26。Windows 扩展安装可以不克隆仓库：`irm` 原始 `install-lens.ps1` 后 `iex`。当前 Release 没有独立 zip，脚本会退回已有的 Windows 压缩包。没有点允许调试，也没有新的 GitHub Release。
 
 更新：2026-09-26。本机 Edge 复测通过：只打开自建 127.0.0.1 页，extract/click/type 的 source 是 extension_dom，点击使 #hit 从 0 变为 1，输入读回 vcu-edge-dom，只关闭这个新标签。已有标签未改。没有测 Chrome，没有点允许调试，没有移动系统光标。详见 scripts/poc_win_edge_dom.py。
