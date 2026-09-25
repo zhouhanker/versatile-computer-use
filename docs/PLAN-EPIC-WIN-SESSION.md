@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、图形编辑框写入、Guide 悬停和列表滚动已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆存取、图形编辑框写入、Guide 悬停和列表滚动已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -81,9 +81,21 @@
 - 显示从「显示为 0」变成「显示为 19」。
 - 同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。没有移动系统光标。
 
+## CU-WIN-SESSION-007 会话存取记忆
+
+状态：**2026-09-26 本机复测通过。** 不是完整计算器产品，也不是完整 Windows 产品 CU。
+
+- 开始前没有已打开的计算器窗口。脚本自己启动，结束时只关闭 CalculatorApp。
+- 命令：`powershell -File scripts/poc_win_session_calc_memory.ps1`
+- 结果：`CU-WIN-SESSION-007 OK win:Calculator:18668 ... MS 5 -> clear -> MR 5`
+- 顺序是「五」「记忆存储」「清除」「记忆调用」。每次都是 `uia_invoke`，`os_cursor_used=false`，`hid_injected=false`。
+- 显示从「显示为 0」到「显示为 5」，清除后回到「显示为 0」，调用记忆后又是「显示为 5」。
+- 同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。没有移动系统光标。
+- 只验证了存储和调用。没有覆盖记忆加法、记忆减法、清除所有记忆，也不写成完整记忆产品。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
-- 12+7 只是比 1+1 长的一条标准模式表达式。没有覆盖科学模式、内存键，也不写成完整计算器产品。
+- 没有覆盖科学模式。记忆只验证了存储和调用，不写成完整计算器产品。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
