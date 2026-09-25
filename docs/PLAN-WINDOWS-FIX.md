@@ -109,7 +109,7 @@
 - 另：用 PowerShell `Set-Content -Encoding utf8` 写 `config.json` 会带 BOM，daemon 解析 panic。安装器路径没有这个问题。配置读取去 BOM 已在 WIN-FIX-003 落地。
 - 修：POC 子进程按 UTF-8 解码，非法字节替换而不是抛出。`poc_cu_d_590.py` 对空路径直接返回，sidecar JSON 按 UTF-8 读取。
 - 验收：`VCU=target/debug/vcu.exe`。`poc_cu_d_590.py` 退出 0，`CU-D-590 OK 1013794778 0->1`。`poc_cu_d_620.py` 退出 0，`CU-D-620 OK 1013794782 hovered=1`。两者都没有 `UnicodeDecodeError`。
-- 未宣称：`poc_cu_d_610.py` 退出 1，也没有 `UnicodeDecodeError`。DOM 输入和滚动成功（`typed_value=vcu-d-610`，`scroll_y=y=900`，`groups_ok=true`，`os_cursor_used=false`）。失败点是 `capture_dry_run_ok: false`。这不是 007 的验收范围，也不写成 610 通过。
+- 未宣称：`poc_cu_d_610.py` 退出 1，也没有 `UnicodeDecodeError`。DOM 输入和滚动成功（`typed_value=vcu-d-610`，`scroll_y=y=900`，`groups_ok=true`，`os_cursor_used=false`）。失败点是 `capture_dry_run_ok: false`。2026-09-26 复现为扩展 `stale_viewport`：滚动后 `scroll_y=900`，旧截图不能再点。这是共享扩展的安全拒绝，不是 Windows 回归，不能放宽校验。这不是 007 的验收范围，也不写成 610 通过。
 
 ## 5. 明确不在本计划里
 

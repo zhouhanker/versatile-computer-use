@@ -19,71 +19,274 @@ const BANNER_WINDOWS: &str = "VCU 正在使用这台 PC    按 Escape 取消";
 const STAGE_WINPS: &str = r#"
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 Add-Type -AssemblyName System.Drawing | Out-Null
+Add-Type -TypeDefinition @"
+using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+public static class VcuStageWin {
+  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int x; public int y; }
+  [StructLayout(LayoutKind.Sequential)] public struct SIZE { public int cx; public int cy; }
+  [StructLayout(LayoutKind.Sequential, Pack=1)]
+  public struct BLENDFUNCTION { public byte BlendOp; public byte BlendFlags; public byte SourceConstantAlpha; public byte AlphaFormat; }
+  [StructLayout(LayoutKind.Sequential)] public struct BITMAPINFOHEADER {
+    public int biSize; public int biWidth; public int biHeight; public short biPlanes; public short biBitCount;
+    public int biCompression; public int biSizeImage; public int biXPelsPerMeter; public int biYPelsPerMeter;
+    public int biClrUsed; public int biClrImportant;
+  }
+  [StructLayout(LayoutKind.Sequential)] public struct BITMAPINFO { public BITMAPINFOHEADER bmiHeader; }
+  [DllImport("user32.dll", SetLastError=true)] public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize, IntPtr hdcSrc, ref POINT pptSrc, int crKey, ref BLENDFUNCTION pblend, int dwFlags);
+  [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+  [DllImport("gdi32.dll")] public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+  [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr hdc);
+  [DllImport("gdi32.dll")] public static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
+  [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr obj);
+  [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+  [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+  [DllImport("gdi32.dll")] public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFO bmi, uint usage, out IntPtr bits, IntPtr section, uint offset);
+  public static bool ShowBitmap(IntPtr hwnd, Bitmap bitmap, int x, int y, bool clickThrough) {
+    int ex = GetWindowLong(hwnd, -20);
+    int style = ex | 0x80000 | 0x08000000;
+    if (clickThrough) style |= 0x20;
+    SetWindowLong(hwnd, -20, style);
+    IntPtr screenDc = GetDC(IntPtr.Zero);
+    IntPtr memDc = CreateCompatibleDC(screenDc);
+    BITMAPINFO bmi = new BITMAPINFO();
+    bmi.bmiHeader.biSize = 40;
+    bmi.bmiHeader.biWidth = bitmap.Width;
+    bmi.bmiHeader.biHeight = -bitmap.Height;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    IntPtr bits;
+    IntPtr dib = CreateDIBSection(screenDc, ref bmi, 0, out bits, IntPtr.Zero, 0);
+    BitmapData data = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+    int bytes = Math.Abs(data.Stride) * bitmap.Height;
+    byte[] raw = new byte[bytes];
+    Marshal.Copy(data.Scan0, raw, 0, bytes);
+    bitmap.UnlockBits(data);
+    for (int i = 0; i < raw.Length; i += 4) {
+      byte a = raw[i + 3];
+      raw[i] = (byte)(raw[i] * a / 255);
+      raw[i + 1] = (byte)(raw[i + 1] * a / 255);
+      raw[i + 2] = (byte)(raw[i + 2] * a / 255);
+    }
+    Marshal.Copy(raw, 0, bits, raw.Length);
+    IntPtr old = SelectObject(memDc, dib);
+    SIZE size = new SIZE(); size.cx = bitmap.Width; size.cy = bitmap.Height;
+    POINT dst = new POINT(); dst.x = x; dst.y = y;
+    POINT src = new POINT();
+    BLENDFUNCTION blend = new BLENDFUNCTION();
+    blend.BlendOp = 0; blend.SourceConstantAlpha = 255; blend.AlphaFormat = 1;
+    bool ok = UpdateLayeredWindow(hwnd, screenDc, ref dst, ref size, memDc, ref src, 0, ref blend, 2);
+    SelectObject(memDc, old);
+    DeleteObject(dib);
+    DeleteDC(memDc);
+    ReleaseDC(IntPtr.Zero, screenDc);
+    return ok;
+  }
+}
+"@ -ReferencedAssemblies System.Drawing -Language CSharp
+
+$script:HudW = 280
+$script:HudH = 28
+$script:GuideW = 84
+$script:GuideH = 84
+$script:HotX = 32
+$script:HotY = 34
+
+function New-HudBitmap {
+  $bmp = New-Object System.Drawing.Bitmap $script:HudW, $script:HudH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+  $g.Clear([System.Drawing.Color]::Transparent)
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $d = $script:HudH
+  $path.AddArc(0, 0, $d, $d, 180, 90)
+  $path.AddArc(($script:HudW - $d), 0, $d, $d, 270, 90)
+  $path.AddArc(($script:HudW - $d), 0, $d, $d, 0, 90)
+  $path.AddArc(0, 0, $d, $d, 90, 90)
+  $path.CloseFigure()
+  $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(245, 18, 46, 107))
+  $g.FillPath($fill, $path)
+  $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(115, 255, 255, 255)), 1
+  $g.DrawPath($pen, $path)
+  $font = New-Object System.Drawing.Font "Segoe UI", 9
+  $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
+  $dim = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(210, 255, 255, 255))
+  $g.DrawString("VCU 正在使用这台 PC", $font, $white, 12, 4)
+  $measured = $g.MeasureString("Esc 取消", $font)
+  $g.DrawString("Esc 取消", $font, $dim, ($script:HudW - $measured.Width - 10), 4)
+  $g.Dispose()
+  return $bmp
+}
+
+function New-GuideBitmap {
+  # PARITY-004: Compact dart, no hard ring, no long stem.
+  # Hotspot is the arrow tip, matching helpers/vcu-stage GuideView.
+  $bmp = New-Object System.Drawing.Bitmap $script:GuideW, $script:GuideH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.Clear([System.Drawing.Color]::Transparent)
+  $tipX = $script:HotX
+  $tipY = $script:HotY
+  $fogCenterX = $tipX + 6
+  $fogCenterY = $tipY + 6
+  # Soft fog, endRadius 36, no hard ring.
+  for ($r = 36; $r -ge 2; $r -= 2) {
+    $alpha = [int](6 + (36 - $r) * 2.4)
+    if ($alpha -gt 96) { $alpha = 96 }
+    $haze = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($alpha, 168, 182, 196))
+    $g.FillEllipse($haze, ($fogCenterX - $r), ($fogCenterY - $r), ($r * 2), ($r * 2))
+    $haze.Dispose()
+  }
+  $pts = @(
+    (New-Object System.Drawing.Point $tipX, $tipY),
+    (New-Object System.Drawing.Point ($tipX + 18), ($tipY + 10)),
+    (New-Object System.Drawing.Point ($tipX + 10), ($tipY + 12)),
+    (New-Object System.Drawing.Point ($tipX + 4), ($tipY + 20))
+  )
+  $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(245, 90, 96, 104))
+  $g.FillPolygon($fill, $pts)
+  $edge = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(235, 255, 255, 255)), 1.5
+  $edge.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+  $g.DrawPolygon($edge, $pts)
+  $g.Dispose()
+  return $bmp
+}
+
+if ($env:VCU_STAGE_RENDER) {
+  $dir = $env:VCU_STAGE_RENDER
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  $hud = New-HudBitmap
+  $guide = New-GuideBitmap
+  $hud.Save((Join-Path $dir "hud.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+  $guide.Save((Join-Path $dir "guide.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+  "RENDER_OK $($script:HudW)x$($script:HudH) guide=$($script:GuideW) hotspot=$($script:HotX),$($script:HotY) fogCenter endRadius: 36" | Set-Content -Encoding utf8 (Join-Path $dir "render.txt")
+  exit 0
+}
+
 $controlPath = $args[0]
 if (-not $controlPath) { exit 1 }
-$abortPath = [System.IO.Path]::ChangeExtension($controlPath, 'abort')
+$abortPath = [System.IO.Path]::ChangeExtension($controlPath, "abort")
 function Read-Control {
   if (-not (Test-Path -LiteralPath $controlPath)) { return $null }
-  try {
-    return (Get-Content -LiteralPath $controlPath -Raw -ErrorAction Stop | ConvertFrom-Json)
-  } catch { return $null }
+  try { return (Get-Content -LiteralPath $controlPath -Raw -ErrorAction Stop | ConvertFrom-Json) } catch { return $null }
 }
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-$form = New-Object System.Windows.Forms.Form
-$form.Text = 'VCU'
-$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
-$form.TopMost = $true
-$form.ShowInTaskbar = $false
-$form.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
-$form.Width = 320
-$form.Height = 32
-$form.Left = [int]($screen.Left + ($screen.Width - 320) / 2)
-$form.Top = [int]($screen.Top + 8)
-$form.BackColor = [System.Drawing.Color]::FromArgb(18, 46, 107)
-$form.KeyPreview = $true
-$form.Add_KeyDown({
-  if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
-    [System.IO.File]::WriteAllText($abortPath, '1')
-  }
-})
-$label = New-Object System.Windows.Forms.Label
-$label.Text = 'VCU 正在使用这台 PC    Esc 取消'
-$label.ForeColor = [System.Drawing.Color]::White
-$label.AutoSize = $false
-$label.Width = 320
-$label.Height = 32
-$label.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-$form.Controls.Add($label)
+function New-PillRegion([int]$w, [int]$h) {
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $path.AddArc(0, 0, $h, $h, 90, 180)
+  $path.AddArc(($w - $h), 0, $h, $h, 270, 180)
+  $path.CloseFigure()
+  return (New-Object System.Drawing.Region $path)
+}
+$hud = New-Object System.Windows.Forms.Form
+$hud.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+$hud.ShowInTaskbar = $false
+$hud.TopMost = $true
+$hud.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+$hud.ClientSize = New-Object System.Drawing.Size $script:HudW, $script:HudH
+$hud.BackColor = [System.Drawing.Color]::FromArgb(18, 46, 107)
+$hud.Opacity = 0.96
+$hud.Left = [int]($screen.Left + ($screen.Width - $script:HudW) / 2)
+$hud.Top = [int]($screen.Top + 8)
+$hud.Region = New-PillRegion $script:HudW $script:HudH
+$hud.KeyPreview = $true
+$hud.Add_KeyDown({ if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Escape) { [System.IO.File]::WriteAllText($abortPath, "1") } })
+$font = New-Object System.Drawing.Font "Segoe UI", 9
+$title = New-Object System.Windows.Forms.Label
+$title.Text = "VCU 正在使用这台 PC"
+$title.ForeColor = [System.Drawing.Color]::White
+$title.BackColor = $hud.BackColor
+$title.Font = $font
+$title.AutoSize = $true
+$title.Location = New-Object System.Drawing.Point 12, 4
+$esc = New-Object System.Windows.Forms.Label
+$esc.Text = "Esc 取消"
+$esc.ForeColor = [System.Drawing.Color]::FromArgb(210, 255, 255, 255)
+$esc.BackColor = $hud.BackColor
+$esc.Font = $font
+$esc.AutoSize = $true
+$esc.Location = New-Object System.Drawing.Point 196, 4
+$hud.Controls.Add($title)
+$hud.Controls.Add($esc)
 $guide = New-Object System.Windows.Forms.Form
 $guide.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
-$guide.TopMost = $true
 $guide.ShowInTaskbar = $false
-$guide.Width = 48
-$guide.Height = 48
-$guide.BackColor = [System.Drawing.Color]::FromArgb(255, 107, 56)
-$guide.Opacity = 0.85
+$guide.TopMost = $true
+$guide.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+$guide.ClientSize = New-Object System.Drawing.Size $script:GuideW, $script:GuideH
+$guide.BackColor = [System.Drawing.Color]::FromArgb(176, 190, 204)
+$guide.Opacity = 0.78
 $guide.Visible = $false
+$fogPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+$fogPath.AddEllipse(4, 10, 72, 72)
+$guide.Region = New-Object System.Drawing.Region $fogPath
+$guide.Add_Paint({
+  param($sender, $e)
+  $g = $e.Graphics
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $tipX = $script:HotX
+  $tipY = $script:HotY
+  $pts = @(
+    (New-Object System.Drawing.Point $tipX, $tipY),
+    (New-Object System.Drawing.Point ($tipX + 18), ($tipY + 10)),
+    (New-Object System.Drawing.Point ($tipX + 10), ($tipY + 12)),
+    (New-Object System.Drawing.Point ($tipX + 4), ($tipY + 20))
+  )
+  $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(245, 90, 96, 104))
+  $g.FillPolygon($fill, $pts)
+  $edge = New-Object System.Drawing.Pen ([System.Drawing.Color]::White), 1.5
+  $edge.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+  $g.DrawPolygon($edge, $pts)
+})
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 80
 $timer.Add_Tick({
   $c = Read-Control
   if ($null -eq $c) { return }
-  if ($c.stop) { $timer.Stop(); $form.Close(); return }
-  if ($c.PSObject.Properties.Name -contains 'hud') {
-    if ($c.hud -eq $false) { $form.Hide() } else { $form.Show() }
+  if ($c.stop) { $timer.Stop(); $hud.Close(); return }
+  if ($c.PSObject.Properties.Name -contains "hud") {
+    if ($c.hud -eq $false) { $hud.Hide() } else { $hud.Show() }
   }
   if ($c.guide) {
     $gx = 0; $gy = 0
     try { $gx = [int]$c.guide.x } catch {}
     try { $gy = [int]$c.guide.y } catch {}
-    $guide.Left = $gx - 24
-    $guide.Top = $gy - 24
-    if ($c.guide.visible -eq $false) { $guide.Hide() } else { $guide.Show() }
+    $guide.Left = $gx - $script:HotX
+    $guide.Top = $gy - $script:HotY
+    if ($c.guide.visible -eq $false) { $guide.Hide() } else {
+      $guide.Show(); $guide.Refresh()
+      if (-not $script:GuidePass) {
+        $ex = [VcuStageWin]::GetWindowLong($guide.Handle, -20)
+        [void][VcuStageWin]::SetWindowLong($guide.Handle, -20, ($ex -bor 0x20 -bor 0x08000000))
+        $script:GuidePass = $true
+      }
+      Save-OwnShot $guide "live-guide.png"
+      $status = Join-Path (Split-Path -Parent $controlPath) "stage-live-status.txt"
+      "guide $($guide.Left),$($guide.Top) $($guide.Width)x$($guide.Height) vis=$($guide.Visible)" | Add-Content -Encoding ascii $status
+    }
   }
 })
+function Save-OwnShot($form, $name) {
+  if (-not $env:VCU_STAGE_SHOT) { return }
+  $dir = $env:VCU_STAGE_SHOT
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  $bmp = New-Object System.Drawing.Bitmap $form.Width, $form.Height
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.CopyFromScreen($form.Left, $form.Top, 0, 0, $bmp.Size)
+  $bmp.Save((Join-Path $dir $name))
+}
+$hud.Add_Shown({
+  $status = Join-Path (Split-Path -Parent $controlPath) "stage-live-status.txt"
+  "hud $($hud.Left),$($hud.Top) $($hud.Width)x$($hud.Height)" | Set-Content -Encoding ascii $status
+  Save-OwnShot $hud "live-hud.png"
+})
 $timer.Start()
-$form.Add_FormClosed({ $timer.Stop(); try { $guide.Close() } catch {} })
-[System.Windows.Forms.Application]::Run($form)
+$hud.Add_FormClosed({ $timer.Stop(); try { $guide.Close() } catch {} })
+[System.Windows.Forms.Application]::Run($hud)
 "#;
 
 const STAGE_JXA: &str = r#"
@@ -779,6 +982,23 @@ mod tests {
         assert!(!swift.contains("Codex is using"));
         assert!(swift.contains("Compact dart, no hard ring, no long stem"));
         assert!(swift.contains("fogCenter"));
+    }
+
+    #[test]
+    fn windows_stage_matches_macos_capsule_and_dart() {
+        assert!(STAGE_WINPS.contains("$script:HudW = 280"));
+        assert!(STAGE_WINPS.contains("$script:HudH = 28"));
+        assert!(STAGE_WINPS.contains("$script:GuideW = 84"));
+        assert!(STAGE_WINPS.contains("$script:HotX = 32"));
+        assert!(STAGE_WINPS.contains("$script:HotY = 34"));
+        assert!(STAGE_WINPS.contains("Compact dart, no hard ring, no long stem"));
+        assert!(STAGE_WINPS.contains("endRadius 36"));
+        assert!(STAGE_WINPS.contains("Keys]::Escape"));
+        assert!(STAGE_WINPS.contains("TopMost"));
+        assert!(STAGE_WINPS.contains("0x20"));
+        assert!(!STAGE_WINPS.contains("FromArgb(255, 107, 56)"));
+        assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));
+        assert!(!STAGE_WINPS.to_ascii_lowercase().contains("[system.windows.forms.sendkeys"));
     }
 
     #[test]
