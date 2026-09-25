@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-034 已在本机复测：会话按名字把自建列表视图从 VCU-LV-A 选成 VCU-LV-B，路径是 listview_select。不存在的行被拒绝。没有移动系统光标。不是点行像素，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-033 已在本机复测：会话按名字把自建树从 VCU-TREE-A 选成子节点 VCU-TREE-B，路径是 tree_select。不存在的节点被拒绝。没有移动系统光标。不是点节点像素，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-032 已在本机复测：会话按名字把自建标签从 VCU-TAB-A 选成 VCU-TAB-B，路径是 tab_select。不存在的标签被拒绝。没有移动系统光标。不是点标签像素，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。

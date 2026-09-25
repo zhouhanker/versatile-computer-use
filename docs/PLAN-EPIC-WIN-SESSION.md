@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页和树节点已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点和列表视图已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -398,8 +398,22 @@
 - 选中后标签变成 `VCU-TREE-SHOW-B`，场景值是 `tree=VCU-TREE-B`。不存在的节点被拒绝。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成点节点像素，也不写成完整产品 CU。
 
+
+## CU-WIN-SESSION-034 会话按名字选中列表视图的一行
+
+状态：**2026-09-26 本机复测通过。** 不是点行像素，也不是完整 Windows 产品 CU。
+
+- 列表视图不是列表框。`vcu type` 在类名含 ListView 的控件上按行文字查找，先清掉其他行的选中，再用 `LVM_SETITEMSTATE` 选中这一行。这会让 WinForms 的选择事件跟着跑。没有同名行不会报成功。
+- 场景值带 `lv=` 加当前选中行的文字。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，里面有 VCU-LV-A 和 VCU-LV-B。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_listview.ps1`
+- 结果：`CU-WIN-SESSION-034 OK win:powershell:2792 ... ref=e3 path=listview_select value=VCU-LV-B cursor=1187,239`
+- 选中后标签变成 `VCU-LV-PICKED-B`，场景值是 `lv=VCU-LV-B`。不存在的行被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点行像素，也不写成列表框的 `list_select`，也不写成完整产品 CU。
+
 ## 还没做
 
+- 会话可以按名字选中自建列表视图的一行。这是 `listview_select`，不是列表框的 `list_select`，也不是点行像素。
 - 会话可以按名字选中自建树节点。这是 `tree_select`，不是点节点像素。
 - 会话可以按名字选中自建标签页。这是 `tab_select`，不是点标签像素。
 - 会话可以向自建滑块写入整数位置。这是 `track_select`，不是 RangeValuePattern，也不是拖动拖块。
