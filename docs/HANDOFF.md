@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-029 已在本机复测：会话把自建下拉列表从 VCU-COMBO-A 选成 VCU-COMBO-B，路径是 combo_select。不存在的条目被拒绝。没有移动系统光标。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-028 已在本机复测：会话点击把单选按钮 B 设为选中，A 同时变成未选中。路径是 bm_click。没有移动系统光标。不是 TogglePattern，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-027 已在本机复测：会话点击把自建复选框从 toggle-off 翻到 toggle-on，再翻回去。路径是 bm_click。普通按钮没有被标成复选框。没有移动系统光标。不是 TogglePattern，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。

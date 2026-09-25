@@ -522,6 +522,22 @@ function Test-VcuEditClass([string]$cls) {
   if ($c.Contains('textbox')) { return $true }
   return $false
 }
+function Test-VcuComboClass([string]$cls) {
+  if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
+  return $cls.ToLowerInvariant().Contains('combobox')
+}
+function Select-VcuCombo([IntPtr]$h, [string]$expect) {
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0146, [IntPtr]::Zero, [IntPtr]::Zero)
+  for ($i = 0; $i -lt $count; $i++) {
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 0x0148, $i, $sb)
+    if ($sb.ToString() -eq $expect) {
+      [void][Vcu.VcuPaste140]::SendMessage($h, 0x014E, [IntPtr]$i, [IntPtr]::Zero)
+      'ok:combo_select'
+      exit 0
+    }
+  }
+}
 function Set-VcuElement($el, [string]$expect) {
   try {
     $vp = $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -534,6 +550,10 @@ function Set-VcuElement($el, [string]$expect) {
   $nh = [int64]$el.Current.NativeWindowHandle
   if ($nh -eq 0) { return }
   $cls = Get-VcuClass ([IntPtr]$nh)
+  if (Test-VcuComboClass $cls) {
+    Select-VcuCombo ([IntPtr]$nh) $expect
+    return
+  }
   if (Test-VcuConsoleClass $cls) { return }
   if (-not (Test-VcuEditClass $cls)) { return }
   [void][Vcu.VcuSetValue070]::SendMessage([IntPtr]$nh, 12, [IntPtr]::Zero, $expect)
@@ -859,9 +879,12 @@ pub fn set_value_from_uia_output(
     if out.contains("ok:uia_set_value")
         || out.contains("ok:wm_settext")
         || out.contains("ok:clipboard_paste")
+        || out.contains("ok:combo_select")
     {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
+        } else if out.contains("ok:combo_select") {
+            "combo_select"
         } else if out.contains("ok:wm_settext") {
             "wm_settext"
         } else {
@@ -1490,6 +1513,8 @@ mod tests {
         assert!(setv.contains("SetValue"));
         assert!(setv.contains("hello"));
         assert!(setv.contains("ok:wm_settext"));
+        assert!(setv.contains("ok:combo_select"));
+        assert!(setv.contains("0x014E"));
         assert!(!setv.to_ascii_lowercase().contains("sendinput("));
         #[cfg(not(windows))]
         {
