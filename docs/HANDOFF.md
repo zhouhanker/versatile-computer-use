@@ -1,3 +1,5 @@
+更新：2026-09-26。`vcu-lens-extension.zip` 已挂到 Release `v0.2.8`。工作流 `lens-asset` run `36199325828` 成功。本机下载 41483 字节，15 个文件，`manifest.json` 版本 0.2.8。`install-lens.ps1 -FromRelease` 装到临时目录回执 `LENS_FROM zip`。没有点允许调试，没有新的产品 Release。
+
 更新：2026-09-26。扩展安装包改为挂到当前 Latest Release，不新开版本。本机没有 GitHub token，上传由 `.github/workflows/lens-asset.yml` 完成。在该工作流把 `vcu-lens-extension.zip` 传上之前，不能把下载地址写成已经可用。
 
 更新：2026-09-26。WIN-VIS-011 已在本机复测：Windows 胶囊按 macOS 把强调色圆点、半粗标题和常规字重的 Esc 取消排成一组，宽度限制在 220 到 320。不是两端拆开。没有移动系统光标。不是 NSVisualEffectView。详见 docs/PLAN-WINDOWS-VISUAL.md。

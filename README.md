@@ -76,7 +76,7 @@ VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
 irm https://raw.githubusercontent.com/zhouhanker/versatile-computer-use/main/scripts/install/install-lens.ps1 | iex
 ```
 
-不需要先克隆仓库。脚本优先下载 Release 上的 `vcu-lens-extension.zip`。这个包由 `.github/workflows/lens-asset.yml` 挂到当前 Latest Release，不新开产品版本。若该包还不在，仍改用 `vcu-latest-windows-x64.tar.gz` 里的 `extension/`。装到 `%USERPROFILE%\.vcu\lens-extension` 后，仍要在 Edge 里手动“加载解压缩的扩展”。不要点允许调试。已有检出时也可以：
+不需要先克隆仓库。脚本优先下载 Release 上的 `vcu-lens-extension.zip`。这个包已经由 `.github/workflows/lens-asset.yml` 挂到 Latest Release `v0.2.8`，不新开产品版本。2026-09-26 本机从该地址下载并装到临时目录，回执是 `LENS_FROM zip`，包含 `manifest.json`、`content.js` 和图标，不含测试目录。若该包以后不在，仍改用 `vcu-latest-windows-x64.tar.gz` 里的 `extension/`。装到 `%USERPROFILE%\.vcu\lens-extension` 后，仍要在 Edge 里手动“加载解压缩的扩展”。不要点允许调试。已有检出时也可以：
 
 ```powershell
 powershell -File scripts/install/install-lens.ps1 -FromRelease -Open
