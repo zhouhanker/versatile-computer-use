@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆存取、加减和清除全部记忆已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆和科学模式已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -129,9 +129,21 @@
 - 同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。没有移动系统光标。
 - 这只证明清空后调用不会把 5 找回来。不写成完整记忆产品。
 
+## CU-WIN-SESSION-011 会话切换科学模式并输入圆周率
+
+状态：**2026-09-26 本机复测通过。** 不是完整科学计算器，也不是完整 Windows 产品 CU。
+
+- 开始前没有已打开的计算器窗口。脚本自己启动。测完切回标准模式，再只关闭 CalculatorApp。
+- 命令：`powershell -File scripts/poc_win_session_calc_sci.ps1`
+- 结果：`CU-WIN-SESSION-011 OK win:Calculator:18668 ... scientific 显示为 3.1415926535897932384626433832795 restored`
+- 「科学 计算器」是列表项，不是按钮。点击走 `selection_item`，不是 `uia_invoke`，也没有 SendInput。
+- 标准模式下没有 π。切到科学模式后按 π，显示是上面的圆周率。再切回标准模式，π 消失。
+- 同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。没有移动系统光标。
+- 没有覆盖三角函数或对数，不写成完整科学计算器。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
-- 没有覆盖科学模式，不写成完整计算器产品。
+- 科学模式只验证了切换和 π。没有覆盖三角函数或对数。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。

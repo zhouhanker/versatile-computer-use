@@ -396,6 +396,12 @@ while ($q.Count -gt 0) {{
       'ok:legacy_invoke'
       exit 0
     }} catch {{}}
+    try {{
+      $sel = $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+      $sel.Select()
+      'ok:selection_item'
+      exit 0
+    }} catch {{}}
     if (-not ("Vcu.VcuInvoke100" -as [type])) {{
       $sig = @'
 [DllImport("user32.dll")]
@@ -759,6 +765,8 @@ pub fn invoke_from_uia_output(
         "uia_invoke"
     } else if out.contains("ok:legacy_invoke") {
         "legacy_invoke"
+    } else if out.contains("ok:selection_item") {
+        "selection_item"
     } else if out.contains("ok:bm_click") {
         "bm_click"
     } else {
@@ -1512,6 +1520,8 @@ mod tests {
         let inv = uia_invoke_script(4242, "e2");
         assert!(inv.contains("InvokePattern"));
         assert!(inv.contains("ok:uia_invoke"));
+        assert!(inv.contains("SelectionItemPattern"));
+        assert!(inv.contains("ok:selection_item"));
         assert!(!inv.to_ascii_lowercase().contains("sendinput"));
         assert!(!inv.to_ascii_lowercase().contains("mouse_event"));
         assert_eq!(pid_from_win_id("win:notepad:4242"), Some(4242));
@@ -1528,6 +1538,9 @@ mod tests {
         let ok = invoke_from_uia_output("notepad", "e2", "ok:uia_invoke").unwrap();
         assert_eq!(ok["input_path"], "uia_invoke");
         assert_eq!(ok["os_cursor_used"], false);
+        let sel = invoke_from_uia_output("form", "e2", "ok:selection_item").unwrap();
+        assert_eq!(sel["input_path"], "selection_item");
+        assert_eq!(sel["os_cursor_used"], false);
         let bm = invoke_from_uia_output("form", "e2", "ok:bm_click").unwrap();
         assert_eq!(bm["input_path"], "bm_click");
         assert_eq!(bm["os_cursor_used"], false);
