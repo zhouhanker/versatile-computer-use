@@ -367,6 +367,23 @@ public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lp
       }}
     }}
   }} catch {{}}
+  if ($cls -match 'LISTBOX') {{
+    $nhList = [int64]$el.Current.NativeWindowHandle
+    if ($nhList -ne 0) {{
+      if (-not ("Vcu.VcuListRead" -as [type])) {{
+        Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessage")] public static extern int SendMessageGetText(IntPtr hWnd, uint msg, int wParam, System.Text.StringBuilder lParam);' -Name VcuListRead -Namespace Vcu | Out-Null
+      }}
+      $cur = [int][Vcu.VcuListRead]::SendMessage([IntPtr]$nhList, 0x0188, [IntPtr]::Zero, [IntPtr]::Zero)
+      if ($cur -ge 0) {{
+        $sbList = New-Object System.Text.StringBuilder 512
+        [void][Vcu.VcuListRead]::SendMessageGetText([IntPtr]$nhList, 0x0189, $cur, $sbList)
+        $picked = $sbList.ToString()
+        if ($picked) {{
+          if ([string]::IsNullOrWhiteSpace($val)) {{ $val = $picked }} else {{ $val = "$val $picked" }}
+        }}
+      }}
+    }}
+  }}
   $val = ($val -replace '[\r\n\|]', ' ')
   if ($val.Length -gt 200) {{ $val = $val.Substring(0, 200) }}
   $r = $el.Current.BoundingRectangle
@@ -538,6 +555,24 @@ function Select-VcuCombo([IntPtr]$h, [string]$expect) {
     }
   }
 }
+function Test-VcuListClass([string]$cls) {
+  if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
+  return $cls.ToLowerInvariant().Contains('listbox')
+}
+function Select-VcuList([IntPtr]$h, [string]$expect) {
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018B, [IntPtr]::Zero, [IntPtr]::Zero)
+  for ($i = 0; $i -lt $count; $i++) {
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 0x0189, $i, $sb)
+    if ($sb.ToString() -eq $expect) {
+      [void][Vcu.VcuPaste140]::SendMessage($h, 0x0186, [IntPtr]$i, [IntPtr]::Zero)
+      $wp = [IntPtr](1 -shl 16)
+      [void][Vcu.VcuPaste140]::SendMessage($h, 0x2111, $wp, $h)
+      'ok:list_select'
+      exit 0
+    }
+  }
+}
 function Set-VcuElement($el, [string]$expect) {
   try {
     $vp = $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -552,6 +587,10 @@ function Set-VcuElement($el, [string]$expect) {
   $cls = Get-VcuClass ([IntPtr]$nh)
   if (Test-VcuComboClass $cls) {
     Select-VcuCombo ([IntPtr]$nh) $expect
+    return
+  }
+  if (Test-VcuListClass $cls) {
+    Select-VcuList ([IntPtr]$nh) $expect
     return
   }
   if (Test-VcuConsoleClass $cls) { return }
@@ -880,11 +919,14 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:wm_settext")
         || out.contains("ok:clipboard_paste")
         || out.contains("ok:combo_select")
+        || out.contains("ok:list_select")
     {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
         } else if out.contains("ok:combo_select") {
             "combo_select"
+        } else if out.contains("ok:list_select") {
+            "list_select"
         } else if out.contains("ok:wm_settext") {
             "wm_settext"
         } else {
@@ -1515,6 +1557,8 @@ mod tests {
         assert!(setv.contains("ok:wm_settext"));
         assert!(setv.contains("ok:combo_select"));
         assert!(setv.contains("0x014E"));
+        assert!(setv.contains("ok:list_select"));
+        assert!(setv.contains("0x0186"));
         assert!(!setv.to_ascii_lowercase().contains("sendinput("));
         #[cfg(not(windows))]
         {
