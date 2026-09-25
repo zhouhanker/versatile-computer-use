@@ -14,9 +14,21 @@
 - Abort 后 `hud=false`
 - 没有点计算器按钮，没有移动系统光标，测完关闭了 CalculatorApp
 
+
+## CU-WIN-SESSION-002 会话点击数字七
+
+状态：**2026-09-26 本机复测通过。**
+
+- 命令：`powershell -File scripts/poc_win_session_calc_click.ps1`
+- 结果：`CU-WIN-SESSION-002 OK win:Calculator:18668 ... e50 0->7`
+- 点击前显示「显示为 0」，点击「七」后是「显示为 7」
+- `input_path=uia_invoke`，`os_cursor_used=false`，`hid_injected=false`
+- 同一 pid 的 `win:ApplicationFrameHost:<pid>` 仍然被拒绝
+- 没有移动系统光标，测完关闭了 CalculatorApp
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
-- 没有经会话对计算器做点击或输入。
+- 只验证了按一次「七」。没有做连续运算，也没有把这写成完整计算器产品。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
