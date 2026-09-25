@@ -384,6 +384,17 @@ public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lp
       }}
     }}
   }}
+  if ($cls -match 'TRACKBAR') {{
+    $nhTrack = [int64]$el.Current.NativeWindowHandle
+    if ($nhTrack -ne 0) {{
+      if (-not ("Vcu.VcuTrackRead" -as [type])) {{
+        Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);' -Name VcuTrackRead -Namespace Vcu | Out-Null
+      }}
+      $pos = [int][Vcu.VcuTrackRead]::SendMessage([IntPtr]$nhTrack, 0x0400, [IntPtr]::Zero, [IntPtr]::Zero)
+      $mark = "track=$pos"
+      if ([string]::IsNullOrWhiteSpace($val)) {{ $val = $mark }} else {{ $val = "$val $mark" }}
+    }}
+  }}
   $val = ($val -replace '[\r\n\|]', ' ')
   if ($val.Length -gt 200) {{ $val = $val.Substring(0, 200) }}
   $r = $el.Current.BoundingRectangle
@@ -559,6 +570,26 @@ function Test-VcuListClass([string]$cls) {
   if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
   return $cls.ToLowerInvariant().Contains('listbox')
 }
+function Test-VcuTrackClass([string]$cls) {
+  if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
+  return $cls.ToLowerInvariant().Contains('trackbar')
+}
+function Select-VcuTrack([IntPtr]$h, [string]$expect) {
+  $pos = 0
+  if (-not [int]::TryParse($expect, [ref]$pos)) { return }
+  $min = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0401, [IntPtr]::Zero, [IntPtr]::Zero)
+  $max = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0402, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($pos -lt $min -or $pos -gt $max) { return }
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0405, [IntPtr]1, [IntPtr]$pos)
+  $thumb = [IntPtr](($pos -shl 16) -bor 4)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x2114, $thumb, $h)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x2114, [IntPtr]8, $h)
+  $got = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0400, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($got -eq $pos) {
+    'ok:track_select'
+    exit 0
+  }
+}
 function Select-VcuList([IntPtr]$h, [string]$expect) {
   $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018B, [IntPtr]::Zero, [IntPtr]::Zero)
   for ($i = 0; $i -lt $count; $i++) {
@@ -591,6 +622,10 @@ function Set-VcuElement($el, [string]$expect) {
   }
   if (Test-VcuListClass $cls) {
     Select-VcuList ([IntPtr]$nh) $expect
+    return
+  }
+  if (Test-VcuTrackClass $cls) {
+    Select-VcuTrack ([IntPtr]$nh) $expect
     return
   }
   if (Test-VcuConsoleClass $cls) { return }
@@ -920,6 +955,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:clipboard_paste")
         || out.contains("ok:combo_select")
         || out.contains("ok:list_select")
+        || out.contains("ok:track_select")
     {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
@@ -927,6 +963,8 @@ pub fn set_value_from_uia_output(
             "combo_select"
         } else if out.contains("ok:list_select") {
             "list_select"
+        } else if out.contains("ok:track_select") {
+            "track_select"
         } else if out.contains("ok:wm_settext") {
             "wm_settext"
         } else {
@@ -1559,6 +1597,12 @@ mod tests {
         assert!(setv.contains("0x014E"));
         assert!(setv.contains("ok:list_select"));
         assert!(setv.contains("0x0186"));
+        assert!(setv.contains("ok:track_select"));
+        assert!(setv.contains("0x0405"));
+        assert!(setv.contains("Test-VcuTrackClass"));
+        let tree = uia_tree_script(1, 8);
+        assert!(tree.contains("TRACKBAR"));
+        assert!(tree.contains("track="));
         assert!(!setv.to_ascii_lowercase().contains("sendinput("));
         #[cfg(not(windows))]
         {
