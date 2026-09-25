@@ -128,6 +128,39 @@ function Get-HudBackdrop([int]$x, [int]$y, [int]$w, [int]$h) {
   $g.Dispose()
   return $bmp
 }
+function Get-HudMarginBackdrop([int]$x, [int]$y, [int]$w, [int]$h) {
+  # Sample just below the capsule so a later refresh does not copy the HUD onto itself.
+  $stripH = 8
+  $strip = New-Object System.Drawing.Bitmap $w, $stripH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $gs = [System.Drawing.Graphics]::FromImage($strip)
+  try { $gs.CopyFromScreen($x, ($y + $h + 4), 0, 0, (New-Object System.Drawing.Size $w, $stripH)) } catch {}
+  $gs.Dispose()
+  $bmp = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.DrawImage($strip, 0, 0, $w, $h)
+  $g.Dispose()
+  $strip.Dispose()
+  return $bmp
+}
+function Get-BitmapKey([System.Drawing.Bitmap]$bmp) {
+  $c = $bmp.GetPixel([int]($bmp.Width / 2), [int]($bmp.Height / 2))
+  return "{0},{1},{2}" -f ([int]($c.R / 8), [int]($c.G / 8), [int]($c.B / 8))
+}
+function Update-HudBackdropIfChanged {
+  if ($null -eq $hud -or -not $hud.Visible) { return }
+  $fresh = Get-HudMarginBackdrop $hud.Left $hud.Top $script:HudW $script:HudH
+  $key = Get-BitmapKey $fresh
+  if ($key -ne $script:HudAvg) {
+    $next = New-HudBitmap $fresh
+    $old = $script:HudBmp
+    $script:HudBmp = $next
+    $script:HudAvg = $key
+    [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
+    if ($null -ne $old) { $old.Dispose() }
+  }
+  $fresh.Dispose()
+}
 function New-BlurredBackdrop([System.Drawing.Bitmap]$src) {
   # Downscale then upscale. This is the Windows stand-in for macOS NSVisualEffectView hudWindow.
   $sw = [Math]::Max(8, [int]($src.Width / 10))
@@ -259,8 +292,11 @@ $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $hudLeft = [int]($screen.Left + ($screen.Width - $script:HudW) / 2)
 $hudTop = [int]($screen.Top + 8)
 $backdrop = Get-HudBackdrop $hudLeft $hudTop $script:HudW $script:HudH
-$hudBmp = New-HudBitmap $backdrop
+$script:HudAvg = Get-BitmapKey $backdrop
+$script:HudBmp = New-HudBitmap $backdrop
+$hudBmp = $script:HudBmp
 $backdrop.Dispose()
+$script:HudTick = 0
 $guideBmp = New-GuideBitmap
 $hud = New-Object System.Windows.Forms.Form
 $hud.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
@@ -290,9 +326,11 @@ $timer.Add_Tick({
   if ($c.PSObject.Properties.Name -contains "hud") {
     if ($c.hud -eq $false) { $hud.Hide() } else {
       if (-not $hud.Visible) { $hud.Show() }
-      [void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hud.Left, $hud.Top, $false)
+      [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
     }
   }
+  $script:HudTick++
+  if ($script:HudTick % 6 -eq 0) { Update-HudBackdropIfChanged }
   if ($c.guide) {
     $gx = 0; $gy = 0
     try { $gx = [int]$c.guide.x } catch {}
@@ -308,7 +346,7 @@ $timer.Add_Tick({
   }
 })
 $hud.Add_Shown({
-  [void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hud.Left, $hud.Top, $false)
+  [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
 })
 $timer.Start()
 $hud.Add_FormClosed({ $timer.Stop(); try { $guide.Close() } catch {} })
@@ -1038,6 +1076,9 @@ mod tests {
         assert!(!STAGE_WINPS.contains("FromArgb(255, 107, 56)"));
         assert!(STAGE_WINPS.contains("CopyFromScreen"));
         assert!(STAGE_WINPS.contains("New-BlurredBackdrop"));
+        assert!(STAGE_WINPS.contains("Get-HudMarginBackdrop"));
+        assert!(STAGE_WINPS.contains("Update-HudBackdropIfChanged"));
+        assert!(STAGE_WINPS.contains("HudTick"));
         assert!(STAGE_WINPS.contains("NSVisualEffectView"));
         assert!(STAGE_WINPS.contains("FromArgb(150, 24, 28, 34)"));
         assert!(!STAGE_WINPS.contains("FromArgb(245, 18, 46, 107)"));
