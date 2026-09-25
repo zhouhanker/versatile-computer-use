@@ -348,6 +348,25 @@ public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lp
       $val = $sb.ToString()
     }}
   }}
+  try {{
+    $nhAcc = [int64]$el.Current.NativeWindowHandle
+    if ($nhAcc -ne 0) {{
+      if (-not ("Vcu.VcuAccState" -as [type])) {{
+        Add-Type -MemberDefinition '[DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object acc);' -Name VcuAccState -Namespace Vcu | Out-Null
+      }}
+      $iid = [Guid]"618736e0-3c3d-11cf-810c-00aa00389b71"
+      $acc = $null
+      $hr = [Vcu.VcuAccState]::AccessibleObjectFromWindow([IntPtr]$nhAcc, [uint32]4294967292, [ref]$iid, [ref]$acc)
+      if ($hr -eq 0 -and $null -ne $acc) {{
+        $roleId = [int]$acc.GetType().InvokeMember("accRole", [Reflection.BindingFlags]::GetProperty, $null, $acc, @(0))
+        $state = [int]$acc.GetType().InvokeMember("accState", [Reflection.BindingFlags]::GetProperty, $null, $acc, @(0))
+        if ($roleId -eq 44 -or $roleId -eq 45) {{
+          if (($state -band 16) -ne 0) {{ $mark = 'toggle-on' }} else {{ $mark = 'toggle-off' }}
+          if ([string]::IsNullOrWhiteSpace($val)) {{ $val = $mark }} else {{ $val = "$val $mark" }}
+        }}
+      }}
+    }}
+  }} catch {{}}
   $val = ($val -replace '[\r\n\|]', ' ')
   if ($val.Length -gt 200) {{ $val = $val.Substring(0, 200) }}
   $r = $el.Current.BoundingRectangle
@@ -1560,6 +1579,8 @@ mod tests {
         assert!(tree.contains("AutomationId"));
         assert!(tree.contains("LegacyIAccessiblePattern"));
         assert!(tree.contains("ValuePattern"));
+        assert!(tree.contains("roleId -eq 44"));
+        assert!(tree.contains("toggle-on"));
         assert!(tree.contains("GetWindowText"));
         assert!(!tree.to_ascii_lowercase().contains("sendinput"));
         let inv = uia_invoke_script(4242, "e2");

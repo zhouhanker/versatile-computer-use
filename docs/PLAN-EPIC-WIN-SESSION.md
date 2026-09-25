@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取和按角色等待已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待和复选框已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -309,6 +309,18 @@
 - 用 `ControlType.Window` 去等这个按钮会超时，不会误命中。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成完整产品 CU。WinForms 复选框的勾选状态还不能靠会话点击翻转。
 
+
+## CU-WIN-SESSION-027 会话点击翻转复选框
+
+状态：**2026-09-26 本机复测通过。** 不是 TogglePattern，也不是完整 Windows 产品 CU。
+
+- WinForms 复选框没有 TogglePattern。`BM_GETCHECK` 也读不到勾选状态。场景值改用 `IAccessible`：角色 44 是复选框，状态位 16 表示已勾选。普通按钮不会被标成复选框。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，里面有一个按钮和一个未勾选的复选框。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_checkbox.ps1`
+- 结果：`CU-WIN-SESSION-027 OK win:powershell:1300 ... ref=e3 path=bm_click on-then-off cursor=1187,239`
+- 点击路径是 `bm_click`。第一次点击后等到 `toggle-on`，第二次回到 `toggle-off`。按钮的值里没有 `toggle-`。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成 TogglePattern，也不写成完整产品 CU。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
@@ -318,6 +330,6 @@
 - 会话可以向自建文本框写入，再按新值等到。这是 `wm_settext`，不是 ValuePattern。
 - 会话可以点击自建按钮并看到标签变化。同名时优先返回控件；显式 ref 仍按请求的节点返回。
 - 会话可以按选择器提取自建文本框的值。没有命中时是空列表，不是假成功。
-- 会话可以按完整角色字符串等待。WinForms 按钮这里是 `ControlType.Pane`。复选框勾选还不能靠会话点击翻转。
+- 会话可以按完整角色字符串等待。WinForms 按钮这里是 `ControlType.Pane`。会话点击可以翻转自建复选框，状态来自 `IAccessible`，不是 TogglePattern。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
