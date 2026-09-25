@@ -64,6 +64,7 @@ public static class VcuStageWin {
   [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr obj);
   [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
   [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+  [DllImport("user32.dll")] public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
   [DllImport("gdi32.dll")] public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFO bmi, uint usage, out IntPtr bits, IntPtr section, uint offset);
   public static bool ShowBitmap(IntPtr hwnd, Bitmap bitmap, int x, int y, bool clickThrough) {
     int ex = GetWindowLong(hwnd, -20);
@@ -149,7 +150,18 @@ function Get-BitmapKey([System.Drawing.Bitmap]$bmp) {
 }
 function Update-HudBackdropIfChanged {
   if ($null -eq $hud -or -not $hud.Visible) { return }
-  $fresh = Get-HudMarginBackdrop $hud.Left $hud.Top $script:HudW $script:HudH
+  $fresh = $null
+  $hidden = $false
+  try {
+    # 0x11 = WDA_EXCLUDEFROMCAPTURE. Only for this sample, then restored so screenshots still show the HUD.
+    $hidden = [VcuStageWin]::SetWindowDisplayAffinity($hud.Handle, 0x11)
+    if ($hidden) {
+      $fresh = Get-HudBackdrop $hud.Left $hud.Top $script:HudW $script:HudH
+    }
+  } finally {
+    if ($hidden) { [void][VcuStageWin]::SetWindowDisplayAffinity($hud.Handle, 0) }
+  }
+  if ($null -eq $fresh) { $fresh = Get-HudMarginBackdrop $hud.Left $hud.Top $script:HudW $script:HudH }
   $key = Get-BitmapKey $fresh
   if ($key -ne $script:HudAvg) {
     $next = New-HudBitmap $fresh
@@ -1078,6 +1090,8 @@ mod tests {
         assert!(STAGE_WINPS.contains("New-BlurredBackdrop"));
         assert!(STAGE_WINPS.contains("Get-HudMarginBackdrop"));
         assert!(STAGE_WINPS.contains("Update-HudBackdropIfChanged"));
+        assert!(STAGE_WINPS.contains("SetWindowDisplayAffinity"));
+        assert!(STAGE_WINPS.contains("0x11"));
         assert!(STAGE_WINPS.contains("HudTick"));
         assert!(STAGE_WINPS.contains("NSVisualEffectView"));
         assert!(STAGE_WINPS.contains("FromArgb(150, 24, 28, 34)"));

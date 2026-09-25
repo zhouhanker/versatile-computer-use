@@ -1,6 +1,6 @@
 # Windows 视觉对齐
 
-更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 007 已在本机复测。007 会跟着胶囊下方的颜色重画，仍不是 macOS 系统材质，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 008 已在本机复测。008 刷新时采的是胶囊正后方，仍不是 macOS 系统材质，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
 
 ## 边界
 
@@ -83,4 +83,14 @@
 - 这条采样的是胶囊下方，不是正后方的每一个像素。桌面内容不均匀时，只是邻近色的近似。
 - 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_007_refresh.ps1` 先放 `255,0,180`，胶囊像素 `119,16,99`；不重启 Stage，把自建窗改成 `0,255,40` 后像素变成 `14,121,38`。测完 Abort，只关闭这个自建窗。
 - 不做：不写成和 macOS 材质相同，也不写成持续的系统模糊。
+
+## WIN-VIS-008 刷新时采正后方，不是只采下方
+
+状态：**2026-09-26 本机复测通过。** 不是 `NSVisualEffectView`，不是 DWM Acrylic，也不是完整 Windows 产品 CU。
+
+- 007 刷新时只采胶囊正下方 8 像素。正后方换成别的颜色，胶囊仍跟着下方走。
+- 现在刷新前短暂把胶囊排除出截图（`WDA_EXCLUDEFROMCAPTURE`），`CopyFromScreen` 采到正后方，随即恢复。平时截图仍能看见胶囊。失败时退回下方那一条。没有 SendInput。
+- 采样大约每 480ms 一次。排除截图只在这一小段，不是一直隐藏。
+- 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_008_behind.ps1` 先让正后方全蓝，胶囊像素 `14,49,125`；不重启 Stage，只把正后方改成绿、下方仍是蓝，像素变成 `14,121,36`。这不是纯绿，说明排除截图已经恢复。测完 Abort，只关闭这个自建窗。
+- 不做：不写成系统材质，也不写成每一帧都在更新。
 
