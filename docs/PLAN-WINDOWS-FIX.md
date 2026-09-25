@@ -111,6 +111,15 @@
 - 验收：`VCU=target/debug/vcu.exe`。`poc_cu_d_590.py` 退出 0，`CU-D-590 OK 1013794778 0->1`。`poc_cu_d_620.py` 退出 0，`CU-D-620 OK 1013794782 hovered=1`。两者都没有 `UnicodeDecodeError`。
 - 未宣称：`poc_cu_d_610.py` 退出 1，也没有 `UnicodeDecodeError`。DOM 输入和滚动成功（`typed_value=vcu-d-610`，`scroll_y=y=900`，`groups_ok=true`，`os_cursor_used=false`）。失败点是 `capture_dry_run_ok: false`。2026-09-26 复现为扩展 `stale_viewport`：滚动后 `scroll_y=900`，旧截图不能再点。这是共享扩展的安全拒绝，不是 Windows 回归，不能放宽校验。这不是 007 的验收范围，也不写成 610 通过。
 
+
+### WIN-FIX-008 计算器窗口在 ApplicationFrameHost 上
+
+状态：**已修，2026-09-26 本机复测通过。** 没有放行整个宿主进程，也没有新的 GitHub Release。
+
+- 现象：Windows 11 计算器窗口属于 `ApplicationFrameHost`，标题「计算器」。`CalculatorApp` 没有窗口，snapshot 是 0 个节点。直接 snapshot 宿主进程报不在允许名单。
+- 修：只在宿主窗口标题是计算器时，把该 pid 记成 `win:Calculator:<pid>`。宿主进程本身仍拒绝。无窗口的 `CalculatorApp` 桩在已有可见计算器窗口时不再列出。
+- 验收：单测 `frame_host_calculator_aliases_without_allowing_the_host` 通过。本机 pid 18668 列出为 `win:Calculator:18668`，snapshot `elements=53`，含「计算器」「关闭 计算器」。`win:ApplicationFrameHost:18668` 仍是 `FocusPolicyViolation`。没有移动系统光标，没有点计算器按钮。
+
 ## 5. 明确不在本计划里
 
 | 项 | 原因 |

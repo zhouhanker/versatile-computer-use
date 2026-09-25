@@ -105,7 +105,44 @@ pub fn decode_powershell_output(bytes: &[u8]) -> String {
 }
 
 /// Parse `name\tpid\ttitle` lines from the Windows process listing script.
+
+/// Packaged apps such as Calculator show their window on ApplicationFrameHost.
+/// Alias only a matching title. Never allowlist the host process itself.
+pub fn frame_host_alias(title: &str) -> Option<&'static str> {
+    let t = title.trim();
+    if t.is_empty() {
+        return None;
+    }
+    let lower = t.to_lowercase();
+    if lower.contains("calculator") || lower == "calc" || t.contains("计算器") {
+        return Some("Calculator");
+    }
+    None
+}
+
+fn is_frame_host(name: &str) -> bool {
+    name.eq_ignore_ascii_case("ApplicationFrameHost")
+}
+
+fn is_packaged_calc_stub(name: &str, title: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    let t = title.trim();
+    (n == "calculatorapp" || n == "calc" || n == "calculator")
+        && (t.is_empty() || t.eq_ignore_ascii_case(name))
+}
+
 pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Vec<AppTarget> {
+    let has_calc_window = raw.lines().any(|line| {
+        let mut parts = if line.contains('|') {
+            line.split('|')
+        } else {
+            line.split('\t')
+        };
+        let name = parts.next().unwrap_or("").trim();
+        let _pid = parts.next();
+        let title = parts.next().unwrap_or("").trim();
+        is_frame_host(name) && frame_host_alias(title) == Some("Calculator")
+    });
     let mut out = Vec::new();
     for (idx, line) in raw.lines().enumerate() {
         let mut parts = if line.contains('|') {
@@ -119,16 +156,26 @@ pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Ve
         if name.is_empty() {
             continue;
         }
+        if has_calc_window && is_packaged_calc_stub(name, title) {
+            continue;
+        }
         if is_denied_app(name) || is_denied_app(title) {
             continue;
         }
-        if !allowed(name) && !allowed(title) {
+        let mut listed = name.to_string();
+        if is_frame_host(name) {
+            match frame_host_alias(title) {
+                Some(alias) => listed = alias.to_string(),
+                None => continue,
+            }
+        }
+        if !allowed(&listed) && !allowed(title) {
             continue;
         }
         out.push(AppTarget {
             id: format!(
                 "win:{}:{}",
-                name.replace(' ', "_"),
+                listed.replace(' ', "_"),
                 pid.unwrap_or(idx as i32)
             ),
             title: if title.is_empty() {
@@ -136,7 +183,7 @@ pub fn parse_process_list_lines(raw: &str, allowed: impl Fn(&str) -> bool) -> Ve
             } else {
                 title.to_string()
             },
-            bundle_or_exe: name.to_string(),
+            bundle_or_exe: listed.clone(),
             pid,
             allowed: true,
             browser_profile: None,
@@ -1325,6 +1372,21 @@ mod tests {
         assert_eq!(wins.len(), 1);
         assert_eq!(wins[0].bundle_or_exe, "WindowsTerminal");
         assert!(wins[0].id.starts_with("win:WindowsTerminal:"));
+    }
+
+    #[test]
+    fn frame_host_calculator_aliases_without_allowing_the_host() {
+        let raw = "ApplicationFrameHost\t18668\t计算器\nCalculatorApp\t6448\tCalculatorApp\nApplicationFrameHost\t99\t随机窗口\n";
+        let wins = parse_process_list_lines(raw, |n| {
+            let l = n.to_lowercase();
+            l.contains("calculator") || l.contains("notepad")
+        });
+        assert_eq!(wins.len(), 1, "{wins:?}");
+        assert_eq!(wins[0].id, "win:Calculator:18668");
+        assert_eq!(wins[0].bundle_or_exe, "Calculator");
+        assert!(wins[0].title.contains("计算器"));
+        assert!(frame_host_alias("Calculator") == Some("Calculator"));
+        assert!(frame_host_alias("设置").is_none());
     }
 
     #[test]
