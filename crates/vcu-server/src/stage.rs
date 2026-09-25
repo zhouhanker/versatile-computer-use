@@ -175,73 +175,29 @@ function Read-Control {
   try { return (Get-Content -LiteralPath $controlPath -Raw -ErrorAction Stop | ConvertFrom-Json) } catch { return $null }
 }
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-function New-PillRegion([int]$w, [int]$h) {
-  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $path.AddArc(0, 0, $h, $h, 90, 180)
-  $path.AddArc(($w - $h), 0, $h, $h, 270, 180)
-  $path.CloseFigure()
-  return (New-Object System.Drawing.Region $path)
-}
+$hudBmp = New-HudBitmap
+$guideBmp = New-GuideBitmap
+$hudLeft = [int]($screen.Left + ($screen.Width - $script:HudW) / 2)
+$hudTop = [int]($screen.Top + 8)
 $hud = New-Object System.Windows.Forms.Form
 $hud.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
 $hud.ShowInTaskbar = $false
 $hud.TopMost = $true
 $hud.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
 $hud.ClientSize = New-Object System.Drawing.Size $script:HudW, $script:HudH
-$hud.BackColor = [System.Drawing.Color]::FromArgb(18, 46, 107)
-$hud.Opacity = 0.96
-$hud.Left = [int]($screen.Left + ($screen.Width - $script:HudW) / 2)
-$hud.Top = [int]($screen.Top + 8)
-$hud.Region = New-PillRegion $script:HudW $script:HudH
+$hud.Left = $hudLeft
+$hud.Top = $hudTop
 $hud.KeyPreview = $true
 $hud.Add_KeyDown({ if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Escape) { [System.IO.File]::WriteAllText($abortPath, "1") } })
-$font = New-Object System.Drawing.Font "Segoe UI", 9
-$title = New-Object System.Windows.Forms.Label
-$title.Text = "VCU 正在使用这台 PC"
-$title.ForeColor = [System.Drawing.Color]::White
-$title.BackColor = $hud.BackColor
-$title.Font = $font
-$title.AutoSize = $true
-$title.Location = New-Object System.Drawing.Point 12, 4
-$esc = New-Object System.Windows.Forms.Label
-$esc.Text = "Esc 取消"
-$esc.ForeColor = [System.Drawing.Color]::FromArgb(210, 255, 255, 255)
-$esc.BackColor = $hud.BackColor
-$esc.Font = $font
-$esc.AutoSize = $true
-$esc.Location = New-Object System.Drawing.Point 196, 4
-$hud.Controls.Add($title)
-$hud.Controls.Add($esc)
+$null = $hud.Handle
+[void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hudLeft, $hudTop, $false)
 $guide = New-Object System.Windows.Forms.Form
 $guide.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
 $guide.ShowInTaskbar = $false
 $guide.TopMost = $true
 $guide.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
 $guide.ClientSize = New-Object System.Drawing.Size $script:GuideW, $script:GuideH
-$guide.BackColor = [System.Drawing.Color]::FromArgb(176, 190, 204)
-$guide.Opacity = 0.78
 $guide.Visible = $false
-$fogPath = New-Object System.Drawing.Drawing2D.GraphicsPath
-$fogPath.AddEllipse(4, 10, 72, 72)
-$guide.Region = New-Object System.Drawing.Region $fogPath
-$guide.Add_Paint({
-  param($sender, $e)
-  $g = $e.Graphics
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $tipX = $script:HotX
-  $tipY = $script:HotY
-  $pts = @(
-    (New-Object System.Drawing.Point $tipX, $tipY),
-    (New-Object System.Drawing.Point ($tipX + 18), ($tipY + 10)),
-    (New-Object System.Drawing.Point ($tipX + 10), ($tipY + 12)),
-    (New-Object System.Drawing.Point ($tipX + 4), ($tipY + 20))
-  )
-  $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(245, 90, 96, 104))
-  $g.FillPolygon($fill, $pts)
-  $edge = New-Object System.Drawing.Pen ([System.Drawing.Color]::White), 1.5
-  $edge.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
-  $g.DrawPolygon($edge, $pts)
-})
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 80
 $timer.Add_Tick({
@@ -249,40 +205,27 @@ $timer.Add_Tick({
   if ($null -eq $c) { return }
   if ($c.stop) { $timer.Stop(); $hud.Close(); return }
   if ($c.PSObject.Properties.Name -contains "hud") {
-    if ($c.hud -eq $false) { $hud.Hide() } else { $hud.Show() }
+    if ($c.hud -eq $false) { $hud.Hide() } else {
+      if (-not $hud.Visible) { $hud.Show() }
+      [void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hud.Left, $hud.Top, $false)
+    }
   }
   if ($c.guide) {
     $gx = 0; $gy = 0
     try { $gx = [int]$c.guide.x } catch {}
     try { $gy = [int]$c.guide.y } catch {}
-    $guide.Left = $gx - $script:HotX
-    $guide.Top = $gy - $script:HotY
+    $left = $gx - $script:HotX
+    $top = $gy - $script:HotY
+    $guide.Left = $left
+    $guide.Top = $top
     if ($c.guide.visible -eq $false) { $guide.Hide() } else {
-      $guide.Show(); $guide.Refresh()
-      if (-not $script:GuidePass) {
-        $ex = [VcuStageWin]::GetWindowLong($guide.Handle, -20)
-        [void][VcuStageWin]::SetWindowLong($guide.Handle, -20, ($ex -bor 0x20 -bor 0x08000000))
-        $script:GuidePass = $true
-      }
-      Save-OwnShot $guide "live-guide.png"
-      $status = Join-Path (Split-Path -Parent $controlPath) "stage-live-status.txt"
-      "guide $($guide.Left),$($guide.Top) $($guide.Width)x$($guide.Height) vis=$($guide.Visible)" | Add-Content -Encoding ascii $status
+      if (-not $guide.Visible) { $guide.Show() }
+      [void][VcuStageWin]::ShowBitmap($guide.Handle, $guideBmp, $left, $top, $true)
     }
   }
 })
-function Save-OwnShot($form, $name) {
-  if (-not $env:VCU_STAGE_SHOT) { return }
-  $dir = $env:VCU_STAGE_SHOT
-  New-Item -ItemType Directory -Force -Path $dir | Out-Null
-  $bmp = New-Object System.Drawing.Bitmap $form.Width, $form.Height
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.CopyFromScreen($form.Left, $form.Top, 0, 0, $bmp.Size)
-  $bmp.Save((Join-Path $dir $name))
-}
 $hud.Add_Shown({
-  $status = Join-Path (Split-Path -Parent $controlPath) "stage-live-status.txt"
-  "hud $($hud.Left),$($hud.Top) $($hud.Width)x$($hud.Height)" | Set-Content -Encoding ascii $status
-  Save-OwnShot $hud "live-hud.png"
+  [void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hud.Left, $hud.Top, $false)
 })
 $timer.Start()
 $hud.Add_FormClosed({ $timer.Stop(); try { $guide.Close() } catch {} })
@@ -996,6 +939,9 @@ mod tests {
         assert!(STAGE_WINPS.contains("Keys]::Escape"));
         assert!(STAGE_WINPS.contains("TopMost"));
         assert!(STAGE_WINPS.contains("0x20"));
+        assert!(STAGE_WINPS.contains("ShowBitmap"));
+        assert!(STAGE_WINPS.contains("UpdateLayeredWindow"));
+        assert!(!STAGE_WINPS.contains("New-PillRegion"));
         assert!(!STAGE_WINPS.contains("FromArgb(255, 107, 56)"));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("[system.windows.forms.sendkeys"));

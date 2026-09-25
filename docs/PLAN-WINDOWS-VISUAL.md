@@ -26,3 +26,14 @@
 ## CU-D-610 不是这条的范围
 
 `poc_cu_d_610.py` 在滚动之后用滚动前的截图做 dry-run，扩展返回 `stale_viewport` / `stale viewport; recapture screenshot`。这是共享扩展的安全拒绝，不是 GBK，也不是 Windows 回归。不要为了变绿放宽 `scroll_y` 校验。
+
+## WIN-VIS-002 逐像素透明
+
+状态：**2026-09-26 本机复测通过。** 不是完整 Windows 产品 CU。
+
+上一轮把分层窗口记成画出来是黑的。那是 150% DPI 下截图坐标看错了，不是绘制失败。独立探针在物理坐标上能看到半透明蓝胶囊。
+
+- 实机 Stage 不再用 WinForms Region 和不透明圆。HUD 与 Guide 都走 `UpdateLayeredWindow`。
+- 本机截图：胶囊条能读出「VCU 正在使用这台 PC」和「Esc 取消」，背景透出桌面。Guide 是软雾加短箭，不是橙色方块。
+- Guide 仍设置点击穿透。没有 SendInput，没有移动系统光标。
+- 未宣称：Stage 进程仍不是 DPI 感知的。和 UIA 坐标是否在每个缩放下重合，这轮没有新的对照证据。
