@@ -1836,63 +1836,51 @@ async fn api_post(paths: &VcuPaths, path: &str, body: Value) -> Result<Value, Vc
 
 
 fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i32, VcuError> {
-    use std::process::Command;
     let base = base_url
         .unwrap_or("https://github.com/zhouhanker/versatile-computer-use/releases/latest/download");
-    // Prefer shipping install.sh next to this binary's share, else curl remote install.sh
+    let script_name = installer_script_name();
     let mut script_candidates = vec![
-        PathBuf::from(prefix).join("share/vcu/scripts/install/install.sh"),
-        PathBuf::from("scripts/install/install.sh"),
+        PathBuf::from(prefix).join("share/vcu/scripts/install").join(script_name),
+        PathBuf::from("scripts/install").join(script_name),
     ];
     if let Ok(exe) = std::env::current_exe() {
         if let Some(root) = exe.parent().and_then(|b| b.parent()) {
-            // prefix/bin/vcu -> prefix/share/vcu/scripts/...
-            script_candidates.insert(0, root.join("share/vcu/scripts/install/install.sh"));
+            script_candidates.insert(
+                0,
+                root.join("share/vcu/scripts/install").join(script_name),
+            );
         }
     }
     let local_script = script_candidates.into_iter().find(|p| p.exists());
-    use std::process::Stdio;
     let output = if let Some(script) = local_script {
-        Command::new("bash")
-            .arg(script)
-            .env("VCU_VERSION", version)
-            .env("VCU_BASE_URL", base)
-            .env("VCU_PREFIX", prefix)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
+        run_installer(&script, version, base, prefix)
     } else {
-        // download install.sh then run
-        let tmp = std::env::temp_dir().join("vcu-install.sh");
-        let url = format!("{}/install.sh", base.trim_end_matches('/'));
-        let body = std::process::Command::new("curl")
-            .args(["-fsSL", &url])
+        let tmp = std::env::temp_dir().join(script_name);
+        let url = format!("{}/{}", base.trim_end_matches('/'), script_name);
+        let body = std::process::Command::new(download_tool())
+            .args(download_args(&url))
             .output()
-            .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "curl install.sh", e.to_string()))?;
+            .map_err(|e| {
+                VcuError::with_detail(ErrorCode::Internal, format!("download {script_name}"), e.to_string())
+            })?;
         if !body.status.success() {
             let tail = installer_output_tail(&body.stderr, 4);
             let detail = if tail.is_empty() {
-                format!("curl exit status {}", body.status)
+                format!("download exit status {}", body.status)
             } else {
                 tail
             };
             return Err(VcuError::with_detail(
                 ErrorCode::Internal,
                 format!(
-                    "failed to download install.sh from {url}; no published release? run `bash scripts/pack-release.sh` then `VCU_BASE_URL=file://$PWD/dist vcu self update`"
+                    "failed to download {script_name} from {url}; {}",
+                    installer_mirror_hint()
                 ),
                 detail,
             ));
         }
         std::fs::write(&tmp, &body.stdout)?;
-        Command::new("bash")
-            .arg(&tmp)
-            .env("VCU_VERSION", version)
-            .env("VCU_BASE_URL", base)
-            .env("VCU_PREFIX", prefix)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
+        run_installer(&tmp, version, base, prefix)
     }
     .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "update failed", e.to_string()))?;
     if output.status.success() {
@@ -1919,17 +1907,73 @@ fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i3
         Err(VcuError::with_detail(
             ErrorCode::Internal,
             format!(
-                "update installer exited non-zero (base_url {base}); no published asset? run `bash scripts/pack-release.sh` then `VCU_BASE_URL=file://$PWD/dist vcu self update`"
+                "update installer exited non-zero (base_url {base}); {}",
+                installer_mirror_hint()
             ),
             detail,
         ))
     }
 }
 
+fn installer_script_name() -> &'static str {
+    if cfg!(windows) {
+        "install.ps1"
+    } else {
+        "install.sh"
+    }
+}
+
+fn installer_mirror_hint() -> &'static str {
+    if cfg!(windows) {
+        "no published asset? set VCU_BASE_URL=file://$PWD/dist and run install.ps1"
+    } else {
+        "no published asset? run `bash scripts/pack-release.sh` then `VCU_BASE_URL=file://$PWD/dist vcu self update`"
+    }
+}
+
+fn download_tool() -> &'static str {
+    if cfg!(windows) { "curl.exe" } else { "curl" }
+}
+
+fn download_args(url: &str) -> [&str; 2] {
+    ["-fsSL", url]
+}
+
+fn run_installer(
+    script: &std::path::Path,
+    version: &str,
+    base: &str,
+    prefix: &str,
+) -> std::io::Result<std::process::Output> {
+    use std::process::{Command, Stdio};
+    let mut cmd = if cfg!(windows) {
+        let mut cmd = Command::new("powershell.exe");
+        cmd.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ]);
+        cmd.arg(script);
+        cmd
+    } else {
+        let mut cmd = Command::new("bash");
+        cmd.arg(script);
+        cmd
+    };
+    cmd.env("VCU_VERSION", version)
+        .env("VCU_BASE_URL", base)
+        .env("VCU_PREFIX", prefix)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+}
+
 /// Keep only the last few non-empty lines of installer output so an error
 /// envelope stays bounded but still explains why the installer failed.
 fn installer_output_tail(bytes: &[u8], max_lines: usize) -> String {
-    let text = String::from_utf8_lossy(bytes);
+    let text = decode_installer_bytes(bytes);
     let lines: Vec<&str> = text
         .lines()
         .map(|line| line.trim())
@@ -1937,6 +1981,27 @@ fn installer_output_tail(bytes: &[u8], max_lines: usize) -> String {
         .collect();
     let start = lines.len().saturating_sub(max_lines);
     lines[start..].join(" | ")
+}
+
+fn decode_installer_bytes(bytes: &[u8]) -> String {
+    let bytes = bytes.strip_prefix(&[0xFF, 0xFE]).unwrap_or(bytes);
+    if looks_like_utf16_le(bytes) {
+        let units: Vec<u16> = bytes
+            .chunks_exact(2)
+            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+            .collect();
+        return String::from_utf16_lossy(&units);
+    }
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+fn looks_like_utf16_le(bytes: &[u8]) -> bool {
+    if bytes.len() < 8 {
+        return false;
+    }
+    let pairs = bytes.len() / 2;
+    let nuls = bytes.iter().skip(1).step_by(2).filter(|b| **b == 0).count();
+    nuls * 4 >= pairs * 3
 }
 
 fn self_uninstall(paths: &VcuPaths, prefix: &str, purge_config: bool) -> Result<i32, VcuError> {
@@ -2277,4 +2342,21 @@ fn uninstall_macos_launch_agent() -> Result<(), VcuError> {
     let plist = home.join("Library/LaunchAgents").join(format!("{label}.plist"));
     let _ = std::fs::remove_file(plist);
     Ok(())
+}
+
+#[cfg(test)]
+mod installer_output_tests {
+    use super::installer_output_tail;
+
+    #[test]
+    fn decodes_utf16_le_installer_output() {
+        let text = "Downloading file:///dist/vcu-latest-windows-x64.tar.gz";
+        let mut bytes = Vec::new();
+        for unit in text.encode_utf16() {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        let tail = installer_output_tail(&bytes, 4);
+        assert!(tail.contains(".tar.gz"), "{tail}");
+        assert!(!tail.contains('\0'), "{tail}");
+    }
 }

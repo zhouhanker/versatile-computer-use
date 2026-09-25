@@ -8,8 +8,11 @@ fn self_update_reports_installer_output_and_local_mirror_hint() {
     let script_dir = prefix.join("share/vcu/scripts/install");
     std::fs::create_dir_all(&dist).unwrap();
     std::fs::create_dir_all(&script_dir).unwrap();
-    let repo_script = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/install/install.sh");
-    std::fs::copy(&repo_script, script_dir.join("install.sh")).unwrap();
+    let script_name = if cfg!(windows) { "install.ps1" } else { "install.sh" };
+    let repo_script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../scripts/install")
+        .join(script_name);
+    std::fs::copy(&repo_script, script_dir.join(script_name)).unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_vcu"))
         .env("VCU_BASE_URL", format!("file://{}", dist.display()))
