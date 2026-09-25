@@ -197,11 +197,15 @@ fn pid_from_win_id(id: &str) -> Option<i32> {
     id.rsplit(':').next()?.parse().ok()
 }
 
+/// Newline refusal and paste eligibility by process name.
+/// Not proof of a console window: powershell.exe can host a WinForms GUI.
+/// Paste still requires a console window class inside the set-value script.
 fn windows_console_app(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
     n.contains("cmd")
         || n.contains("conhost")
         || n.contains("powershell")
+        || n.contains("pwsh")
         || n.contains("windows terminal")
         || n.contains("windowsterminal")
         || n.contains("wt")
@@ -427,92 +431,125 @@ pub fn uia_set_value_script(pid: i32, eref: &str, value: &str) -> String {
 fn uia_set_value_script_for(pid: i32, eref: &str, value: &str, console: bool) -> String {
     let n = eref.trim_start_matches('e').parse::<i32>().unwrap_or(0);
     let val = value.replace('\'', "''");
-    let mut s = hwnd_resolve_ps().to_string();
-    if console {
-        s.push_str(&format!(
-            r#"
-$targetPid = {pid}
-$val = '{val}'
-$hwnd = Wait-VcuHwnd $targetPid
-if ($hwnd -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
-if (-not ("Vcu.VcuPaste140" -as [type])) {{
+    let allow = if console { "1" } else { "0" };
+    let body = r#"
+Add-Type -AssemblyName UIAutomationClient | Out-Null
+if (-not ("Vcu.VcuSetValue070" -as [type])) {
+  $sig = @'
+[DllImport("user32.dll", CharSet=CharSet.Unicode)]
+public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam);
+[DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessage")]
+public static extern int SendMessageGetText(IntPtr hWnd, uint Msg, int wParam, System.Text.StringBuilder lParam);
+[DllImport("user32.dll", CharSet=CharSet.Unicode)]
+public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+'@
+  Add-Type -MemberDefinition $sig -Name VcuSetValue070 -Namespace Vcu | Out-Null
+}
+if (-not ("Vcu.VcuPaste140" -as [type])) {
   $sig = @'
 [DllImport("user32.dll")]
 public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 '@
   Add-Type -MemberDefinition $sig -Name VcuPaste140 -Namespace Vcu | Out-Null
-}}
-Set-Clipboard -Value $val
-Start-Sleep -Milliseconds 80
-[void][Vcu.VcuPaste140]::SendMessage([IntPtr]$hwnd, 0x0302, [IntPtr]::Zero, [IntPtr]::Zero)
-'ok:clipboard_paste'
-"#,
-            pid = pid,
-            val = val
-        ));
-        return s;
+}
+function Get-VcuClass([IntPtr]$h) {
+  if ($h -eq [IntPtr]::Zero) { return '' }
+  $sb = New-Object System.Text.StringBuilder 256
+  [void][Vcu.VcuSetValue070]::GetClassName($h, $sb, 256)
+  return $sb.ToString()
+}
+function Test-VcuConsoleClass([string]$cls) {
+  return $cls -eq 'ConsoleWindowClass' -or $cls -eq 'CASCADIA_HOSTING_WINDOW_CLASS' -or $cls -eq 'PseudoConsoleWindow'
+}
+function Test-VcuEditClass([string]$cls) {
+  if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
+  $c = $cls.ToLowerInvariant()
+  if ($c -eq 'edit') { return $true }
+  if ($c.Contains('windowsforms10.edit')) { return $true }
+  if ($c.Contains('richedit')) { return $true }
+  if ($c.Contains('textbox')) { return $true }
+  return $false
+}
+function Set-VcuElement($el, [string]$expect) {
+  try {
+    $vp = $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+    $vp.SetValue($expect)
+    if (([string]$vp.Current.Value) -eq $expect) {
+      'ok:uia_set_value'
+      exit 0
     }
-    s.push_str(&format!(
-        r#"
-Add-Type -AssemblyName UIAutomationClient | Out-Null
-if (-not ("Vcu.VcuSetValue070" -as [type])) {{
-  $sig = @'
-[DllImport("user32.dll", CharSet=CharSet.Unicode)]
-public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam);
-'@
-  Add-Type -MemberDefinition $sig -Name VcuSetValue070 -Namespace Vcu | Out-Null
-}}
-$targetPid = {pid}
-$want = {n}
-$val = '{val}'
+  } catch {}
+  $nh = [int64]$el.Current.NativeWindowHandle
+  if ($nh -eq 0) { return }
+  $cls = Get-VcuClass ([IntPtr]$nh)
+  if (Test-VcuConsoleClass $cls) { return }
+  if (-not (Test-VcuEditClass $cls)) { return }
+  [void][Vcu.VcuSetValue070]::SendMessage([IntPtr]$nh, 12, [IntPtr]::Zero, $expect)
+  $tb = New-Object System.Text.StringBuilder 1024
+  # GetWindowText across processes returns only captions, so an edit looks empty.
+  [void][Vcu.VcuSetValue070]::SendMessageGetText([IntPtr]$nh, 13, 1024, $tb)
+  if ($tb.ToString() -eq $expect) {
+    'ok:wm_settext'
+    exit 0
+  }
+}
+$targetPid = @@PID@@
+$want = @@WANT@@
+$val = '@@VAL@@'
+$allowPaste = @@ALLOW@@
 $hwnd = Wait-VcuHwnd $targetPid
-if ($hwnd -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
+if ($hwnd -eq [IntPtr]::Zero) { 'not-found'; exit 0 }
 $win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
-if ($null -eq $win) {{ 'not-found'; exit 0 }}
+if ($null -eq $win) { 'not-found'; exit 0 }
 $q = New-Object System.Collections.Queue
 $q.Enqueue($win)
 $i = 0
-while ($q.Count -gt 0) {{
+$target = $null
+while ($q.Count -gt 0) {
   $el = $q.Dequeue()
   $i++
-  if ($i -eq $want) {{
-    $pat = [System.Windows.Automation.ValuePattern]::Pattern
-    try {{
-      $vp = $el.GetCurrentPattern($pat)
-      $vp.SetValue($val)
-      'ok:uia_set_value'
-      exit 0
-    }} catch {{}}
-    $nh = [int64]$el.Current.NativeWindowHandle
-    if ($nh -ne 0) {{
-      [void][Vcu.VcuSetValue070]::SendMessage([IntPtr]$nh, 12, [IntPtr]::Zero, $val)
-      'ok:wm_settext'
-      exit 0
-    }}
-    if (-not ("Vcu.VcuPaste140" -as [type])) {{
-      $sig = @'
-[DllImport("user32.dll")]
-public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-'@
-      Add-Type -MemberDefinition $sig -Name VcuPaste140 -Namespace Vcu | Out-Null
-    }}
-    Set-Clipboard -Value $val
-    Start-Sleep -Milliseconds 80
-    [void][Vcu.VcuPaste140]::SendMessage([IntPtr]$hwnd, 0x0302, [IntPtr]::Zero, [IntPtr]::Zero)
-    'ok:clipboard_paste'
-    exit 0
-  }}
+  if ($i -eq $want) { $target = $el; break }
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
-  foreach ($k in $kids) {{ $q.Enqueue($k) }}
-}}
-'not-found'
-"#,
-        pid = pid,
-        n = n,
-        val = val
-    ));
+  foreach ($k in $kids) { $q.Enqueue($k) }
+}
+if ($null -eq $target) { 'not-found'; exit 0 }
+Set-VcuElement $target $val
+$dq = New-Object System.Collections.Queue
+$dq.Enqueue($target)
+$seen = 0
+while ($dq.Count -gt 0 -and $seen -lt 40) {
+  $el = $dq.Dequeue()
+  $seen++
+  if ($seen -gt 1) { Set-VcuElement $el $val }
+  $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($k in $kids) { $dq.Enqueue($k) }
+}
+$mainCls = Get-VcuClass $hwnd
+$elHwnd = [IntPtr]::Zero
+$enh = [int64]$target.Current.NativeWindowHandle
+if ($enh -ne 0) { $elHwnd = [IntPtr]$enh }
+$elCls = Get-VcuClass $elHwnd
+if ($allowPaste -eq 1 -and ((Test-VcuConsoleClass $mainCls) -or (Test-VcuConsoleClass $elCls))) {
+  $pasteHwnd = $hwnd
+  if (Test-VcuConsoleClass $elCls) { $pasteHwnd = $elHwnd }
+  Set-Clipboard -Value $val
+  Start-Sleep -Milliseconds 80
+  [void][Vcu.VcuPaste140]::SendMessage($pasteHwnd, 0x0302, [IntPtr]::Zero, [IntPtr]::Zero)
+  'ok:clipboard_paste'
+  exit 0
+}
+'error:value-not-set'
+"#;
+    let body = body
+        .replace("@@PID@@", &pid.to_string())
+        .replace("@@WANT@@", &n.to_string())
+        .replace("@@VAL@@", &val)
+        .replace("@@ALLOW@@", allow);
+    let mut s = hwnd_resolve_ps().to_string();
+    s.push_str(&body);
     s
 }
+
 
 /// PowerShell: PrintWindow of the process main HWND to PNG (base64). Not CopyFromScreen of an occluded desktop, not SendInput.
 pub fn uia_capture_script(pid: i32) -> String {
@@ -625,7 +662,11 @@ pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
         }
         if !class.is_empty() {
             let cl = class.to_ascii_lowercase();
-            if cl == "edit" || cl == "document" || cl.contains("richedit") {
+            if cl == "edit"
+                || cl == "document"
+                || cl.contains("richedit")
+                || cl.contains("windowsforms10.edit")
+            {
                 role = format!("{role}/{class}");
             }
         }
@@ -1335,6 +1376,11 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(nl.code(), ErrorCode::FocusPolicyViolation);
+        let ps_nl = b
+            .set_value("win:powershell:9", "e2", "line\n2")
+            .await
+            .unwrap_err();
+        assert_eq!(ps_nl.code(), ErrorCode::FocusPolicyViolation);
         let setv = uia_set_value_script(4242, "e2", "hello");
         assert!(setv.contains("ValuePattern"));
         assert!(setv.contains("SetValue"));
@@ -1412,8 +1458,9 @@ mod tests {
     #[test]
     fn parse_uia_tree_and_scripts_are_pattern_not_hid() {
         let els = parse_uia_element_lines(
-            "e1|ControlType.Window|Notepad|10,10,800,600\ne2|ControlType.Button|Save|20,40,80,24\nMISSING\ne3|ControlType.Pane||10,40,780,540|Edit|VCU-D-190\n"        );
-        assert_eq!(els.len(), 3);
+            "e1|ControlType.Window|Notepad|10,10,800,600\ne2|ControlType.Button|Save|20,40,80,24\nMISSING\ne3|ControlType.Pane||10,40,780,540|Edit|VCU-D-190\ne4|ControlType.Edit||1,2,3,4|WindowsForms10.EDIT.app.0.1|\n"        );
+        assert_eq!(els.len(), 4);
+        assert!(els[3].role.contains("WindowsForms10.EDIT"));
         assert_eq!(els[0].r#ref, "e1");
         assert_eq!(els[1].name, "Save");
         assert_eq!(els[1].frame, Some([20.0, 40.0, 80.0, 24.0]));
@@ -1470,12 +1517,32 @@ mod tests {
         assert!(setv.contains("VcuHwndResolve"));
         assert!(!setv.to_ascii_lowercase().contains("sendinput("));
         let cmdv = uia_set_value_script_for(4242, "e1", "echo-not-run", true);
+        assert!(cmdv.contains("ok:uia_set_value"));
+        assert!(cmdv.contains("ok:wm_settext"));
         assert!(cmdv.contains("ok:clipboard_paste"));
         assert!(cmdv.contains("Set-Clipboard"));
         assert!(cmdv.contains("0x0302"));
         assert!(cmdv.contains("AttachConsole"));
-        assert!(!cmdv.contains("ok:wm_settext"));
+        assert!(cmdv.contains("ConsoleWindowClass"));
+        assert!(cmdv.contains("$allowPaste = 1"));
+        let value_at = cmdv.find("ok:uia_set_value").unwrap();
+        let wm_at = cmdv.find("ok:wm_settext").unwrap();
+        let paste_at = cmdv.find("ok:clipboard_paste").unwrap();
+        assert!(value_at < paste_at && wm_at < paste_at);
+        assert!(cmdv.find("Test-VcuConsoleClass").unwrap() < paste_at);
         assert!(!cmdv.to_ascii_lowercase().contains("sendinput("));
+        let gui = uia_set_value_script_for(14124, "e2", "vcu-own-009", true);
+        assert!(gui.contains("$allowPaste = 1"));
+        assert!(gui.contains("windowsforms10.edit"));
+        assert!(gui.contains("SendMessageGetText"));
+        assert!(gui.contains("error:value-not-set"));
+        assert!(gui.find("ok:uia_set_value").unwrap() < gui.find("ok:clipboard_paste").unwrap());
+        let plain = uia_set_value_script(4242, "e2", "hello-plain");
+        assert!(plain.contains("$allowPaste = 0"));
+        assert!(plain.contains("error:value-not-set"));
+        assert!(windows_console_app("powershell"));
+        assert!(windows_console_app("pwsh"));
+        assert!(!windows_console_app("notepad"));
         assert!(set_value_from_uia_output("notepad", "e2", "error:no-value-pattern").is_err());
         let scr = uia_scroll_script(4242, "e1", 600);
         assert!(scr.contains("ScrollPattern"));

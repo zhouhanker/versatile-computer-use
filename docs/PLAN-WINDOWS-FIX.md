@@ -1,6 +1,6 @@
 # Windows 真机修复计划
 
-更新：2026-09-26。作者：本机真机测试记录。状态：WIN-FIX-001 至 006 已提交并复测通过。WIN-FIX-007 已复测：POC 不再因 GBK 的 UnicodeDecodeError 退出。CU-D-610 仍失败于截图 dry-run，不算整项通过。计算器宿主窗口仍未放行。没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机测试记录。状态：WIN-FIX-001 至 008 已提交并复测通过。WIN-FIX-009 已在本机复测：powershell.exe 托管的 WinForms 编辑框先写子控件，不再对主窗口剪贴板粘贴后报成功。CU-D-610 仍失败于截图 dry-run，不算整项通过。没有新的 GitHub Release。
 
 001–006 的产品修复已在源码里并推送。本轮 007 复测用的是本仓库 debug 构建 `target/debug/vcu.exe`，daemon 也是这份 debug 构建，不是已安装的 Release 包。`vcu --version` 仍打印 crate `0.1.0`。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
 
@@ -120,6 +120,15 @@
 - 修：只在宿主窗口标题是计算器时，把该 pid 记成 `win:Calculator:<pid>`。宿主进程本身仍拒绝。无窗口的 `CalculatorApp` 桩在已有可见计算器窗口时不再列出。
 - 验收：单测 `frame_host_calculator_aliases_without_allowing_the_host` 通过。本机 pid 18668 列出为 `win:Calculator:18668`，snapshot `elements=53`，含「计算器」「关闭 计算器」。`win:ApplicationFrameHost:18668` 仍是 `FocusPolicyViolation`。没有移动系统光标，没有点计算器按钮。
 
+### WIN-FIX-009 powershell.exe 图形窗口不能当成控制台粘贴
+
+状态：**2026-09-26 本机复测通过。** 不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+
+- 现象：`powershell.exe` 只要名字里有 powershell，`set_value` 就走控制台分支，对主窗口 `WM_PASTE` 并返回 `ok:clipboard_paste`。自建 WinForms 文本框实际没变。
+- 修：先对目标元素做 ValuePattern，读回一致才算 `uia_set_value`。否则只对编辑框窗口类做 `WM_SETTEXT`，并用跨进程可用的 `WM_GETTEXT` 读回，不用 `GetWindowText`。只有 `ConsoleWindowClass`、`CASCADIA_HOSTING_WINDOW_CLASS`、`PseudoConsoleWindow` 才允许剪贴板粘贴。写不进去就返回 `error:value-not-set`，不报成功。换行仍拒绝，避免控制台执行命令。没有 SendInput。
+- 验收：单测 `parse_uia_tree_and_scripts_are_pattern_not_hid` 通过。`scripts/poc_win_session_own_edit.ps1` 输出 `CU-WIN-FIX-009 OK win:powershell:7576 ... e2 wm_settext vcu-own-009-1790364843`。独立 `WM_GETTEXT` 读回同一标记。`os_cursor_used=false`，`hid_injected=false`，不是 `clipboard_paste`。测完只关闭这个自建窗口。
+- 不做：不把这次成功写成完整 Windows 产品 CU。不放宽控制台换行拒绝。不把 `WM_SETTEXT` 写成 ValuePattern。
+
 ## 5. 明确不在本计划里
 
 | 项 | 原因 |
@@ -140,5 +149,7 @@
 5. WIN-FIX-005 截图错误文案。已完成并复测。
 6. WIN-FIX-006 UIA 编码。已完成并复测。
 7. WIN-FIX-007 POC 解码。已复测：590 与 620 通过；610 不再因 `UnicodeDecodeError` 退出，但仍因截图 dry-run 失败。
+8. WIN-FIX-008 计算器窗口别名。已复测，宿主进程仍拒绝。
+9. WIN-FIX-009 子编辑框先于控制台粘贴。已复测。
 
 每条单独提交，带这台 Windows 的复测记录。修完一条再开下一条。未复测前不把对应 POC 改成通过。
