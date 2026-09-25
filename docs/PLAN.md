@@ -12,7 +12,7 @@
 
 默认不新开切片，也不把停放项写成进行中。
 
-Windows 真机缺口与修复顺序见 [PLAN-WINDOWS-FIX.md](PLAN-WINDOWS-FIX.md)。WIN-FIX-001 至 006 已在这台机器复测通过并推送。WIN-FIX-007 已复测脚本解码；CU-D-610 的截图 dry-run 仍失败。不要把它写成完整 Windows 产品 CU。Windows 窗口外观对齐见 [PLAN-WINDOWS-VISUAL.md](PLAN-WINDOWS-VISUAL.md)。WIN-VIS-001 只对齐了 Stage 胶囊和短箭，不是完整产品会话。
+Windows 真机缺口与修复顺序见 [PLAN-WINDOWS-FIX.md](PLAN-WINDOWS-FIX.md)。WIN-FIX-001 至 006 已在这台机器复测通过并推送。WIN-FIX-007 已复测脚本解码；CU-D-610 的截图 dry-run 仍失败。不要把它写成完整 Windows 产品 CU。Windows 产品会话的第一扇门见 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md)。Windows 窗口外观对齐见 [PLAN-WINDOWS-VISUAL.md](PLAN-WINDOWS-VISUAL.md)。WIN-VIS-001 只对齐了 Stage 胶囊和短箭，不是完整产品会话。
 可领取项只有停放的 `MAC-NEXT` 与 `FEISHU-001`。
 
 若要继续产品工作，先由用户点名一条，再 claim。建议顺序：
