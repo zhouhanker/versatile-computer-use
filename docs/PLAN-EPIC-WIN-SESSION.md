@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、图形编辑框写入、Guide 悬停和列表滚动已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、图形编辑框写入、Guide 悬停和列表滚动已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -70,9 +70,20 @@
 - 顶行是独立 `LB_GETTOPINDEX` 读回，不是只看命令回执。系统光标没有动。
 - 测完 Abort，只关闭这个自建窗。
 
+## CU-WIN-SESSION-006 会话计算 12+7
+
+状态：**2026-09-26 本机复测通过。** 不是完整计算器产品，也不是完整 Windows 产品 CU。
+
+- 开始前没有已打开的计算器窗口。脚本自己启动，结束时只关闭 CalculatorApp。
+- 命令：`powershell -File scripts/poc_win_session_calc_expr.ps1`
+- 结果：`CU-WIN-SESSION-006 OK win:Calculator:18668 ... 12+7=19`
+- 顺序是「一」「二」「加」「七」「等于」。每次都是 `uia_invoke`，`os_cursor_used=false`，`hid_injected=false`。
+- 显示从「显示为 0」变成「显示为 19」。
+- 同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。没有移动系统光标。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
-- 只验证了 1+1。没有覆盖科学模式、内存键或连续长表达式，也不写成完整计算器产品。
+- 12+7 只是比 1+1 长的一条标准模式表达式。没有覆盖科学模式、内存键，也不写成完整计算器产品。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
