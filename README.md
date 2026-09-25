@@ -43,6 +43,7 @@ Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。
 - Windows 商店版记事本的启动桩进程会解析到唯一的可见记事本窗口；多开时仍拒绝，不猜窗口
 - Windows Terminal 进程名 `WindowsTerminal` 在允许名单内，可以观察
 - Windows 桌面截图失败会说明没有可见窗口或 PrintWindow 没产出 PNG，不再提示 macOS 的屏幕录制权限
+- Windows UIA 名称按 UTF-8 返回，记事本的「文件」和 Windows Terminal 中文标题不再是乱码
 
 - 飞书只观察，不自动发送；macOS 深 AX 全树停放
 

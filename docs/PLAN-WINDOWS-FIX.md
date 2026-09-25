@@ -1,6 +1,6 @@
 # Windows 真机修复计划
 
-更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 至 005 已在本机复测通过。计算器宿主窗口仍未放行。006 起未开工。
+更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 至 006 已在本机复测通过。计算器宿主窗口仍未放行。007 未开工。
 
 测的是已安装 Release `v0.2.8`（`vcu --version` 仍打印 crate `0.1.0`）。对照当前源码后，下面的缺陷在 HEAD 里也还在。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
 
@@ -95,9 +95,11 @@
 
 ### WIN-FIX-006 UIA 文本编码
 
-- 现象：记事本截图里的中文菜单正常，但 UIA JSON 里的标题和控件名是乱码。
-- 修：PowerShell 枚举结果按 UTF-8 回到 Rust，不要经系统 ANSI/GBK 代码页。
-- 验收：`app snapshot` 里 Notepad 标题和「文件」一类控件名是可读中文。
+状态：**已修，2026-09-26 本机复测通过。**
+
+- 现象：PowerShell 5.1 把管道输出按系统 GBK 写出，Rust 用 UTF-8 解码，UIA 中文变成乱码。
+- 修：所有 Windows PowerShell 调用前设置无 BOM 的 UTF-8 `OutputEncoding`，读回时去掉 BOM。
+- 验收：单测 `decode_powershell_output_keeps_utf8_chinese` 通过。记事本 `app snapshot` 含「文件」「无标题」，没有 U+FFFD。Windows Terminal pid 19364 的标题「检查rtk和awr激活状态」可读，`replacement=false`。
 
 ### WIN-FIX-007 Windows 上的测试脚本可跑
 
@@ -124,7 +126,7 @@
 3. WIN-FIX-003 商店应用真实窗口 pid。记事本桩进程已完成并复测。计算器宿主未放行。
 4. WIN-FIX-004 Windows Terminal 名单。已完成并复测。
 5. WIN-FIX-005 截图错误文案。已完成并复测。
-6. WIN-FIX-006 UIA 编码。
+6. WIN-FIX-006 UIA 编码。已完成并复测。
 7. WIN-FIX-007 POC / config 编码。
 
 每条单独提交，带这台 Windows 的复测记录。修完一条再开下一条。未复测前不把对应 POC 改成通过。

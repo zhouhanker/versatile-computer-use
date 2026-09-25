@@ -46,6 +46,7 @@ impl WindowsAppBackend {
         use std::process::Command;
         let path = std::env::temp_dir().join(format!("vcu-ps-{}.ps1", ulid::Ulid::new()));
         let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(powershell_utf8_prelude().as_bytes());
         bytes.extend_from_slice(script.as_bytes());
         std::fs::write(&path, &bytes).map_err(|e| {
             VcuError::with_detail(
@@ -77,15 +78,30 @@ impl WindowsAppBackend {
             )
         })?;
         if !output.status.success() {
-            let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let err = decode_powershell_output(&output.stderr);
             return Err(VcuError::with_detail(
                 ErrorCode::ActionFailed,
                 "powershell failed",
                 err,
             ));
         }
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        Ok(decode_powershell_output(&output.stdout))
     }
+}
+
+fn powershell_utf8_prelude() -> &'static str {
+    r#"
+try {
+  $utf8 = New-Object System.Text.UTF8Encoding $false
+  $OutputEncoding = $utf8
+  [Console]::OutputEncoding = $utf8
+} catch {}
+"#
+}
+
+pub fn decode_powershell_output(bytes: &[u8]) -> String {
+    let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
+    String::from_utf8_lossy(bytes).trim().to_string()
 }
 
 /// Parse `name\tpid\ttitle` lines from the Windows process listing script.
@@ -1290,6 +1306,16 @@ mod tests {
             assert!(!msg.contains("VCU_ALLOW_SCREENCAPTURE"), "{msg}");
             assert!(!msg.to_ascii_lowercase().contains("screen recording"), "{msg}");
         }
+    }
+
+    #[test]
+    fn decode_powershell_output_keeps_utf8_chinese() {
+        let raw = "文件".as_bytes();
+        assert_eq!(decode_powershell_output(raw), "文件");
+        let mut bom = vec![0xEF, 0xBB, 0xBF];
+        bom.extend_from_slice(raw);
+        assert_eq!(decode_powershell_output(&bom), "文件");
+        assert!(powershell_utf8_prelude().contains("UTF8Encoding"));
     }
 
     #[test]
