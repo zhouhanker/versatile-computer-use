@@ -817,60 +817,92 @@ pub fn set_value_from_uia_output(
 pub fn uia_scroll_script(pid: i32, eref: &str, dy: i32) -> String {
     let n = eref.trim_start_matches('e').parse::<i32>().unwrap_or(0);
     let mut s = hwnd_resolve_ps().to_string();
-    s.push_str(&format!(
-        r#"
+    let body = r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
-$targetPid = {pid}
-$want = {n}
-$dy = {dy}
-$hwnd = Wait-VcuHwnd $targetPid
-if ($hwnd -eq [IntPtr]::Zero) {{ 'not-found'; exit 0 }}
-$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
-if ($null -eq $win) {{ 'not-found'; exit 0 }}
-function Scroll-VcuEl($el, $delta, $mainHwnd) {{
-  try {{
-    $sp = $el.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
-    $vert = if ($delta -ge 0) {{ [System.Windows.Automation.ScrollAmount]::LargeIncrement }} else {{ [System.Windows.Automation.ScrollAmount]::LargeDecrement }}
-    $sp.Scroll([System.Windows.Automation.ScrollAmount]::NoAmount, $vert)
-    'ok:uia_scroll'
-    exit 0
-  }} catch {{}}
-  $nh = [int64]$el.Current.NativeWindowHandle
-  if ($nh -eq 0) {{ $nh = [int64]$mainHwnd }}
-  if ($nh -ne 0) {{
-    if (-not ("Vcu.VcuScroll180" -as [type])) {{
-      $sig = @'
+if (-not ("Vcu.VcuScroll180" -as [type])) {
+  $sig = @'
 [DllImport("user32.dll")]
 public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 '@
-      Add-Type -MemberDefinition $sig -Name VcuScroll180 -Namespace Vcu | Out-Null
-    }}
-    $sb = if ($delta -ge 0) {{ 3 }} else {{ 2 }}
-    [void][Vcu.VcuScroll180]::SendMessage([IntPtr]$nh, 0x0115, [IntPtr]$sb, [IntPtr]::Zero)
+  Add-Type -MemberDefinition $sig -Name VcuScroll180 -Namespace Vcu | Out-Null
+}
+$targetPid = @@PID@@
+$want = @@WANT@@
+$dy = @@DY@@
+$hwnd = Wait-VcuHwnd $targetPid
+if ($hwnd -eq [IntPtr]::Zero) { 'not-found'; exit 0 }
+$win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
+if ($null -eq $win) { 'not-found'; exit 0 }
+function Try-VcuScrollPattern($el, $delta) {
+  try {
+    $sp = $el.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+    $before = -1.0
+    try { $before = [double]$sp.Current.VerticalScrollPercent } catch {}
+    $vert = if ($delta -ge 0) { [System.Windows.Automation.ScrollAmount]::LargeIncrement } else { [System.Windows.Automation.ScrollAmount]::LargeDecrement }
+    $sp.Scroll([System.Windows.Automation.ScrollAmount]::NoAmount, $vert)
+    $after = $before
+    try { $after = [double]$sp.Current.VerticalScrollPercent } catch {}
+    if ($before -lt 0 -or $after -ne $before) {
+      'ok:uia_scroll'
+      exit 0
+    }
+  } catch {}
+}
+function Try-VcuListScroll($el, $delta) {
+  $cls = ''
+  try { $cls = [string]$el.Current.ClassName } catch {}
+  if ($cls -notlike '*LISTBOX*') { return }
+  $nh = [int64]$el.Current.NativeWindowHandle
+  if ($nh -eq 0) { return }
+  $top0 = [int][Vcu.VcuScroll180]::SendMessage([IntPtr]$nh, 0x018E, [IntPtr]::Zero, [IntPtr]::Zero)
+  $sb = if ($delta -ge 0) { 3 } else { 2 }
+  [void][Vcu.VcuScroll180]::SendMessage([IntPtr]$nh, 0x0115, [IntPtr]$sb, [IntPtr]::Zero)
+  $top1 = [int][Vcu.VcuScroll180]::SendMessage([IntPtr]$nh, 0x018E, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($top1 -ne $top0) {
     'ok:wm_vscroll'
     exit 0
-  }}
-}}
-if ($want -le 0) {{ Scroll-VcuEl $win $dy $hwnd }}
-$q = New-Object System.Collections.Queue
-$q.Enqueue($win)
-$i = 0
-while ($q.Count -gt 0) {{
-  $el = $q.Dequeue()
-  $i++
-  if ($i -eq $want) {{ Scroll-VcuEl $el $dy $hwnd }}
-  $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
-  foreach ($k in $kids) {{ $q.Enqueue($k) }}
-}}
-Scroll-VcuEl $win $dy $hwnd
-'not-found'
-"#,
-        pid = pid,
-        n = n,
-        dy = dy
-    ));
+  }
+}
+function Walk-VcuScroll($root, $delta) {
+  $q = New-Object System.Collections.Queue
+  $q.Enqueue($root)
+  $n = 0
+  while ($q.Count -gt 0 -and $n -lt 80) {
+    $el = $q.Dequeue()
+    $n++
+    Try-VcuScrollPattern $el $delta
+    Try-VcuListScroll $el $delta
+    $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($k in $kids) { $q.Enqueue($k) }
+  }
+}
+$root = $win
+if ($want -gt 0) {
+  $q = New-Object System.Collections.Queue
+  $q.Enqueue($win)
+  $i = 0
+  while ($q.Count -gt 0) {
+    $el = $q.Dequeue()
+    $i++
+    if ($i -eq $want) { $root = $el; break }
+    $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($k in $kids) { $q.Enqueue($k) }
+  }
+  if ($i -ne $want) { 'not-found'; exit 0 }
+}
+Walk-VcuScroll $root $dy
+$sb = if ($dy -ge 0) { 3 } else { 2 }
+[void][Vcu.VcuScroll180]::SendMessage([IntPtr]$hwnd, 0x0115, [IntPtr]$sb, [IntPtr]::Zero)
+'ok:wm_vscroll'
+"#;
+    let body = body
+        .replace("@@PID@@", &pid.to_string())
+        .replace("@@WANT@@", &n.to_string())
+        .replace("@@DY@@", &dy.to_string());
+    s.push_str(&body);
     s
 }
+
 
 pub fn scroll_from_uia_output(name: &str, out: &str) -> VcuResult<serde_json::Value> {
     let path = if out.contains("ok:uia_scroll") {
@@ -1547,6 +1579,8 @@ mod tests {
         let scr = uia_scroll_script(4242, "e1", 600);
         assert!(scr.contains("ScrollPattern"));
         assert!(scr.contains("0x0115"));
+        assert!(scr.contains("0x018E"));
+        assert!(scr.contains("LISTBOX"));
         assert!(scr.contains("ok:uia_scroll"));
         assert!(scr.contains("ok:wm_vscroll"));
         assert!(!scr.to_ascii_lowercase().contains("sendinput("));
