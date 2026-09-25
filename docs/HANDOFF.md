@@ -1,6 +1,17 @@
 # VCU 会话交接
 
-更新：2026-09-20 本轮收尾。HEAD `b627506`（main 已推送）。上一轮结尾为 `7a7a7c8`（CU-D-670）。
+更新：2026-09-25。上一轮收尾仍是 2026-09-20 的 CU-D-680/690/700（当时 HEAD `b627506`，交接提交 `5a3ae97`）。
+
+## 本轮（收口 + CI 门禁）
+
+- 不新开停放史诗。`MAC-NEXT` / `FEISHU-001` 仍不 claim。
+- 对齐覆盖边界：`README.md` 增加「边界」；`GOALS.md` 从 0.2.5 改到已发布 0.2.8；测试计划第 8 节去掉已通过的 TC-D-690/700「未过不得宣称」。
+- CI 失败根因：`observe_does_not_wrap_a_failed_snapshot_in_success`。macOS 是非阻塞 `read` 的 `WouldBlock`（run `35512397252` job `106082463381`）；Windows 是假 daemon 5 秒截止时 `served=0`（同 run job `106082463350`，以及 `35511990613`）。不是产品回归。
+- 修复：假 daemon 等到 CLI 退出或 60 秒，accept 后改阻塞读，失败时打印 CLI stdout/stderr。本地 POC：`cargo test -p vcu-cli --test observe_failure` 连续 21 次通过；`cargo test -p vcu-cli --tests` 通过。Actions 变绿前不宣称门禁已恢复。
+
+## 2026-09-20 收尾
+
+HEAD `b627506`（main 已推送）。上一轮结尾为 `7a7a7c8`（CU-D-670）。
 
 ## 本轮完成（CU-D-680 → CU-D-690 → CU-D-700，全部提交并推送）
 
@@ -36,6 +47,6 @@
 ## 下次会话
 
 1. 台账 `.awr/intake/work-ledger.yaml` 已无进行中切片；可领取只剩 `MAC-NEXT`（深 AX，停放）与 `FEISHU-001`（停放）。**不要 claim 这两项**，除非用户明确要开。
-2. 已知问题：CI `test (windows-latest)` 最近多次 push 持续失败（与本轮切片无关）；修好后 Windows 侧门禁才可信。
-3. AWR 完成登记：`work complete` / `evidence add` 的报告 schema 未摸清（模板未公开，报错只有通用提示），现用台账 `status: completed` + docs 证据指针，与仓库既有 62 条 completed 的做法一致。
+2. CI `test (windows-latest)` 与最近一次 `test (macos-latest)` 失败点都是 `observe_does_not_wrap_a_failed_snapshot_in_success`，不是产品回归。假 daemon 只等 5 秒，且非阻塞 `read` 把 `WouldBlock` 当失败。修复已在本轮提交；本地 `cargo test -p vcu-cli --test observe_failure` 连续 21 次通过。推送后的 Actions run 变绿之前，不要把 Windows/macOS 门禁写成已恢复。
+3. AWR 完成登记：`work complete` / `evidence add` 的报告 schema 未摸清（模板未公开，报错只有通用提示），现用台账 `status: completed` + docs 证据指针，与仓库既有做法一致。
 4. 停放 P2：TC-B-040 / 跨源 iframe / 产品 Windows CU / MAC-NEXT 深 AX / FEISHU-001。不要 claim 完整 Codex CU 或完整 Windows 产品 CU。

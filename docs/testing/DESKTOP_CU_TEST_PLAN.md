@@ -199,10 +199,13 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 
 ## 8. 未通过不得宣称完成
 
-- TC-B-040 通用 AX 网页像素真点（浏览器计划已延期）  
-- 飞书客户端自动发送  
-- 任何微信窗口上的动作  
+- TC-B-040 通用 AX 网页像素真点（浏览器计划已延期）
+- 跨源 iframe / trusted 手势
+- 飞书客户端自动发送
+- 任何微信窗口上的动作
 - Windows `vcu session` 产品路径 / Stage HUD / live Invoke
 - 把 WM_SETTEXT 写成 UIA ValuePattern
-- 含原生 `<select>` 的网页表单（TC-D-690 未过前，不得宣称能完成下拉选择）
-- Release 托管（TC-D-700 未过前，不得宣称 `curl | sh` / `vcu self update` 开箱可用）
+- 完整 Codex CU / 完整 Windows 产品 CU
+- macOS 深 AX 全树（MAC-NEXT，停放）
+
+TC-D-690 原生 `<select>` 与 TC-D-700 Release 托管已通过，不再列入未完成项。

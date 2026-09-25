@@ -30,6 +30,16 @@ Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。
 
 接入方式：`vcu` CLI、本机 HTTP daemon、以及 `vcu-mcp`（stdio MCP）。
 
+## 边界
+
+已发布的是浏览器 Bridge 0.2.8，加上允许名单内的桌面切片。这不是完整 Codex Computer Use，也不是完整 Windows 产品 CU。
+
+- 网页细操作走 extension DOM（`source=extension_dom`），不用 AX 树冒充 HTML
+- 不搬系统光标，不代点 Edge「允许调试」，不自动化微信，不修改 Codex CU 安装
+- 跨源 iframe、trusted 手势、通用 AX 网页像素真点（TC-B-040）未做
+- Windows 证据是 CI 上的 Notepad / Explorer / cmd / 计算器切片，不是带 Stage HUD 的产品会话
+- 飞书只观察，不自动发送；macOS 深 AX 全树停放
+
 ## 安装
 
 macOS / Linux：
