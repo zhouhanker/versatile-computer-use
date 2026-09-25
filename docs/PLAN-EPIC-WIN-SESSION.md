@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan 和弧度模式已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式和自建窗口截图已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -212,9 +212,21 @@
 - 没有 SendInput，没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
 - 没有覆盖完整科学函数矩阵。
 
+## CU-WIN-SESSION-018 会话截图自建窗口
+
+状态：**2026-09-26 本机复测通过。** 不是完整 Windows 产品 CU。
+
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动一个 420x280 的品红窗口，标题 `VCU-SHOT-018`。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_shot.ps1`
+- 结果：`CU-WIN-SESSION-018 OK win:powershell:19184 ... 420x280 bytes=3120 pixel=220,30,160 cursor=1187,239`
+- `PrintWindow` 对这个 WinForms 窗口给出全黑图。空白时只复制这块窗口矩形，不扫整张桌面。遮挡物可能出现在图里。没有 SendInput，没有移动系统光标。
+- 中心像素是窗口颜色 `220,30,160`，不是黑图。PNG 能看到标题 `VCU-SHOT-018`。
+- 不做：不把这次写成被挡住时仍能采到窗口内容，也不写成完整产品 CU。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
+- 会话截图在 `PrintWindow` 为空白时复制窗口矩形。窗口被挡住时，图里可能是挡住它的东西。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。

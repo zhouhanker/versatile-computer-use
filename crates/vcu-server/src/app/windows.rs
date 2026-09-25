@@ -584,7 +584,7 @@ if ($allowPaste -eq 1 -and ((Test-VcuConsoleClass $mainCls) -or (Test-VcuConsole
 }
 
 
-/// PowerShell: PrintWindow of the process main HWND to PNG (base64). Not CopyFromScreen of an occluded desktop, not SendInput.
+/// PowerShell: PrintWindow of the process main HWND to PNG (base64). If that bitmap is blank, copy only the window rectangle. Not a full-desktop capture, not SendInput.
 pub fn uia_capture_script(pid: i32) -> String {
     let mut s = hwnd_resolve_ps().to_string();
     s.push_str(&format!(
@@ -611,6 +611,20 @@ $hdc = $g.GetHdc()
 [void][VcuPrintWindow]::PrintWindow($hwnd, $hdc, 2)
 $g.ReleaseHdc($hdc)
 $g.Dispose()
+# PrintWindow can return an empty black bitmap for some WinForms windows.
+# Only then copy this window rectangle, not the whole desktop. Occluders can appear.
+$blank = $true
+foreach ($pt in @(@([int]($w/2), [int]($h/2)), @(2, 2), @([Math]::Max(0, $w-3), [Math]::Max(0, $h-3)))) {{
+  $px = $bmp.GetPixel($pt[0], $pt[1])
+  if ($px.R -gt 40 -or $px.G -gt 40 -or $px.B -gt 40) {{ $blank = $false; break }}
+}}
+if ($blank) {{
+  try {{
+    $g2 = [System.Drawing.Graphics]::FromImage($bmp)
+    $g2.CopyFromScreen($rect.Left, $rect.Top, 0, 0, (New-Object System.Drawing.Size $w, $h))
+    $g2.Dispose()
+  }} catch {{}}
+}}
 $ms = New-Object System.IO.MemoryStream
 $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
@@ -1645,9 +1659,10 @@ mod tests {
         let cap_script = uia_capture_script(4242);
         assert!(cap_script.contains("PrintWindow"));
         assert!(cap_script.contains("GetWindowRect"));
+        assert!(cap_script.contains("CopyFromScreen"));
+        assert!(cap_script.contains("$blank"));
         assert!(!cap_script.to_ascii_lowercase().contains("sendinput"));
         assert!(!cap_script.to_ascii_lowercase().contains("mouse_event"));
-        assert!(!cap_script.to_ascii_lowercase().contains("copyfromscreen"));
         let b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
         let parsed = parse_uia_capture_output(&format!("FRAME|10,20,800,600\n{b64}\n"))
             .expect("parse capture");
