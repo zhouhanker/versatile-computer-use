@@ -121,7 +121,32 @@ $script:GuideH = $script:GuideW
 $script:HotX = [int][Math]::Round(32 * $script:DpiScale)
 $script:HotY = [int][Math]::Round(34 * $script:DpiScale)
 
+function Get-HudBackdrop([int]$x, [int]$y, [int]$w, [int]$h) {
+  $bmp = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  try { $g.CopyFromScreen($x, $y, 0, 0, (New-Object System.Drawing.Size $w, $h)) } catch {}
+  $g.Dispose()
+  return $bmp
+}
+function New-BlurredBackdrop([System.Drawing.Bitmap]$src) {
+  # Downscale then upscale. This is the Windows stand-in for macOS NSVisualEffectView hudWindow.
+  $sw = [Math]::Max(8, [int]($src.Width / 10))
+  $sh = [Math]::Max(4, [int]($src.Height / 4))
+  $small = New-Object System.Drawing.Bitmap $sw, $sh
+  $gs = [System.Drawing.Graphics]::FromImage($small)
+  $gs.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $gs.DrawImage($src, 0, 0, $sw, $sh)
+  $gs.Dispose()
+  $blur = New-Object System.Drawing.Bitmap $src.Width, $src.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $gb = [System.Drawing.Graphics]::FromImage($blur)
+  $gb.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $gb.DrawImage($small, 0, 0, $src.Width, $src.Height)
+  $gb.Dispose()
+  $small.Dispose()
+  return $blur
+}
 function New-HudBitmap {
+  param([System.Drawing.Bitmap]$backdrop)
   $bmp = New-Object System.Drawing.Bitmap $script:HudW, $script:HudH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
@@ -134,8 +159,16 @@ function New-HudBitmap {
   $path.AddArc(($script:HudW - $d), 0, $d, $d, 0, 90)
   $path.AddArc(0, 0, $d, $d, 90, 90)
   $path.CloseFigure()
-  $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(245, 18, 46, 107))
+  $g.SetClip($path)
+  if ($null -ne $backdrop) {
+    $blur = New-BlurredBackdrop $backdrop
+    $g.DrawImage($blur, 0, 0, $script:HudW, $script:HudH)
+    $blur.Dispose()
+  }
+  # Translucent graphite over the sampled blur. Not the old opaque navy.
+  $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(150, 24, 28, 34))
   $g.FillPath($fill, $path)
+  $g.ResetClip()
   $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(115, 255, 255, 255)), 1
   $g.DrawPath($pen, $path)
   $fontPx = [single](12 * $script:DpiScale)
@@ -223,10 +256,12 @@ function Read-Control {
   try { return (Get-Content -LiteralPath $controlPath -Raw -ErrorAction Stop | ConvertFrom-Json) } catch { return $null }
 }
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-$hudBmp = New-HudBitmap
-$guideBmp = New-GuideBitmap
 $hudLeft = [int]($screen.Left + ($screen.Width - $script:HudW) / 2)
 $hudTop = [int]($screen.Top + 8)
+$backdrop = Get-HudBackdrop $hudLeft $hudTop $script:HudW $script:HudH
+$hudBmp = New-HudBitmap $backdrop
+$backdrop.Dispose()
+$guideBmp = New-GuideBitmap
 $hud = New-Object System.Windows.Forms.Form
 $hud.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
 $hud.ShowInTaskbar = $false
@@ -1001,6 +1036,11 @@ mod tests {
         assert!(cursor.contains("rgba(206,212,222,.11)"));
         assert!(!STAGE_WINPS.contains("New-PillRegion"));
         assert!(!STAGE_WINPS.contains("FromArgb(255, 107, 56)"));
+        assert!(STAGE_WINPS.contains("CopyFromScreen"));
+        assert!(STAGE_WINPS.contains("New-BlurredBackdrop"));
+        assert!(STAGE_WINPS.contains("NSVisualEffectView"));
+        assert!(STAGE_WINPS.contains("FromArgb(150, 24, 28, 34)"));
+        assert!(!STAGE_WINPS.contains("FromArgb(245, 18, 46, 107)"));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("[system.windows.forms.sendkeys"));
     }

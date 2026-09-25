@@ -1,6 +1,6 @@
 # Windows 视觉对齐
 
-更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 已在本机看到胶囊条和圆形短箭。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 006 已在本机复测。006 只是采样模糊，不是 macOS 系统材质，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
 
 ## 边界
 
@@ -63,3 +63,14 @@
 - 网页指针用 `rgba(148,168,188,.50)`、`rgba(170,184,200,.26)`、`rgba(206,212,222,.11)`。macOS Swift 第一档是 `0.58, 0.66, 0.74`，也就是 148,168,188。Windows Guide 以前用另一组灰 `168,182,196`。
 - 现在 Windows 雾晕按同一组色标插值，半径仍是 36，短箭几何不变。单测要求 Stage 脚本和 `extension/content.js` 都带这三档。
 - 本机物理坐标 `(120, 120)` 上仍能看到软雾和短箭，不是硬环，也不是橙色方块。没有移动系统光标。
+
+## WIN-VIS-006 胶囊采样桌面并做模糊
+
+状态：**2026-09-26 本机复测通过。** 不是 `NSVisualEffectView`，不是持续更新的 DWM Acrylic，也不是完整 Windows 产品 CU。
+
+- macOS HUD 用 `NSVisualEffectView.Material.hudWindow`，背后内容会糊进胶囊。Windows 以前是不透明海军蓝 `FromArgb(245, 18, 46, 107)`。
+- 现在 Stage 在升起窗口之前，按物理像素 `CopyFromScreen` 采样胶囊位置，缩小再放大当作模糊，再盖一层半透明石墨 `FromArgb(150, 24, 28, 34)`。边缘仍走 `UpdateLayeredWindow`。没有 SendInput。
+- 这是显示瞬间的采样，窗口后面的内容之后再变，胶囊不会跟着更新。透明度效果关闭时也不等于系统材质。
+- 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_006_material.ps1` 在 HUD 槽放一块 `255,0,180` 的自建窗，会话拉起 Stage 后，胶囊左侧像素平均是 `125,26,105`，不是纯品红，也不是旧的不透明海军蓝。原点 `(870, 8)`。测完 Abort，只关闭这个自建窗。
+- 不做：不把这次写成和 macOS 材质逐像素相同，也不写成完整产品 CU。
+
