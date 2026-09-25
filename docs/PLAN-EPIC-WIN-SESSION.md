@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆和科学模式已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式和对数已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -141,9 +141,21 @@
 - 同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。没有移动系统光标。
 - 没有覆盖三角函数或对数，不写成完整科学计算器。
 
+## CU-WIN-SESSION-012 会话科学模式计算常用对数
+
+状态：**2026-09-26 本机复测通过。** 不是完整科学计算器，也不是完整 Windows 产品 CU。
+
+- 开始前没有已打开的计算器窗口。脚本自己启动。测完切回标准模式，再只关闭 CalculatorApp。
+- 命令：`powershell -File scripts/poc_win_session_calc_log.ps1`
+- 结果：`CU-WIN-SESSION-012 OK win:Calculator:18668 ... log10(100)=2 restored`
+- 切到科学模式后按「一」「零」「零」「对数」。显示从「显示为 100」变成「显示为 2」。
+- 模式项是 `selection_item`，数字和对数是 `uia_invoke`。没有 SendInput，没有移动系统光标。
+- 切回标准模式后「对数」按钮消失。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
+- 没有覆盖自然对数和三角函数。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
-- 科学模式只验证了切换和 π。没有覆盖三角函数或对数。
+- 科学模式验证了切换、π 和 log10(100)。没有覆盖自然对数和三角函数。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
