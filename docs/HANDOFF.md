@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-026 已在本机复测：会话按角色等待命中自建按钮，角色是 ControlType.Pane。用 ControlType.Window 不会误命中。没有移动系统光标。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-024 已在本机复测：会话提取读到自建文本框 VCU-EXTRACT-024，source=desktop.scene。不存在的选择器是空列表。没有移动系统光标。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-023 已在本机复测：窗口和按钮同名时 wait 返回按钮 e2，点击后标签变成 VCU-SAME-CLICKED。没有移动系统光标。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
