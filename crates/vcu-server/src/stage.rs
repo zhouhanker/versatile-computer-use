@@ -162,12 +162,30 @@ function New-GuideBitmap {
   $tipY = $script:HotY
   $fogCenterX = $tipX + 6
   $fogCenterY = $tipY + 6
-  # Soft fog, endRadius 36, no hard ring.
+  # Soft fog, endRadius 36, no hard ring. Stops match the web cursor: 148,168,188 / 170,184,200 / 206,212,222.
   $fogMax = [int][Math]::Round(36 * $script:DpiScale)
   for ($r = $fogMax; $r -ge 2; $r -= 2) {
-    $alpha = [int](6 + (36 - ($r / $script:DpiScale)) * 2.4)
-    if ($alpha -gt 96) { $alpha = 96 }
-    $haze = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($alpha, 168, 182, 196))
+    $frac = $r / $fogMax
+    if ($frac -ge 0.78) { continue }
+    if ($frac -le 0.36) {
+      $u = $frac / 0.36
+      $fa = [int](128 + (66 - 128) * $u)
+      $fr = [int](148 + (170 - 148) * $u)
+      $fg = [int](168 + (184 - 168) * $u)
+      $fb = [int](188 + (200 - 188) * $u)
+    } elseif ($frac -le 0.60) {
+      $u = ($frac - 0.36) / 0.24
+      $fa = [int](66 + (28 - 66) * $u)
+      $fr = [int](170 + (206 - 170) * $u)
+      $fg = [int](184 + (212 - 184) * $u)
+      $fb = [int](200 + (222 - 200) * $u)
+    } else {
+      $u = ($frac - 0.60) / 0.18
+      $fa = [int](28 * (1 - $u))
+      $fr = 206; $fg = 212; $fb = 222
+    }
+    if ($fa -lt 1) { continue }
+    $haze = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($fa, $fr, $fg, $fb))
     $g.FillEllipse($haze, ($fogCenterX - $r), ($fogCenterY - $r), ($r * 2), ($r * 2))
     $haze.Dispose()
   }
@@ -974,6 +992,13 @@ mod tests {
         assert!(STAGE_WINPS.contains("SetProcessDpiAwareness"));
         assert!(STAGE_WINPS.contains("GetDpiForSystem"));
         assert!(STAGE_WINPS.contains("GraphicsUnit]::Pixel"));
+        assert!(STAGE_WINPS.contains("148,168,188"));
+        assert!(STAGE_WINPS.contains("170,184,200"));
+        assert!(STAGE_WINPS.contains("206,212,222"));
+        let cursor = include_str!("../../../extension/content.js");
+        assert!(cursor.contains("rgba(148,168,188,.50)"));
+        assert!(cursor.contains("rgba(170,184,200,.26)"));
+        assert!(cursor.contains("rgba(206,212,222,.11)"));
         assert!(!STAGE_WINPS.contains("New-PillRegion"));
         assert!(!STAGE_WINPS.contains("FromArgb(255, 107, 56)"));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));
