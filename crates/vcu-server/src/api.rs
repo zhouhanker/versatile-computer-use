@@ -1889,13 +1889,22 @@ async fn session_start_inner(
         tokio::time::sleep(Duration::from_millis(400)).await;
         tabs = backend.list_tabs().await?;
     }
-    let active = crate::login_state::pick_login_tab(
-        &tabs,
-        &req.browser,
-        req.app_id.as_deref(),
-    )
-    .or_else(|| tabs.iter().find(|t| t.agent_owned).map(|t| t.tab_id.clone()))
-    .or_else(|| tabs.first().map(|t| t.tab_id.clone()));
+    let active = if matches!(surface, SurfaceKind::Desktop) {
+        if let Some(bound) =
+            crate::login_state::require_desktop_window(&tabs, req.app_id.as_deref())?
+        {
+            Some(bound)
+        } else {
+            tabs.iter()
+                .find(|t| t.agent_owned)
+                .map(|t| t.tab_id.clone())
+                .or_else(|| tabs.first().map(|t| t.tab_id.clone()))
+        }
+    } else {
+        crate::login_state::pick_login_tab(&tabs, &req.browser, req.app_id.as_deref())
+            .or_else(|| tabs.iter().find(|t| t.agent_owned).map(|t| t.tab_id.clone()))
+            .or_else(|| tabs.first().map(|t| t.tab_id.clone()))
+    };
 
     let browser = match req.browser.as_str() {
         "chrome" => BrowserKind::Chrome,

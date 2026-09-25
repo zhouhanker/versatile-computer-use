@@ -454,6 +454,22 @@ pub fn pick_login_tab(tabs: &[TabInfo], browser: &str, app_id: Option<&str>) -> 
 
 /// Feishu/Lark composer Send lives in the Electron webview, not AX.
 /// A scene whose AX names contain 发送/Send is lying or is not the messenger UI.
+/// Desktop session must not fall back to another window when the requested id is missing.
+pub fn require_desktop_window(tabs: &[TabInfo], app_id: Option<&str>) -> VcuResult<Option<String>> {
+    let Some(requested) = app_id.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    if tabs.iter().any(|t| t.tab_id == requested) {
+        return Ok(Some(requested.to_string()));
+    }
+    Err(VcuError::coded(
+        ErrorCode::TabNotFound,
+        format!(
+            "desktop window '{requested}' has no visible window; refusing to bind another app"
+        ),
+    ))
+}
+
 pub fn ax_exposes_send_control<I, S>(names: I) -> bool
 where
     I: IntoIterator<Item = S>,
@@ -1130,6 +1146,19 @@ mod tests {
             ),
             BrowserProfile::Agent
         );
+    }
+
+    #[test]
+    fn require_desktop_window_refuses_missing_id() {
+        let tabs = vec![tab("win:cmd:1", "cmd", None, true)];
+        let err = require_desktop_window(&tabs, Some("win:notepad:9")).unwrap_err();
+        assert_eq!(err.code(), ErrorCode::TabNotFound);
+        assert!(err.message().contains("refusing to bind another app"));
+        assert_eq!(
+            require_desktop_window(&tabs, Some("win:cmd:1")).unwrap().as_deref(),
+            Some("win:cmd:1")
+        );
+        assert!(require_desktop_window(&tabs, None).unwrap().is_none());
     }
 
     #[test]

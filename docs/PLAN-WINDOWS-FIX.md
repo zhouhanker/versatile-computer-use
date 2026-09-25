@@ -1,6 +1,6 @@
 # Windows 真机修复计划
 
-更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 已在本机复测通过，其余未开工。
+更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 与 WIN-FIX-002 已在本机复测通过，其余未开工。
 
 测的是已安装 Release `v0.2.8`（`vcu --version` 仍打印 crate `0.1.0`）。对照当前源码后，下面的缺陷在 HEAD 里也还在。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
 
@@ -58,10 +58,12 @@
 
 ### WIN-FIX-002 请求的窗口不能静默改绑
 
+状态：**已修，2026-09-26 本机复测通过。**
+
 - 现象：对记事本桩 pid 开会话时，`active_app_id` 变成另一扇已有 cmd，随后对记事本 tab 报 `TabNotFound`。
-- 根因：请求的 `app_id` 不在窗口列表时，`pick_login_tab` 回退到别的 allowlist 窗口。
-- 修：桌面会话找不到请求的窗口就拒绝，并说明 pid 没有可见窗口。禁止静默改绑。
-- 验收：桩 pid 开会话失败且不产生指向其他进程的 `active_app_id`。真实 Notepad pid 仍能绑上。
+- 根因：请求的 `app_id` 不在窗口列表时，会话启动回退到别的 allowlist 窗口。
+- 修：桌面会话找不到请求的窗口就返回 `TabNotFound`，文案写明 refusing to bind another app。未点名窗口时仍可按原逻辑选择。
+- 验收：`win:notepad:999999` 开会话失败，`session list` 为空。真实 `win:cmd:<pid>` 的 `active_app_id` 与请求一致，Abort 后无残留会话。单测 `require_desktop_window_refuses_missing_id` 通过。
 
 ### WIN-FIX-003 商店应用窗口 pid
 
@@ -112,7 +114,7 @@
 ## 6. 实施顺序
 
 1. WIN-FIX-001 登录态进程扫描。已完成并复测。
-2. WIN-FIX-002 禁止静默改绑。
+2. WIN-FIX-002 禁止静默改绑。已完成并复测。
 3. WIN-FIX-003 商店应用真实窗口 pid。
 4. WIN-FIX-004 Windows Terminal 名单。
 5. WIN-FIX-005 截图错误文案。
