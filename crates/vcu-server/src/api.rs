@@ -1188,7 +1188,17 @@ async fn browser_screenshot(State(state): State<Arc<AppState>>, headers: HeaderM
         params["tab_id"] = json_tab_param(id);
     }
     let mut result = match extension_dom_call_for(&state, "capture_tab", params, 8, kind).await {
-        Ok(v) => v, Err(e) => return err_response(e),
+        Ok(v) => v,
+        Err(e) => {
+            let msg = e.message();
+            if msg.contains("readback") || msg.contains("Failed to capture tab") {
+                return err_response(VcuError::coded(
+                    ErrorCode::ActionFailed,
+                    format!("{msg}. Retry observe --tab then screenshot. This is not Screen Recording."),
+                ));
+            }
+            return err_response(e);
+        }
     };
     let invalid = || VcuError::coded(ErrorCode::ActionFailed, "extension screenshot must contain a PNG and bound viewport metadata");
     let Some(encoded) = result.get("png_base64").and_then(Value::as_str) else { return err_response(invalid()); };

@@ -645,10 +645,12 @@ impl BrowserBackend for DesktopBackend {
         let cap = match app.capture_window(tab_id).await? {
             Some(cap) => cap,
             None => {
-                return Err(VcuError::coded(
-                    ErrorCode::NotImplemented,
-                    "window capture unavailable (AX Scene still works; set VCU_ALLOW_SCREENCAPTURE=1 only after Screen Recording is already granted)",
-                ))
+                let msg = if cfg!(windows) {
+                    "Windows PrintWindow did not produce a PNG. The process may have no visible HWND. This is not a macOS screen-recording permission."
+                } else {
+                    "window capture unavailable (AX Scene still works; set VCU_ALLOW_SCREENCAPTURE=1 only after Screen Recording is already granted)"
+                };
+                return Err(VcuError::coded(ErrorCode::NotImplemented, msg))
             }
         };
         let mut webview_png = None;

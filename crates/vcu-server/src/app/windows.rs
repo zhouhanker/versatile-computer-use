@@ -1157,15 +1157,37 @@ Get-Process -Name Notepad -ErrorAction SilentlyContinue | Where-Object { $_.Main
                 .and_then(|rest| rest.split(':').next())
                 .map(|s| s.replace('_', " "))
                 .unwrap_or_else(|| id.to_string());
-            if is_denied_app(&name) || !self.allowed(&name) {
-                return Ok(None);
+            if is_denied_app(&name) {
+                return Err(VcuError::coded(
+                    ErrorCode::AppDenied,
+                    format!("app '{name}' is denied by VCU policy"),
+                ));
+            }
+            if !self.allowed(&name) {
+                return Err(VcuError::coded(
+                    ErrorCode::FocusPolicyViolation,
+                    format!("process '{name}' not in app allowlist"),
+                ));
             }
             let Some(pid) = pid_from_win_id(id) else {
-                return Ok(None);
+                return Err(VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "Windows screenshot requires win:name:pid",
+                ));
             };
             let raw = Self::run_powershell(&uia_capture_script(pid))?;
             let Some((png, frame)) = parse_uia_capture_output(&raw) else {
-                return Ok(None);
+                let why = if raw.contains("MISSING") {
+                    "no visible HWND"
+                } else {
+                    "PrintWindow output was not a PNG"
+                };
+                return Err(VcuError::coded(
+                    ErrorCode::ActionFailed,
+                    format!(
+                        "Windows PrintWindow did not produce a PNG ({why}). This is not a macOS screen-recording permission."
+                    ),
+                ));
             };
             let Some((width, height)) = super::png_ihdr_size(&png) else {
                 return Ok(None);
@@ -1256,8 +1278,18 @@ mod tests {
         assert!(setv.contains("hello"));
         assert!(setv.contains("ok:wm_settext"));
         assert!(!setv.to_ascii_lowercase().contains("sendinput("));
-        let cap = b.capture_window("win:notepad:1").await.unwrap();
-        assert!(cap.is_none());
+        #[cfg(not(windows))]
+        {
+            let cap = b.capture_window("win:notepad:1").await.unwrap();
+            assert!(cap.is_none());
+        }
+        #[cfg(windows)]
+        {
+            let err = b.capture_window("win:notepad:1").await.unwrap_err();
+            let msg = err.message();
+            assert!(!msg.contains("VCU_ALLOW_SCREENCAPTURE"), "{msg}");
+            assert!(!msg.to_ascii_lowercase().contains("screen recording"), "{msg}");
+        }
     }
 
     #[test]

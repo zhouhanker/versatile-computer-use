@@ -1,6 +1,6 @@
 # Windows 真机修复计划
 
-更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 至 004 已在本机复测通过。计算器宿主窗口仍未放行。005 起未开工。
+更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 至 005 已在本机复测通过。计算器宿主窗口仍未放行。006 起未开工。
 
 测的是已安装 Release `v0.2.8`（`vcu --version` 仍打印 crate `0.1.0`）。对照当前源码后，下面的缺陷在 HEAD 里也还在。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
 
@@ -86,10 +86,12 @@
 
 ### WIN-FIX-005 截图失败文案
 
-- 现象：桌面桩窗口截图失败时，错误写成 macOS 的 Screen Recording / `VCU_ALLOW_SCREENCAPTURE`。Windows 的 `capture_window` 并不看这个变量，失败原因是没有 HWND 或 PrintWindow 没产出 PNG。
-- 浏览器侧：标签未激活时 `screenshot` 拒绝 `select the target tab`；刚打开的后台标签偶发 `image readback failed`，激活后再截可以成功。
-- 修：Windows 桌面截图失败要写真正原因，不要提 Screen Recording。浏览器截图保持“先激活再截”，把 readback 失败写成可重试，不改成新的截图栈。
-- 验收：桩 pid 截图的错误不再出现 `VCU_ALLOW_SCREENCAPTURE`。真实 cmd / 真实 Notepad pid 仍能出 PNG。
+状态：**已修，2026-09-26 本机复测通过。**
+
+- 现象：桌面桩窗口截图失败时，错误写成 macOS 的 Screen Recording / `VCU_ALLOW_SCREENCAPTURE`。Windows 的 `capture_window` 并不看这个变量。
+- 修：Windows 失败返回 `Windows PrintWindow did not produce a PNG (no visible HWND)`，并写明这不是 macOS 屏幕录制权限。浏览器 `image readback` 失败会提示重试 `observe --tab`，不新做截图栈。
+- 验收：`app snapshot win:notepad:1 --pixels` 的错误不含 `VCU_ALLOW_SCREENCAPTURE`。通过 conhost 打开的 cmd（pid 13956）截图为 992×517、9899 字节。单测 `windows_backend_platform_and_denials` 通过。
+- 未宣称：直接 `Start-Process cmd.exe` 且主窗口句柄为 0 时，仍可能得到 1×1 PNG。那是控制台窗口归属问题，不是这条文案修复的范围。
 
 ### WIN-FIX-006 UIA 文本编码
 
@@ -121,7 +123,7 @@
 2. WIN-FIX-002 禁止静默改绑。已完成并复测。
 3. WIN-FIX-003 商店应用真实窗口 pid。记事本桩进程已完成并复测。计算器宿主未放行。
 4. WIN-FIX-004 Windows Terminal 名单。已完成并复测。
-5. WIN-FIX-005 截图错误文案。
+5. WIN-FIX-005 截图错误文案。已完成并复测。
 6. WIN-FIX-006 UIA 编码。
 7. WIN-FIX-007 POC / config 编码。
 
