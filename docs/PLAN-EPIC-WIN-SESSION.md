@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：第一扇门已复测。WIN-FIX-009 已复测 powershell 图形编辑框。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、图形编辑框写入和 Guide 悬停已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -47,6 +47,17 @@
 - `input_path=wm_settext`，`os_cursor_used=false`，`hid_injected=false`
 - 这个 WinForms 文本框没有 ValuePattern。`WM_SETTEXT` 成功不等于 ValuePattern，也不等于完整产品 CU。
 - 没有移动系统光标。测完只关闭脚本自己启动的窗口。
+
+## CU-WIN-SESSION-004 会话悬停只移动 Guide
+
+状态：**2026-09-26 本机复测通过。** 不是完整 Windows 产品 CU。
+
+- 命令：`powershell -File scripts/poc_win_session_hover.ps1`
+- 结果：`CU-WIN-SESSION-004 OK win:powershell:11484 ... e2 guide=339,473 dart=78 yellow=154 cursor=1187,239`
+- 自建按钮名 `VCU-HOVER-HIT`。`vcu act` 的 `type=hover` 返回 `input_path=guide_hover`。
+- 箭尖附近能看到短箭像素，同时还能看到按钮的黄底，说明 Guide 叠在按钮上。
+- `GetCursorPos` 前后都是 `1187,239`，系统光标没有动。`os_cursor_used=false`，`hid_injected=false`。
+- 没有 SendInput。测完 Abort，只关闭这个自建窗。
 
 ## 还没做
 
