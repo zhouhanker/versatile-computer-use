@@ -87,7 +87,7 @@ vcu self uninstall --yes --purge-config
 
 ## Browser extension
 
-The runtime tarball on GitHub Releases already contains `extension/`. A separate `vcu-lens-extension.zip` is built by the release workflow for the next tag. It is not on the existing `v0.2.8` asset list.
+The runtime tarball on GitHub Releases already contains `extension/`. A separate `vcu-lens-extension.zip` is attached to the current Latest Release by `.github/workflows/lens-asset.yml`. That does not publish a new product version. Until that asset exists, Windows install still falls back to `extension/` inside `vcu-latest-windows-x64.tar.gz`.
 
 Windows, without cloning and without clicking the debugging consent dialog:
 

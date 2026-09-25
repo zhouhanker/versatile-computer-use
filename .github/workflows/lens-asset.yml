@@ -1,0 +1,52 @@
+name: lens-asset
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "extension/**"
+      - "scripts/install/package_lens.py"
+      - ".github/workflows/lens-asset.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: pack extension zip
+        run: python3 scripts/install/package_lens.py --source extension --dest dist/vcu-lens-extension.zip
+      - name: attach zip to the latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${{ github.repository }}"
+          rel=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$api/releases/latest")
+          python3 - <<'PY' "$rel"
+          import json, os, sys
+          rel = json.loads(sys.argv[1])
+          open(os.environ["RUNNER_TEMP"] + "/lens-release.json", "w", encoding="utf-8").write(json.dumps({
+              "id": rel["id"],
+              "tag": rel["tag_name"],
+              "asset": next((a["id"] for a in rel.get("assets", []) if a["name"] == "vcu-lens-extension.zip"), None),
+          }))
+          PY
+          id=$(python3 -c "import json,os; print(json.load(open(os.environ['RUNNER_TEMP']+'/lens-release.json'))['id'])")
+          tag=$(python3 -c "import json,os; print(json.load(open(os.environ['RUNNER_TEMP']+'/lens-release.json'))['tag'])")
+          asset=$(python3 -c "import json,os; v=json.load(open(os.environ['RUNNER_TEMP']+'/lens-release.json'))['asset']; print('' if v is None else v)")
+          echo "latest=$tag id=$id old_asset=${asset:-none}"
+          if [ -n "$asset" ]; then
+            curl -fsSL -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "$api/releases/assets/$asset"
+          fi
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/zip" \
+            -H "Accept: application/vnd.github+json" \
+            --data-binary @dist/vcu-lens-extension.zip \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$id/assets?name=vcu-lens-extension.zip"
+          echo "LENS_ASSET_OK $tag"

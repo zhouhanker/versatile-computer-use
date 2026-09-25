@@ -23,7 +23,7 @@ def zip_extension(src: Path, dest: Path) -> int:
         for path in sorted(src.rglob("*")):
             if not path.is_file():
                 continue
-            if "__pycache__" in path.parts or path.suffix == ".bak":
+            if "__pycache__" in path.parts or path.suffix == ".bak" or "tests" in path.parts:
                 continue
             zf.write(path, path.relative_to(src).as_posix())
             count += 1
