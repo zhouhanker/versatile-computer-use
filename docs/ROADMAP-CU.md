@@ -217,7 +217,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-690 | extension DOM 原生 `<select>` 支持 | **完成（真机）** `type --selector` 现在接受原生 `<select>`：按 option 的 value 或可见文本匹配，设置后派发 `input`+`change`，回执 `input_path=dom_select`；匹配不到诚实报错且不改值；文本输入仍是 `dom_type`。`scripts/poc_cu_d_690.py` CU-D-690 OK；真机验收＝用 VCU 提交 GitHub Support 工单成功。 |
 | CU-D-700 | `vcu self update` + Release 托管 | **完成（2026-09-20）** 发布 Release `v0.2.8`（Latest；macOS arm64/x64、Windows x64、`vcu-latest-*`+sha256、install.sh/ps1）：`curl -fsSL .../releases/latest/download/install.sh \| sh` 临时前缀安装成功；不带 `VCU_BASE_URL` 的 `vcu self update` → `updated: true`，装出的 vcu/vcu-daemon/vcu-mcp 与 Release 包 sha256 一致。失败路径输出 installer stderr + 本地 file:// 提示（`crates/vcu-cli/tests/self_update_failure.rs`）。顺带修两个发布缺陷：0 字节 `dist/.gitkeep` 被当资产（publish 失败）、Windows checkout 的 CRLF `install.sh` 覆盖 LF（`curl \| sh` 失败）；工作流修复待下一次 tag 端到端验证。 |
 
-**本轮现场（2026-09-20）：** CU-D-680/690/700 均已完成：真机 POC（`scripts/poc_cu_d_680.py` / `poc_cu_d_690.py`）、发布 Release `v0.2.8` 并验证 `curl | sh` 与 `vcu self update`；仓库残留 `extension/background.js.bak` 已删。停放：MAC-NEXT 深 AX、FEISHU-001、TC-B-040/跨源 iframe。**已知问题：** CI `test` 在 windows-latest（以及最近一次 macos-latest）失败于 `crates/vcu-cli/tests/observe_failure.rs` 的假 daemon 竞态，不是桌面产品回归。修复要等对应 Actions run 变绿后才算门禁恢复。
+**本轮现场（2026-09-20）：** CU-D-680/690/700 均已完成：真机 POC（`scripts/poc_cu_d_680.py` / `poc_cu_d_690.py`）、发布 Release `v0.2.8` 并验证 `curl | sh` 与 `vcu self update`；仓库残留 `extension/background.js.bak` 已删。停放：MAC-NEXT 深 AX、FEISHU-001、TC-B-040/跨源 iframe。**CI：** run `36129175359`（`9c69b8c`）`test` 三平台与 `package-macos` / `package-windows` 全绿。此前失败是 observe 假 daemon 竞态、Windows 1MB 栈溢出，以及 `self update` 在 Windows 上误调 bash。不是桌面产品回归，也不等于完整 Windows 产品 CU。
 
 ## 4. 建议执行顺序（编排）
 

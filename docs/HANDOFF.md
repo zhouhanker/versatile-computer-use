@@ -6,8 +6,9 @@
 
 - 不新开停放史诗。`MAC-NEXT` / `FEISHU-001` 仍不 claim。
 - 对齐覆盖边界：`README.md` 增加「边界」；`GOALS.md` 从 0.2.5 改到已发布 0.2.8；测试计划第 8 节去掉已通过的 TC-D-690/700「未过不得宣称」。
-- CI 失败根因：`observe_does_not_wrap_a_failed_snapshot_in_success`。macOS 是非阻塞 `read` 的 `WouldBlock`（run `35512397252` job `106082463381`）；Windows 是假 daemon 5 秒截止时 `served=0`（同 run job `106082463350`，以及 `35511990613`）。不是产品回归。
-- 修复：假 daemon 等到 CLI 退出或 60 秒，accept 后改阻塞读，失败时打印 CLI stdout/stderr。本地 POC：`cargo test -p vcu-cli --test observe_failure` 连续 21 次通过；`cargo test -p vcu-cli --tests` 通过。Actions 变绿前不宣称门禁已恢复。
+- CI 失败根因不是产品回归。`observe_failure` 的假 daemon 只等 5 秒，且非阻塞读把 `WouldBlock` 当失败；Windows 上 `vcu` 还因 1MB 主线程栈溢出（`0xC00000FD`）在连上 mock 前退出。随后 `self_update_failure` 在 windows-latest 上调用了 WSL stub `bash`，没有跑 `install.ps1`。
+- 修复：假 daemon 活到 CLI 退出；CLI 入口改到 8MB 栈，Windows 二进制 `/STACK:8388608`；Windows `self update` 走 `install.ps1`，安装器 UTF-16 输出可解码。本地 POC：`observe_failure` 连续 21 次，以及 `cargo test -p vcu-cli --tests --bin vcu`。
+- 门禁已恢复：Actions run `36129175359`（`9c69b8c`）五件 job 全绿，含 `test (windows-latest)`、`test (macos-latest)`、`package-windows`、`package-macos`。
 
 ## 2026-09-20 收尾
 
@@ -47,6 +48,6 @@ HEAD `b627506`（main 已推送）。上一轮结尾为 `7a7a7c8`（CU-D-670）�
 ## 下次会话
 
 1. 台账 `.awr/intake/work-ledger.yaml` 已无进行中切片；可领取只剩 `MAC-NEXT`（深 AX，停放）与 `FEISHU-001`（停放）。**不要 claim 这两项**，除非用户明确要开。
-2. CI `test (windows-latest)` 与最近一次 `test (macos-latest)` 失败点都是 `observe_does_not_wrap_a_failed_snapshot_in_success`，不是产品回归。假 daemon 只等 5 秒，且非阻塞 `read` 把 `WouldBlock` 当失败。修复已在本轮提交；本地 `cargo test -p vcu-cli --test observe_failure` 连续 21 次通过。推送后的 Actions run 变绿之前，不要把 Windows/macOS 门禁写成已恢复。
+2. CI `test` 三平台与打包已在 run `36129175359` 全绿。不要把这次修复写成完整 Windows 产品 CU。
 3. AWR 完成登记：`work complete` / `evidence add` 的报告 schema 未摸清（模板未公开，报错只有通用提示），现用台账 `status: completed` + docs 证据指针，与仓库既有做法一致。
 4. 停放 P2：TC-B-040 / 跨源 iframe / 产品 Windows CU / MAC-NEXT 深 AX / FEISHU-001。不要 claim 完整 Codex CU 或完整 Windows 产品 CU。
