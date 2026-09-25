@@ -1063,6 +1063,7 @@ function ensureVirtualCursor() {
   const host = d.createElement("div");
   host.id = VCU_CURSOR_ID;
   host.setAttribute("aria-hidden", "true");
+  host.setAttribute("data-vcu-fog", "6,6,36");
   host.style.cssText = [
     "position:fixed !important",
     "display:block !important",
@@ -1091,18 +1092,19 @@ function ensureVirtualCursor() {
         margin: 0; padding: 0; pointer-events: none; overflow: visible;
         transform: none; transform-origin: 0 0; isolation: isolate;
       }
-      /* Same-background PARITY-004: native Codex CU crop + public fog metrics
-         (~66px circular haze, compact dart). No hard ring, no long stem. */
+      /* Same fog center as helpers/vcu-stage GuideView: tip+(6,6), radius 36.
+         CSS y grows down, so this is the Swift fogCenter. Shared by both browsers.
+         Not a Windows-only cursor. No hard ring, no long stem. */
       .vcu-halo {
-        position: absolute; left: -24px; top: -22px; width: 66px; height: 66px;
+        position: absolute; left: -30px; top: -30px; width: 72px; height: 72px;
         pointer-events: none; border: 0; border-radius: 50%;
-        background: radial-gradient(circle at 48% 44%, rgba(148,168,188,.50) 0%, rgba(170,184,200,.26) 36%, rgba(206,212,222,.11) 60%, transparent 78%);
+        background: radial-gradient(circle at 50% 50%, rgba(148,168,188,.50) 0%, rgba(170,184,200,.26) 40%, rgba(206,212,222,.11) 68%, transparent 100%);
         filter: blur(6px); opacity: .98;
       }
       .vcu-halo::after {
-        content: ""; position: absolute; inset: 16px;
+        content: ""; position: absolute; inset: 14px;
         border-radius: 50%;
-        background: radial-gradient(circle, rgba(180,192,206,.16), transparent 72%);
+        background: radial-gradient(circle, rgba(179,194,209,.22), transparent 72%);
       }
       .vcu-halo.pulse { animation: vcu-halo-pulse 240ms ease-out both; }
       .vcu-arrow {

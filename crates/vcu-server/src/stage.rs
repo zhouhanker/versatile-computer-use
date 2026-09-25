@@ -1289,6 +1289,10 @@ mod tests {
         assert!(cursor.contains("rgba(148,168,188,.50)"));
         assert!(cursor.contains("rgba(170,184,200,.26)"));
         assert!(cursor.contains("rgba(206,212,222,.11)"));
+        assert!(cursor.contains("left: -30px; top: -30px; width: 72px; height: 72px"));
+        assert!(cursor.contains("circle at 50% 50%"));
+        assert!(cursor.contains("data-vcu-fog"));
+        assert!(cursor.contains("6,6,36"));
         assert!(!STAGE_WINPS.contains("New-PillRegion"));
         assert!(!STAGE_WINPS.contains("FromArgb(255, 107, 56)"));
         assert!(STAGE_WINPS.contains("CopyFromScreen"));

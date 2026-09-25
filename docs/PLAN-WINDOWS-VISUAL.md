@@ -1,6 +1,6 @@
 # Windows 视觉对齐
 
-更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 011 已在本机复测。011 把胶囊内容排成 macOS 那一组：系统强调色圆点、半粗标题、常规字重的 Esc 取消，宽度随内容收缩并限制在 220 到 320。不是两端拆开的半粗字。009 在 Windows 11 上用系统 Acrylic 做胶囊，白字叠在点击穿透层。失败时仍退回采样模糊。不是 macOS `NSVisualEffectView`，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：WIN-VIS-001 至 012 已在本机复测。011 把胶囊内容排成 macOS 那一组：系统强调色圆点、半粗标题、常规字重的 Esc 取消，宽度随内容收缩并限制在 220 到 320。不是两端拆开的半粗字。009 在 Windows 11 上用系统 Acrylic 做胶囊，白字叠在点击穿透层。失败时仍退回采样模糊。不是 macOS `NSVisualEffectView`，也不是完整 Windows 产品 CU。没有新的 GitHub Release。
 
 ## 边界
 
@@ -121,3 +121,12 @@
 - 现在标题仍是 Segoe UI Semibold，「Esc 取消」改为 Segoe UI 常规字重。左侧圆点读 Windows 强调色，对应 macOS `controlAccentColor`。读不到或过暗时退回 `0,120,215`。宽度按内容计算，再限制在 220 到 320 设计像素。没有 SendInput，没有移动系统光标。
 - 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_vis_011_grouped.ps1` 输出 `WIN-VIS-011 OK acrylic grouped w=330 h=42 dot=80/16 text=211/43 right=0 accent=0,120,215 cursor=1780,358`。这台机器 DPI 是 144，330 是 220 设计像素的下限。圆点在白字左侧，胶囊右端没有再钉住的白字。系统光标没有动。测完 Abort，只关闭自建窗。
 - 不做：不写成和 macOS 逐像素相同，也不写成完整产品 CU。没有在 100% DPI 上复测。网页指针仍是共享的 `content.js`，这轮没有改。
+
+## WIN-VIS-012 网页指针雾心对齐 macOS 短箭
+
+状态：**2026-09-26 本机 Edge 复测通过。** 不是逐像素复刻 Codex 裁图，也不是完整 Windows 产品 CU。
+
+- 以前网页雾晕是 66px，偏在箭尖左上方，渐变中心约在箭尖 + (7.7, 7)。macOS 和 Windows 桌面短箭的雾心是箭尖 + (6, 6)，半径 36。
+- 现在共享的 `extension/content.js` 把雾晕放在 `left/top -30px`、72px 盒子的中心就是箭尖 + (6, 6)，半径 36。内圈是 44px，对应 macOS 那个 44px 圆。两端浏览器用同一份，没有另做 Windows 指针。主机元素带 `data-vcu-fog=6,6,36`。
+- 验收：单测 `windows_stage_matches_macos_capsule_and_dart` 通过。`scripts/poc_win_edge_cursor.py` 输出 `EDGE-CURSOR OK edge fog=6,6,36 hit=0->1 source=extension_dom cursor=1187,239`。只打开自建页，测完只关这个标签。没有测 Chrome，没有点允许调试，系统光标没有动。
+- 不做：不把这次写成 Codex 裁图逐像素相同，也不写成完整产品 CU。
