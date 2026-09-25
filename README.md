@@ -41,6 +41,7 @@ Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。
 - Windows 登录态会枚举本机 Edge/Chrome 主进程，不再依赖 Unix `ps`。扩展已轮询且 lens 已安装时，`login-state` 不应再要求打开浏览器或重新加载扩展
 - 桌面会话如果点名的窗口没有可见窗体，会拒绝并保持不改绑到其他应用
 - Windows 商店版记事本的启动桩进程会解析到唯一的可见记事本窗口；多开时仍拒绝，不猜窗口
+- Windows Terminal 进程名 `WindowsTerminal` 在允许名单内，可以观察
 
 - 飞书只观察，不自动发送；macOS 深 AX 全树停放
 

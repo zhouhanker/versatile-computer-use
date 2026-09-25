@@ -16,6 +16,7 @@ impl WindowsAppBackend {
                 "msedge".into(),
                 "chrome".into(),
                 "windows terminal".into(),
+                "windowsterminal".into(),
                 "powershell".into(),
                 "cmd".into(),
                 "conhost".into(),
@@ -1257,6 +1258,15 @@ mod tests {
         assert!(!setv.to_ascii_lowercase().contains("sendinput("));
         let cap = b.capture_window("win:notepad:1").await.unwrap();
         assert!(cap.is_none());
+    }
+
+    #[test]
+    fn parse_process_list_keeps_windowsterminal() {
+        let b = WindowsAppBackend::new();
+        let wins = parse_process_list_lines("WindowsTerminal\t9\tVCU", |n| b.allowed(n));
+        assert_eq!(wins.len(), 1);
+        assert_eq!(wins[0].bundle_or_exe, "WindowsTerminal");
+        assert!(wins[0].id.starts_with("win:WindowsTerminal:"));
     }
 
     #[test]

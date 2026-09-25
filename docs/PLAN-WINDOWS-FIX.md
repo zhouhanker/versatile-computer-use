@@ -1,6 +1,6 @@
 # Windows 真机修复计划
 
-更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001、002、003 已在本机复测通过。计算器宿主窗口仍未放行。004 起未开工。
+更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 至 004 已在本机复测通过。计算器宿主窗口仍未放行。005 起未开工。
 
 测的是已安装 Release `v0.2.8`（`vcu --version` 仍打印 crate `0.1.0`）。对照当前源码后，下面的缺陷在 HEAD 里也还在。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
 
@@ -77,10 +77,12 @@
 
 ### WIN-FIX-004 允许名单进程名
 
+状态：**已修，2026-09-26 本机复测通过。**
+
 - 现象：Windows Terminal 正在运行，`app windows` 没有它。`app snapshot win:WindowsTerminal:<pid>` 报不在 allowlist。
-- 根因：名单是 `windows terminal`，进程名是 `WindowsTerminal`，`contains` 对不上。枚举脚本里又写了 `WindowsTerminal`，所以先被列出再被滤掉。
-- 修：允许名单同时认 `WindowsTerminal` 和 `windows terminal`。
-- 验收：本机 Windows Terminal 出现在 `app windows`，且不再因名字被拒绝。仍不移动系统光标。
+- 根因：名单是 `windows terminal`，进程名是 `WindowsTerminal`，`contains` 对不上。
+- 修：允许名单同时认 `WindowsTerminal`。
+- 验收：单测 `parse_process_list_keeps_windowsterminal` 通过。本机 pid 19364 的 `app snapshot` 返回 `ok: true`，`process="WindowsTerminal"`，19 个 UIA 节点。没有移动系统光标。中文标题乱码仍属于 WIN-FIX-006。
 
 ### WIN-FIX-005 截图失败文案
 
@@ -118,7 +120,7 @@
 1. WIN-FIX-001 登录态进程扫描。已完成并复测。
 2. WIN-FIX-002 禁止静默改绑。已完成并复测。
 3. WIN-FIX-003 商店应用真实窗口 pid。记事本桩进程已完成并复测。计算器宿主未放行。
-4. WIN-FIX-004 Windows Terminal 名单。
+4. WIN-FIX-004 Windows Terminal 名单。已完成并复测。
 5. WIN-FIX-005 截图错误文案。
 6. WIN-FIX-006 UIA 编码。
 7. WIN-FIX-007 POC / config 编码。
