@@ -422,6 +422,23 @@ public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lp
     }}
   }}
 
+  if ($cls -match 'TreeView') {{
+    $nhTree = [int64]$el.Current.NativeWindowHandle
+    if ($nhTree -ne 0) {{
+      if (-not ("Vcu.VcuTreeRead" -as [type])) {{
+        Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, IntPtr buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); [StructLayout(LayoutKind.Sequential)] public struct TVITEMW {{ public uint mask; public IntPtr hItem; public uint state; public uint stateMask; public IntPtr pszText; public int cchTextMax; public int iImage; public int iSelectedImage; public int cChildren; public IntPtr lParam; }} public static string ItemText(int pid, IntPtr hwnd, IntPtr hItem) {{ IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; int textBytes = 512; int itemSize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(TVITEMW)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)(itemSize + textBytes), 0x1000, 0x04); if (remote == IntPtr.Zero) {{ CloseHandle(proc); return null; }} IntPtr remoteText = new IntPtr(remote.ToInt64() + itemSize); TVITEMW item = new TVITEMW(); item.mask = 1; item.hItem = hItem; item.pszText = remoteText; item.cchTextMax = 256; IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(itemSize); System.Runtime.InteropServices.Marshal.StructureToPtr(item, local, false); UIntPtr wrote; WriteProcessMemory(proc, remote, local, (UIntPtr)itemSize, out wrote); System.Runtime.InteropServices.Marshal.FreeHGlobal(local); SendMessage(hwnd, 0x113E, IntPtr.Zero, remote); byte[] buf = new byte[textBytes]; UIntPtr read; ReadProcessMemory(proc, remoteText, buf, (UIntPtr)textBytes, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); int n = 0; while (n + 1 < buf.Length && !(buf[n] == 0 && buf[n + 1] == 0)) n += 2; return System.Text.Encoding.Unicode.GetString(buf, 0, n); }}' -Name VcuTreeRead -Namespace Vcu | Out-Null
+      }}
+      $caret = [Vcu.VcuTreeRead]::SendMessage([IntPtr]$nhTree, 0x110A, [IntPtr]9, [IntPtr]::Zero)
+      if ($caret -ne [IntPtr]::Zero) {{
+        $treeText = [Vcu.VcuTreeRead]::ItemText($targetPid, [IntPtr]$nhTree, $caret)
+        if ($treeText) {{
+          $markTree = "tree=$treeText"
+          if ([string]::IsNullOrWhiteSpace($val)) {{ $val = $markTree }} else {{ $val = "$val $markTree" }}
+        }}
+      }}
+    }}
+  }}
+
   $val = ($val -replace '[\r\n\|]', ' ')
   if ($val.Length -gt 200) {{ $val = $val.Substring(0, 200) }}
   $r = $el.Current.BoundingRectangle
@@ -696,6 +713,79 @@ public static bool Notify(int pid, IntPtr hwnd) {
   "ok:tab_select"
   exit 0
 }
+function Test-VcuTreeClass([string]$cls) {
+  if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
+  $c = $cls.ToLowerInvariant()
+  return $c.Contains("systreeview32") -or $c.Contains("treeview")
+}
+function Select-VcuTree([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if (-not ("Vcu.VcuTreeSelect" -as [type])) {
+    $sig = @"
+[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+[DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+[DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect);
+[DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, IntPtr buffer, UIntPtr size, out UIntPtr written);
+[DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read);
+[DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type);
+[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);
+[StructLayout(LayoutKind.Sequential)] public struct TVITEMW {
+  public uint mask; public IntPtr hItem; public uint state; public uint stateMask; public IntPtr pszText;
+  public int cchTextMax; public int iImage; public int iSelectedImage; public int cChildren; public IntPtr lParam;
+}
+public static string ItemText(int pid, IntPtr hwnd, IntPtr hItem) {
+  IntPtr proc = OpenProcess(0x0438, false, pid);
+  if (proc == IntPtr.Zero) return null;
+  int textBytes = 512;
+  int itemSize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(TVITEMW));
+  IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)(itemSize + textBytes), 0x1000, 0x04);
+  if (remote == IntPtr.Zero) { CloseHandle(proc); return null; }
+  IntPtr remoteText = new IntPtr(remote.ToInt64() + itemSize);
+  TVITEMW item = new TVITEMW();
+  item.mask = 1;
+  item.hItem = hItem;
+  item.pszText = remoteText;
+  item.cchTextMax = 256;
+  IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(itemSize);
+  System.Runtime.InteropServices.Marshal.StructureToPtr(item, local, false);
+  UIntPtr wrote;
+  WriteProcessMemory(proc, remote, local, (UIntPtr)itemSize, out wrote);
+  System.Runtime.InteropServices.Marshal.FreeHGlobal(local);
+  SendMessage(hwnd, 0x113E, IntPtr.Zero, remote);
+  byte[] buf = new byte[textBytes];
+  UIntPtr read;
+  ReadProcessMemory(proc, remoteText, buf, (UIntPtr)textBytes, out read);
+  VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000);
+  CloseHandle(proc);
+  int n = 0;
+  while (n + 1 < buf.Length && !(buf[n] == 0 && buf[n + 1] == 0)) n += 2;
+  return System.Text.Encoding.Unicode.GetString(buf, 0, n);
+}
+"@
+    Add-Type -MemberDefinition $sig -Name VcuTreeSelect -Namespace Vcu | Out-Null
+  }
+  $root = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]0, [IntPtr]::Zero)
+  $queue = New-Object System.Collections.Queue
+  if ($root -ne [IntPtr]::Zero) { $queue.Enqueue($root) }
+  $seen = 0
+  $hit = [IntPtr]::Zero
+  while ($queue.Count -gt 0 -and $seen -lt 64) {
+    $item = [IntPtr]$queue.Dequeue()
+    $seen++
+    $text = [Vcu.VcuTreeSelect]::ItemText($ownerPid, $h, $item)
+    if ($text -eq $expect) { $hit = $item; break }
+    $child = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]4, $item)
+    if ($child -ne [IntPtr]::Zero) { $queue.Enqueue($child) }
+    $next = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]1, $item)
+    if ($next -ne [IntPtr]::Zero) { $queue.Enqueue($next) }
+  }
+  if ($hit -eq [IntPtr]::Zero) { return }
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x110B, [IntPtr]9, $hit)
+  $caret = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]9, [IntPtr]::Zero)
+  $got = [Vcu.VcuTreeSelect]::ItemText($ownerPid, $h, $caret)
+  if ($got -ne $expect) { return }
+  "ok:tree_select"
+  exit 0
+}
 function Set-VcuElement($el, [string]$expect) {
   try {
     $vp = $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -723,6 +813,10 @@ function Set-VcuElement($el, [string]$expect) {
   }
   Select-VcuTab ([IntPtr]$nh) $expect $targetPid
   if ((Test-VcuTabClass $cls) -or (Test-VcuTabClass $uiaCls)) { return }
+  if ((Test-VcuTreeClass $cls) -or (Test-VcuTreeClass $uiaCls)) {
+    Select-VcuTree ([IntPtr]$nh) $expect $targetPid
+    return
+  }
   if (Test-VcuConsoleClass $cls) { return }
   if (-not (Test-VcuEditClass $cls)) { return }
   [void][Vcu.VcuSetValue070]::SendMessage([IntPtr]$nh, 12, [IntPtr]::Zero, $expect)
@@ -1052,6 +1146,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:list_select")
         || out.contains("ok:track_select")
         || out.contains("ok:tab_select")
+        || out.contains("ok:tree_select")
     {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
@@ -1063,6 +1158,8 @@ pub fn set_value_from_uia_output(
             "track_select"
         } else if out.contains("ok:tab_select") {
             "tab_select"
+        } else if out.contains("ok:tree_select") {
+            "tree_select"
         } else if out.contains("ok:wm_settext") {
             "wm_settext"
         } else {
@@ -1699,6 +1796,9 @@ mod tests {
         assert!(setv.contains("0x0405"));
         assert!(setv.contains("ok:tab_select"));
         assert!(setv.contains("Test-VcuTabClass"));
+        assert!(setv.contains("ok:tree_select"));
+        assert!(setv.contains("Test-VcuTreeClass"));
+        assert!(setv.contains("0x110B"));
         assert!(setv.contains("Test-VcuTrackClass"));
         let tree = uia_tree_script(1, 8);
         assert!(tree.contains("TRACKBAR"));
