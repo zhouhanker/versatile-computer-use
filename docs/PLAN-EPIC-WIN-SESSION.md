@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式和自建窗口截图已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图和等待控件名已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -223,10 +223,23 @@
 - 中心像素是窗口颜色 `220,30,160`，不是黑图。PNG 能看到标题 `VCU-SHOT-018`。
 - 不做：不把这次写成被挡住时仍能采到窗口内容，也不写成完整产品 CU。
 
+
+## CU-WIN-SESSION-019 会话等待控件名
+
+状态：**2026-09-26 本机复测通过。** 不是完整 Windows 产品 CU。
+
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动一个窗口，里面有按钮「VCU-WAIT-019」。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_wait.ps1`
+- 结果：`CU-WIN-SESSION-019 OK win:powershell:11804 ... ref=e1 miss=timeout cursor=1187,239`
+- `vcu wait --name` 把名字交给已有的 `scene_wait`。找到时 `input_path=scene_wait`，`os_cursor_used=false`，并带回 `found_ref`。
+- 不存在的名字在 500ms 内诚实超时，不会报成功。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成完整产品 CU，也不放宽超时。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
 - 会话截图在 `PrintWindow` 为空白时复制窗口矩形。窗口被挡住时，图里可能是挡住它的东西。
+- 会话等待可以按控件名找到自建按钮，缺失时超时。没有覆盖按 value 等待。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。

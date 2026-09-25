@@ -127,11 +127,20 @@ enum Commands {
         #[arg(long, default_value_t = 600)]
         dy: i64,
     },
+    /// Wait ms, or until a desktop Scene ref/name/role/value appears. Does not move the OS cursor.
     Wait {
         #[arg(long)]
         session: String,
         #[arg(long, default_value_t = 200)]
         ms: u64,
+        #[arg(long = "ref")]
+        target_ref: Option<String>,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        role: Option<String>,
+        #[arg(long)]
+        value: Option<String>,
     },
     Agent {
         #[command(subcommand)]
@@ -897,11 +906,33 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
             Ok(ok_exit(&v))
         }
-        Commands::Wait { session, ms } => {
+        Commands::Wait {
+            session,
+            ms,
+            target_ref,
+            name,
+            role,
+            value,
+        } => {
+            let mut args = json!({"ms": ms});
+            let mut target = json!({});
+            if let Some(r) = target_ref {
+                args["ref"] = json!(r.clone());
+                target["ref"] = json!(r);
+            }
+            if let Some(n) = name {
+                args["name"] = json!(n);
+            }
+            if let Some(r) = role {
+                args["role"] = json!(r);
+            }
+            if let Some(v) = value {
+                args["value"] = json!(v);
+            }
             let v = api_post(
                 &paths,
                 &format!("/v1/session/{session}/act"),
-                json!({"type": "wait", "target": {}, "args": {"ms": ms}}),
+                json!({"type": "wait", "target": target, "args": args}),
             )
             .await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());

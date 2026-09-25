@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-019 已在本机复测：会话等待找到自建按钮 VCU-WAIT-019，缺失名字诚实超时。没有移动系统光标。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-018 已在本机复测：会话截图自建品红窗口，中心像素是 220,30,160，不是黑图。PrintWindow 空白时只复制窗口矩形。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。WIN-VIS-010 已在本机复测：Acrylic 胶囊加上半粗标题、1px 描边和轻阴影。描边亮于中心，阴影暗于下方背景。不是 macOS NSVisualEffectView。详见 docs/PLAN-WINDOWS-VISUAL.md。
