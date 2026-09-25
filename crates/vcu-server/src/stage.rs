@@ -17,6 +17,26 @@ const BANNER_WINDOWS: &str = "VCU 正在使用这台 PC    按 Escape 取消";
 /// WinForms HUD + Guide. No SendInput / cursor warp. Escape writes the abort file.
 #[allow(dead_code)]
 const STAGE_WINPS: &str = r#"
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class VcuDpiBoot {
+  [DllImport("shcore.dll")] public static extern int SetProcessDpiAwareness(int awareness);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+  [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
+}
+"@
+$script:DpiAware = $false
+try { $script:DpiAware = [VcuDpiBoot]::SetProcessDpiAwarenessContext([IntPtr](-4)) } catch {}
+if (-not $script:DpiAware) {
+  try { if ([VcuDpiBoot]::SetProcessDpiAwareness(2) -eq 0) { $script:DpiAware = $true } } catch {}
+}
+if (-not $script:DpiAware) { try { $script:DpiAware = [VcuDpiBoot]::SetProcessDPIAware() } catch {} }
+$script:Dpi = 96
+try { $script:Dpi = [int][VcuDpiBoot]::GetDpiForSystem() } catch {}
+if ($script:Dpi -lt 96) { $script:Dpi = 96 }
+$script:DpiScale = $script:Dpi / 96.0
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 Add-Type -AssemblyName System.Drawing | Out-Null
 Add-Type -TypeDefinition @"
@@ -94,6 +114,12 @@ $script:GuideW = 84
 $script:GuideH = 84
 $script:HotX = 32
 $script:HotY = 34
+$script:HudW = [int][Math]::Round(280 * $script:DpiScale)
+$script:HudH = [int][Math]::Round(28 * $script:DpiScale)
+$script:GuideW = [int][Math]::Round(84 * $script:DpiScale)
+$script:GuideH = $script:GuideW
+$script:HotX = [int][Math]::Round(32 * $script:DpiScale)
+$script:HotY = [int][Math]::Round(34 * $script:DpiScale)
 
 function New-HudBitmap {
   $bmp = New-Object System.Drawing.Bitmap $script:HudW, $script:HudH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -112,10 +138,10 @@ function New-HudBitmap {
   $g.FillPath($fill, $path)
   $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(115, 255, 255, 255)), 1
   $g.DrawPath($pen, $path)
-  $font = New-Object System.Drawing.Font "Segoe UI", 9
+  $font = New-Object System.Drawing.Font "Segoe UI", ([single](9 * $script:DpiScale))
   $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
   $dim = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(210, 255, 255, 255))
-  $g.DrawString("VCU 正在使用这台 PC", $font, $white, 12, 4)
+  $g.DrawString("VCU 正在使用这台 PC", $font, $white, (12 * $script:DpiScale), (4 * $script:DpiScale))
   $measured = $g.MeasureString("Esc 取消", $font)
   $g.DrawString("Esc 取消", $font, $dim, ($script:HudW - $measured.Width - 10), 4)
   $g.Dispose()
@@ -134,8 +160,9 @@ function New-GuideBitmap {
   $fogCenterX = $tipX + 6
   $fogCenterY = $tipY + 6
   # Soft fog, endRadius 36, no hard ring.
-  for ($r = 36; $r -ge 2; $r -= 2) {
-    $alpha = [int](6 + (36 - $r) * 2.4)
+  $fogMax = [int][Math]::Round(36 * $script:DpiScale)
+  for ($r = $fogMax; $r -ge 2; $r -= 2) {
+    $alpha = [int](6 + (36 - ($r / $script:DpiScale)) * 2.4)
     if ($alpha -gt 96) { $alpha = 96 }
     $haze = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($alpha, 168, 182, 196))
     $g.FillEllipse($haze, ($fogCenterX - $r), ($fogCenterY - $r), ($r * 2), ($r * 2))
@@ -143,9 +170,9 @@ function New-GuideBitmap {
   }
   $pts = @(
     (New-Object System.Drawing.Point $tipX, $tipY),
-    (New-Object System.Drawing.Point ($tipX + 18), ($tipY + 10)),
-    (New-Object System.Drawing.Point ($tipX + 10), ($tipY + 12)),
-    (New-Object System.Drawing.Point ($tipX + 4), ($tipY + 20))
+    (New-Object System.Drawing.Point ($tipX + [int](18 * $script:DpiScale)), ($tipY + [int](10 * $script:DpiScale))),
+    (New-Object System.Drawing.Point ($tipX + [int](10 * $script:DpiScale)), ($tipY + [int](12 * $script:DpiScale))),
+    (New-Object System.Drawing.Point ($tipX + [int](4 * $script:DpiScale)), ($tipY + [int](20 * $script:DpiScale)))
   )
   $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(245, 90, 96, 104))
   $g.FillPolygon($fill, $pts)
@@ -941,6 +968,8 @@ mod tests {
         assert!(STAGE_WINPS.contains("0x20"));
         assert!(STAGE_WINPS.contains("ShowBitmap"));
         assert!(STAGE_WINPS.contains("UpdateLayeredWindow"));
+        assert!(STAGE_WINPS.contains("SetProcessDpiAwareness"));
+        assert!(STAGE_WINPS.contains("GetDpiForSystem"));
         assert!(!STAGE_WINPS.contains("New-PillRegion"));
         assert!(!STAGE_WINPS.contains("FromArgb(255, 107, 56)"));
         assert!(!STAGE_WINPS.to_ascii_lowercase().contains("sendinput("));

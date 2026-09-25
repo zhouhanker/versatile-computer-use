@@ -37,3 +37,14 @@
 - 本机截图：胶囊条能读出「VCU 正在使用这台 PC」和「Esc 取消」，背景透出桌面。Guide 是软雾加短箭，不是橙色方块。
 - Guide 仍设置点击穿透。没有 SendInput，没有移动系统光标。
 - 未宣称：Stage 进程仍不是 DPI 感知的。和 UIA 坐标是否在每个缩放下重合，这轮没有新的对照证据。
+
+## WIN-VIS-003 物理像素对齐
+
+状态：**2026-09-26 本机复测通过。** 不是完整 Windows 产品 CU。
+
+这台机器 DPI 是 144。`app snapshot` 的 Edge 窗口框是 `[-11, -11, 2182, 1390]`，和 DPI 感知的 `GetWindowRect` 一致。以前 Stage 进程不感知 DPI，把这个物理坐标当成虚拟像素，150% 下指针会偏到 1.5 倍的位置。
+
+- Stage 启动时调用 `SetProcessDpiAwarenessContext(-4)`，失败再退到 `SetProcessDpiAwareness(2)`。本机状态：`aware=True dpi=144 scale=1.5`。
+- 胶囊和短箭按 `dpi/96` 放大，坐标仍是物理像素。请求 Guide `(120, 120)` 时，DPI 感知截图在该点附近看到短箭，不是在 `(180, 180)`。
+- HUD 落在物理工作区中心 `(870, 12)`，胶囊文案可读。
+- 未宣称：没有在 100% 和其他缩放下复测。网页指针仍是共享的 `content.js`，这轮没有改。
