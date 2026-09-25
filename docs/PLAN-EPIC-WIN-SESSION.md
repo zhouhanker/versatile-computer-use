@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、以及向文本框写入已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入和按钮点击已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -259,6 +259,18 @@
 - 随后 `vcu wait --value` 读到「VCU-TYPED-021」。`os_cursor_used=false`，`hid_injected=false`。没有 SendInput，没有移动系统光标。
 - 不做：不把 `WM_SETTEXT` 写成 ValuePattern，也不写成完整产品 CU。
 
+
+## CU-WIN-SESSION-022 会话点击自建按钮
+
+状态：**2026-09-26 本机复测通过。** 不是完整 Windows 产品 CU。
+
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动一个窗口，按钮名是「VCU-CLICK-022」，窗口标题是「VCU-CLICK-HOST」，避免名字撞上窗口。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_click_label.ps1`
+- 结果：`CU-WIN-SESSION-022 OK win:powershell:9444 ... ref=e2 path=bm_click label=VCU-CLICKED-022 cursor=1187,239`
+- 点击走 `bm_click`，不是 SendInput。按钮的 Click 处理把标签改成「VCU-CLICKED-022」，随后 `vcu wait --name` 读到。`os_cursor_used=false`，`hid_injected=false`。
+- 窗口标题如果和按钮同名，`wait --name` 会先命中窗口。这次故意用了不同的标题。
+- 不做：不把这次写成完整产品 CU，也不移动系统光标。
+
 ## 还没做
 
 - 不把这次会话写成完整 `vcu session` 产品 CU。
@@ -266,5 +278,6 @@
 - 会话截图在 `PrintWindow` 为空白时复制窗口矩形。窗口被挡住时，图里可能是挡住它的东西。
 - 会话等待可以按控件名找到自建按钮，也可以按文本框的值找到控件。缺失时超时。
 - 会话可以向自建文本框写入，再按新值等到。这是 `wm_settext`，不是 ValuePattern。
+- 会话可以点击自建按钮并看到标签变化。`wait --name` 命中第一个同名节点，窗口标题不要和按钮撞名。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
