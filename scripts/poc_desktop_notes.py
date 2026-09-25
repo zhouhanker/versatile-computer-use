@@ -32,7 +32,7 @@ PREFERRED = ("开关边栏", "搜索", "格式", "核对清单", "标记", "side
 
 
 def run(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def parse(p):

@@ -1,8 +1,8 @@
 # Windows 真机修复计划
 
-更新：2026-09-25。作者：本机真机测试记录。状态：WIN-FIX-001 至 006 已在本机复测通过。计算器宿主窗口仍未放行。007 未开工。
+更新：2026-09-26。作者：本机真机测试记录。状态：WIN-FIX-001 至 006 已提交并复测通过。WIN-FIX-007 已复测：POC 不再因 GBK 的 UnicodeDecodeError 退出。CU-D-610 仍失败于截图 dry-run，不算整项通过。计算器宿主窗口仍未放行。没有新的 GitHub Release。
 
-测的是已安装 Release `v0.2.8`（`vcu --version` 仍打印 crate `0.1.0`）。对照当前源码后，下面的缺陷在 HEAD 里也还在。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
+001–006 的产品修复已在源码里并推送。本轮 007 复测用的是本仓库 debug 构建 `target/debug/vcu.exe`，daemon 也是这份 debug 构建，不是已安装的 Release 包。`vcu --version` 仍打印 crate `0.1.0`。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
 
 权威边界仍以 [`PLAN.md`](PLAN.md) 为准。本文只记录这台 Windows 真机测出的缺口和修复顺序。
 
@@ -21,7 +21,7 @@
 
 ## 2. 已经做了什么
 
-只做了测试和记录，**没有修代码，没有发版**。
+001–006 已修代码并推送，没有发新的 GitHub Release。007 只改测试脚本的解码。
 
 | 范围 | 结果 |
 | --- | --- |
@@ -30,7 +30,7 @@
 | 桌面传统窗口 | 找对真实 pid 后，记事本 `uia_set_value` 可见文字；cmd 截图成功；`open_path` 为 `explorer_open`；设置只观察；自建按钮可点；Abort 能拆 HUD |
 | 策略门禁 | 微信 `AppDenied`；不抢焦点拒绝；无 `confirm_send` 的回车拒绝；跨源 iframe 像素点击拒绝 |
 
-工作区没有相应代码提交。未提交的只有 `.gitignore` 里 6 行 AWR 本地目录，与这些缺陷无关。
+007 的脚本解码与本文一起提交。`.gitignore` 里的 AWR 本地目录与这些缺陷无关，不放进这次提交。
 
 ## 3. 不要当成待修 bug
 
@@ -44,7 +44,7 @@
 
 ## 4. 需要 Fix 的问题
 
-都未修。建议按这个顺序做，一次只开一条。
+一次只开一条。下面已标状态的条目不要再写成未修。
 
 ### WIN-FIX-001 登录态在 Windows 上看不见 Edge
 
@@ -103,10 +103,13 @@
 
 ### WIN-FIX-007 Windows 上的测试脚本可跑
 
-- 现象：`scripts/poc_cu_d_*.py` 在中文 Windows 上用默认 GBK 读 `vcu` 输出，遇到非 GBK 字节就崩。这让官方 POC 不能当这台机器的验收脚本。
-- 另：用 PowerShell `Set-Content -Encoding utf8` 写 `config.json` 会带 BOM，daemon 解析 panic。安装器路径没有这个问题。
-- 修：POC 子进程按 UTF-8 解码。文档或安装器若写 config，必须无 BOM。
-- 验收：`CU-D-590` / `610` / `620` 在这台机器上不再因 `UnicodeDecodeError` 退出。无 BOM 的临时 `user-dir` 能启动 daemon。
+状态：**解码崩溃已修，2026-09-26 本机复测通过。** 不代表 `CU-D-610` 整项通过，也没有发新的 GitHub Release。
+
+- 现象：`scripts/poc_*.py` 在中文 Windows 上用默认 GBK 读 `vcu` 输出，遇到非 GBK 字节就崩。这让官方 POC 不能当这台机器的验收脚本。`poc_cu_d_590.py` 还会在空路径上调用 `Path.with_suffix`。
+- 另：用 PowerShell `Set-Content -Encoding utf8` 写 `config.json` 会带 BOM，daemon 解析 panic。安装器路径没有这个问题。配置读取去 BOM 已在 WIN-FIX-003 落地。
+- 修：POC 子进程按 UTF-8 解码，非法字节替换而不是抛出。`poc_cu_d_590.py` 对空路径直接返回，sidecar JSON 按 UTF-8 读取。
+- 验收：`VCU=target/debug/vcu.exe`。`poc_cu_d_590.py` 退出 0，`CU-D-590 OK 1013794778 0->1`。`poc_cu_d_620.py` 退出 0，`CU-D-620 OK 1013794782 hovered=1`。两者都没有 `UnicodeDecodeError`。
+- 未宣称：`poc_cu_d_610.py` 退出 1，也没有 `UnicodeDecodeError`。DOM 输入和滚动成功（`typed_value=vcu-d-610`，`scroll_y=y=900`，`groups_ok=true`，`os_cursor_used=false`）。失败点是 `capture_dry_run_ok: false`。这不是 007 的验收范围，也不写成 610 通过。
 
 ## 5. 明确不在本计划里
 
@@ -127,6 +130,6 @@
 4. WIN-FIX-004 Windows Terminal 名单。已完成并复测。
 5. WIN-FIX-005 截图错误文案。已完成并复测。
 6. WIN-FIX-006 UIA 编码。已完成并复测。
-7. WIN-FIX-007 POC / config 编码。
+7. WIN-FIX-007 POC 解码。已复测：590 与 620 通过；610 不再因 `UnicodeDecodeError` 退出，但仍因截图 dry-run 失败。
 
 每条单独提交，带这台 Windows 的复测记录。修完一条再开下一条。未复测前不把对应 POC 改成通过。

@@ -27,7 +27,7 @@ def vcu(args):
     cmd = [VCU, *args]
     if "--json" not in cmd:
         cmd.append("--json")
-    p = subprocess.run(cmd, capture_output=True, text=True)
+    p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     try:
         return json.loads(p.stdout or "{}")
     except json.JSONDecodeError:
@@ -60,7 +60,7 @@ def frontmost_app():
             'tell application "System Events" to get name of first application process whose frontmost is true',
         ],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
     )
     return (p.stdout or "").strip()
 

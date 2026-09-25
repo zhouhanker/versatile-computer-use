@@ -15,7 +15,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 
 def run(args, check=False):
-    r = subprocess.run(args, capture_output=True, text=True)
+    r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if check and r.returncode != 0:
         raise SystemExit(f"cmd failed {args}: {r.stderr or r.stdout}")
     return r
@@ -31,7 +31,7 @@ def vcu_json(args):
 
 def main():
     health = json.loads(
-        subprocess.check_output(["curl", "-fsS", "http://127.0.0.1:17890/v1/health"], text=True)
+        subprocess.check_output(["curl", "-fsS", "http://127.0.0.1:17890/v1/health"], text=True, encoding="utf-8", errors="replace")
     )
     if not (health.get("data") or {}).get("extension_polling"):
         print("extension_polling is false; run bash scripts/start_agent_edge.sh", file=sys.stderr)

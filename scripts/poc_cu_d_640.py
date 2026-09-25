@@ -26,7 +26,7 @@ def vcu(args):
     cmd = [VCU, *args]
     if "--json" not in cmd:
         cmd.append("--json")
-    p = subprocess.run(cmd, capture_output=True, text=True)
+    p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     try:
         return json.loads(p.stdout or "{}")
     except json.JSONDecodeError:

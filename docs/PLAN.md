@@ -12,7 +12,7 @@
 
 默认不新开切片，也不把停放项写成进行中。
 
-Windows 真机缺口与修复顺序见 [PLAN-WINDOWS-FIX.md](PLAN-WINDOWS-FIX.md)。WIN-FIX-001 已在这台机器复测通过；其余条目未开工。不要把它写成完整 Windows 产品 CU。
+Windows 真机缺口与修复顺序见 [PLAN-WINDOWS-FIX.md](PLAN-WINDOWS-FIX.md)。WIN-FIX-001 至 006 已在这台机器复测通过并推送。WIN-FIX-007 已复测脚本解码；CU-D-610 的截图 dry-run 仍失败。不要把它写成完整 Windows 产品 CU。
 可领取项只有停放的 `MAC-NEXT` 与 `FEISHU-001`。
 
 若要继续产品工作，先由用户点名一条，再 claim。建议顺序：

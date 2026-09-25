@@ -19,7 +19,7 @@ PROTECTED = {"1", "3"}
 
 
 def vcu(args):
-    p = subprocess.run(["vcu", *args, "--json"], capture_output=True, text=True)
+    p = subprocess.run(["vcu", *args, "--json"], capture_output=True, text=True, encoding="utf-8", errors="replace")
     try:
         return json.loads(p.stdout or "{}")
     except json.JSONDecodeError:

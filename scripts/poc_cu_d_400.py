@@ -29,7 +29,7 @@ def vcu(args):
         cmd.append("--json")
     if "--user-dir" not in cmd and os.environ.get("VCU_DIR"):
         cmd[1:1] = ["--user-dir", os.environ["VCU_DIR"]]
-    p = subprocess.run(cmd, capture_output=True, text=True)
+    p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     try:
         return json.loads(p.stdout or "{}")
     except json.JSONDecodeError:
@@ -63,13 +63,13 @@ def health_browsers():
 
 def osascript(script):
     try:
-        subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=6)
+        subprocess.run(["osascript", "-e", script], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=6)
     except Exception:
         pass
 
 
 def open_tab(app, url):
-    subprocess.run(["open", "-a", app, url], capture_output=True, text=True, check=False)
+    subprocess.run(["open", "-a", app, url], capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
 
 
 def close_tab(app, url):

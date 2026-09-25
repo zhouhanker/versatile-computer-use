@@ -15,7 +15,7 @@ FIXTURE = "http://127.0.0.1:18474/tests/fixtures/interaction.html?more=1"
 def vcu(args, tries=16):
     last = None
     for _ in range(tries):
-        p = subprocess.run(["vcu", *args, "--json"], capture_output=True, text=True)
+        p = subprocess.run(["vcu", *args, "--json"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         try:
             last = json.loads(p.stdout or "{}")
         except json.JSONDecodeError:

@@ -16,7 +16,7 @@ OUT = Path(".local/desktop-cu/terminal-041.json")
 
 
 def run(cmd, timeout=25):
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
 
 
 def parse(p):

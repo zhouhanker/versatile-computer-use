@@ -16,7 +16,7 @@ OUT = Path(".local/desktop-cu/textedit-023.json")
 
 
 def run(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def parse(p):
