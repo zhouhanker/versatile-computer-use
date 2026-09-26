@@ -677,6 +677,19 @@
 - 不做：不把这次写成 `tree_collapse`，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-055 会话点可见菜单行
+
+状态：**2026-09-26 本机复测通过。** 不是 `accDoDefaultAction`，也不是完整 Windows 产品 CU。
+
+- 044 走辅助功能默认动作，不点菜单像素。这次 `vcu type` 文本以 `menupix:` 开头时，先点菜单条打开下拉层，再在弹出窗口里按名字找行。弹出层里没有这个名字就拒绝，不改走 `accDoDefaultAction`。点的是弹出窗口对应行的中心，消息是 `WM_LBUTTONDOWN` / `WM_LBUTTONUP`。点中点不属于这个弹出窗口就不报成功。这会让菜单项的 `Click` 跟着跑。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，顶层项是 VCU-MENU-FILE，下面有 VCU-MENU-A 和 VCU-MENU-B。只有 B 的点击会改标签。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_menu_pixel.ps1`
+- 结果：`CU-WIN-SESSION-055 OK win:powershell:8852 01M3DS2P3SXJN240KPXGCZD3EW ref=e1 path=menu_pixel value=VCU-MENU-B cursor=1187,239`
+- 点中后标签变成 `VCU-MENU-HIT`。不存在的项被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成 UIA 原生子项，也不写成完整产品 CU。菜单条上点不到的项仍会拒绝。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。

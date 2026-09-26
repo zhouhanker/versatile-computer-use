@@ -1472,6 +1472,30 @@ function Select-VcuProgress([IntPtr]$h, [string]$expect) {
     exit 0
   }
 }
+
+function Select-VcuMenuPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:menu-pixel-name'; exit 0 }
+  if (-not ("Vcu.VcuMenuPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr lParam); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT r); [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p); [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr hwnd, ref POINT p); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; } [StructLayout(LayoutKind.Sequential)] public struct POINT { public int x; public int y; } public static IntPtr FindStrip(IntPtr form) { RECT fr; GetWindowRect(form, out fr); IntPtr found = IntPtr.Zero; int best = 99999; EnumChildWindows(form, (h, l) => { if (!IsWindowVisible(h)) return true; RECT r; GetWindowRect(h, out r); int w = r.R - r.L; int hgt = r.B - r.T; if (hgt < 16 || hgt > 48 || w < 80) return true; if (r.T > fr.T + 80) return true; if (r.T < best) { best = r.T; found = h; } return true; }, IntPtr.Zero); return found; } public static void ClickScreen(int sx, int sy) { POINT p = new POINT(); p.x = sx; p.y = sy; IntPtr hit = WindowFromPoint(p); POINT c = p; ScreenToClient(hit, ref c); IntPtr lp = (IntPtr)((c.y << 16) | (c.x & 0xFFFF)); SendMessage(hit, 0x0201, (IntPtr)1, lp); SendMessage(hit, 0x0202, IntPtr.Zero, lp); } public static void OpenStrip(IntPtr strip, int slot) { RECT r; GetWindowRect(strip, out r); ClickScreen(r.L + 24 + slot * 90, (r.T + r.B) / 2); } public static IntPtr FindPopup(IntPtr form, int pid) { uint want = (uint)pid; RECT fr; GetWindowRect(form, out fr); IntPtr found = IntPtr.Zero; EnumWindows((h, l) => { if (h == form || !IsWindowVisible(h)) return true; uint wp; GetWindowThreadProcessId(h, out wp); if (wp != want) return true; var sb = new System.Text.StringBuilder(80); GetClassName(h, sb, 80); string c = sb.ToString().ToLowerInvariant(); if (!c.Contains("window") || c.Contains("shadow")) return true; RECT r; GetWindowRect(h, out r); int w = r.R - r.L; int hgt = r.B - r.T; if (w < 40 || hgt < 16 || hgt > 400) return true; if (r.T < fr.T - 40 || r.T > fr.B + 500) return true; found = h; return true; }, IntPtr.Zero); return found; } public static string Slot(IntPtr popup, string expect) { System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; if (AccessibleObjectFromWindow(popup, 0xFFFFFFFC, ref iid, out acc) != 0 || acc == null) return ""; int index = -1; int count = 0; Walk(acc, 0, expect, 0, ref index, ref count); if (index < 0 || count < 1) return ""; return index.ToString() + "," + count.ToString(); } static void Walk(object acc, int id, string expect, int depth, ref int index, ref int count) { if (acc == null || depth > 6) return; int role = -1; string name = ""; try { role = System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch {} try { name = System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch {} if (role == 12 && name != null && name.Length > 0) { if (name == expect && index < 0) index = count; count++; } object child = id == 0 ? acc : null; if (id != 0) { try { child = acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id }); } catch { return; } } if (child == null) return; int n = 0; try { n = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); } catch {} for (int i = 1; i <= n && i <= 12; i++) Walk(child, i, expect, depth + 1, ref index, ref count); } public static bool ClickSlot(IntPtr popup, int index, int count) { RECT r; GetWindowRect(popup, out r); int w = r.R - r.L; int h = r.B - r.T; if (count < 1 || index < 0 || index >= count || w < 8 || h < 8) return false; int slot = h / count; if (slot < 8) return false; int x = (r.L + r.R) / 2; int y = r.T + index * slot + slot / 2; POINT p = new POINT(); p.x = x; p.y = y; IntPtr hit = WindowFromPoint(p); if (hit != popup) return false; POINT c = p; ScreenToClient(hit, ref c); IntPtr lp = (IntPtr)((c.y << 16) | (c.x & 0xFFFF)); SendMessage(hit, 0x0201, (IntPtr)1, lp); SendMessage(hit, 0x0202, IntPtr.Zero, lp); return true; }' -Name VcuMenuPixel -Namespace Vcu | Out-Null
+  }
+  $strip = [Vcu.VcuMenuPixel]::FindStrip($h)
+  if ($strip -eq [IntPtr]::Zero) { 'error:menu-pixel-strip'; exit 0 }
+  $popup = [IntPtr]::Zero
+  $slot = ""
+  for ($i = 0; $i -lt 4; $i++) {
+    [Vcu.VcuMenuPixel]::OpenStrip($strip, $i)
+    Start-Sleep -Milliseconds 180
+    $popup = [Vcu.VcuMenuPixel]::FindPopup($h, $ownerPid)
+    if ($popup -eq [IntPtr]::Zero) { continue }
+    $slot = [string][Vcu.VcuMenuPixel]::Slot($popup, $expect)
+    if (-not [string]::IsNullOrWhiteSpace($slot)) { break }
+  }
+  if ([string]::IsNullOrWhiteSpace($slot) -or -not $slot.Contains(",")) { 'error:menu-pixel-name'; exit 0 }
+  $parts = $slot.Split(",")
+  if (-not [Vcu.VcuMenuPixel]::ClickSlot($popup, [int]$parts[0], [int]$parts[1])) { 'error:menu-pixel-click'; exit 0 }
+  "ok:menu_pixel"
+  exit 0
+}
 function Select-VcuMenu([IntPtr]$h, [string]$expect) {
   if ([string]::IsNullOrWhiteSpace($expect)) { 'error:menu-name'; exit 0 }
   if (-not ("Vcu.VcuMenuClick" -as [type])) {
@@ -1485,6 +1509,11 @@ function Select-VcuMenu([IntPtr]$h, [string]$expect) {
   exit 0
 }
 function Set-VcuElement($el, [string]$expect) {
+  if ($expect.StartsWith("menupix:")) {
+    $mh = [int64]$el.Current.NativeWindowHandle
+    if ($mh -ne 0) { Select-VcuMenuPixel ([IntPtr]$mh) $expect.Substring(8) $targetPid }
+    return
+  }
   if ($expect.StartsWith("menu:")) {
     $mh = [int64]$el.Current.NativeWindowHandle
     if ($mh -ne 0) { Select-VcuMenu ([IntPtr]$mh) $expect.Substring(5) }
@@ -1941,6 +1970,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:spin_up")
         || out.contains("ok:decimal_set")
         || out.contains("ok:number_set")
+        || out.contains("ok:menu_pixel")
         || out.contains("ok:menu_click")
         || out.contains("ok:track_select")
         || out.contains("ok:tab_select")
@@ -1960,6 +1990,8 @@ pub fn set_value_from_uia_output(
             "combo_drop"
         } else if out.contains("ok:combo_select") {
             "combo_select"
+        } else if out.contains("ok:menu_pixel") {
+            "menu_pixel"
         } else if out.contains("ok:menu_click") {
             "menu_click"
         } else if out.contains("ok:spin_down") {
@@ -2663,6 +2695,8 @@ mod tests {
         assert!(setv.contains("ok:decimal_set"));
         assert!(setv.contains("decimal:"));
         assert!(setv.contains("ok:number_set"));
+        assert!(setv.contains("ok:menu_pixel"));
+        assert!(setv.contains("menupix:"));
         assert!(setv.contains("ok:menu_click"));
         assert!(setv.contains("Get-VcuMenuSceneNames"));
         assert!(setv.contains("menu:"));
