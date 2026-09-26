@@ -2570,6 +2570,64 @@ function Click-VcuListViewRowPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) 
   exit 0
 }
 
+function Click-VcuListViewRowDouble([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:lvrow-dblclick-name'; exit 0 }
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:lvrow-dblclick-name'; exit 0 }
+  Initialize-VcuListViewSelect
+  if (-not ("Vcu.VcuListViewSelect" -as [type])) { 'error:lvrow-dblclick-name'; exit 0 }
+  if (-not ("Vcu.VcuLvCheckPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); public static string ItemRect(int pid, IntPtr hwnd, int index) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)16, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } byte[] seed = new byte[16]; UIntPtr wrote; WriteProcessMemory(proc, remote, seed, (UIntPtr)16, out wrote); IntPtr ret = SendMessage(hwnd, 0x100E, (IntPtr)index, remote); byte[] buf = new byte[16]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)16, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); if (ret == IntPtr.Zero) return null; int l = System.BitConverter.ToInt32(buf, 0); int t = System.BitConverter.ToInt32(buf, 4); int r = System.BitConverter.ToInt32(buf, 8); int b = System.BitConverter.ToInt32(buf, 12); if (r <= l || b <= t) return null; return l.ToString() + "," + t.ToString() + "," + r.ToString() + "," + b.ToString(); }' -Name VcuLvCheckPixel -Namespace Vcu | Out-Null
+  }
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x1004, [IntPtr]::Zero, [IntPtr]::Zero)
+  $hit = -1
+  for ($i = 0; $i -lt $count -and $i -lt 64; $i++) {
+    $text = [Vcu.VcuListViewSelect]::ItemText($ownerPid, $h, $i)
+    if ($text -eq $expect) { $hit = $i; break }
+  }
+  if ($hit -lt 0) { 'error:lvrow-dblclick-name'; exit 0 }
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x1013, [IntPtr]$hit, [IntPtr]::Zero)
+  $rect = [string][Vcu.VcuLvCheckPixel]::ItemRect($ownerPid, $h, $hit)
+  if ([string]::IsNullOrWhiteSpace($rect)) { 'error:lvrow-dblclick-rect'; exit 0 }
+  $parts = $rect.Split(",")
+  $x = [int](([int]$parts[0] + [int]$parts[2]) / 2)
+  $y = [int](([int]$parts[1] + [int]$parts[3]) / 2)
+  if ($x -le [int]$parts[0] -or $y -le [int]$parts[1]) { 'error:lvrow-dblclick-rect'; exit 0 }
+  # lvrow-dblclick-logical: helper posts WM_LBUTTONDBLCLK on the row text. Not LVM_SETITEMSTATE. Not lvrow_pixel. Not SendInput.
+  $hwnd64 = $h.ToInt64()
+  $child = Join-Path $env:TEMP ("vcu-lvdbl-" + [guid]::NewGuid().ToString("N") + ".ps1")
+  @(
+    'Add-Type @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public static class VcuLvDblChild {',
+    '  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);',
+    '  public static void Click(long hwnd, int x, int y) {',
+    '    IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF));',
+    '    PostMessage(new IntPtr(hwnd), 0x0201, (IntPtr)1, lp);',
+    '    PostMessage(new IntPtr(hwnd), 0x0202, IntPtr.Zero, lp);',
+    '    System.Threading.Thread.Sleep(40);',
+    '    PostMessage(new IntPtr(hwnd), 0x0201, (IntPtr)1, lp);',
+    '    PostMessage(new IntPtr(hwnd), 0x0202, IntPtr.Zero, lp);',
+    '    PostMessage(new IntPtr(hwnd), 0x0203, (IntPtr)1, lp);',
+    '    PostMessage(new IntPtr(hwnd), 0x0202, IntPtr.Zero, lp);',
+    '  }',
+    '}',
+    '"@',
+    "[VcuLvDblChild]::Click($hwnd64, $x, $y)"
+  ) | Set-Content -Encoding ASCII -Path $child
+  & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File $child | Out-Null
+  Remove-Item $child -ErrorAction SilentlyContinue
+  $selected = $false
+  for ($n = 0; $n -lt 10; $n++) {
+    Start-Sleep -Milliseconds 50
+    $after = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]2)
+    if (($after -band 2) -ne 0) { $selected = $true; break }
+  }
+  if ($selected) { "ok:lvrow_dblclick"; exit 0 }
+  'error:lvrow-dblclick-state'
+  exit 0
+}
+
 function Select-VcuListView([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   Initialize-VcuListViewSelect
   $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x1004, [IntPtr]::Zero, [IntPtr]::Zero)
@@ -2958,7 +3016,9 @@ function Set-VcuElement($el, [string]$expect) {
     return
   }
   if ((Test-VcuListViewClass $cls) -or (Test-VcuListViewClass $uiaCls)) {
-    if ($expect.StartsWith("lvrowpix:")) {
+    if ($expect.StartsWith("lvrowdbl:")) {
+      Click-VcuListViewRowDouble ([IntPtr]$nh) $expect.Substring(9) $targetPid
+    } elseif ($expect.StartsWith("lvrowpix:")) {
       Click-VcuListViewRowPixel ([IntPtr]$nh) $expect.Substring(9) $targetPid
     } elseif ($expect.StartsWith("lvuncheckpix:")) {
       Click-VcuListViewUncheckPixel ([IntPtr]$nh) $expect.Substring(13) $targetPid
@@ -3388,6 +3448,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:listview_uncheck")
         || out.contains("ok:lvcheck_pixel")
         || out.contains("ok:listview_check")
+        || out.contains("ok:lvrow_dblclick")
         || out.contains("ok:lvrow_pixel")
         || out.contains("ok:listview_select")
         || out.contains("ok:progress_set")
@@ -3480,6 +3541,8 @@ pub fn set_value_from_uia_output(
             "lvcheck_pixel"
         } else if out.contains("ok:listview_check") {
             "listview_check"
+        } else if out.contains("ok:lvrow_dblclick") {
+            "lvrow_dblclick"
         } else if out.contains("ok:lvrow_pixel") {
             "lvrow_pixel"
         } else if out.contains("ok:listview_select") {
@@ -4237,6 +4300,10 @@ mod tests {
         assert!(setv.contains("0x1102"));
         assert!(setv.contains("Test-VcuTreeClass"));
         assert!(setv.contains("0x110B"));
+        assert!(setv.contains("ok:lvrow_dblclick"));
+        assert!(setv.contains("lvrowdbl:"));
+        assert!(setv.contains("lvrow-dblclick-logical"));
+        assert!(setv.contains("0x0203"));
         assert!(setv.contains("ok:lvrow_pixel"));
         assert!(setv.contains("lvrowpix:"));
         assert!(setv.contains("lvrow-pixel-logical"));

@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-079 会话双击自建列表视图一行已在本机复测，路径是 lvrow_dblclick。不是 lvrow_pixel。
+
 更新：2026-09-26。CU-WIN-SESSION-078 会话双击自建列表框一行已在本机复测，路径是 list_dblclick。不是 list_pixel。
 
 更新：2026-09-26。CU-WIN-SESSION-077 会话先点时间框秒字段再点下箭头已在本机复测，路径是 time_second_down_pixel。不是 time_second_pixel。
@@ -1004,11 +1006,24 @@
 - 不做：不把这次写成 `list_pixel` 或 `list_select`，也不写成完整产品 CU。列表视图双击不在本切片。
 
 
+
+## CU-WIN-SESSION-079 会话双击自建列表视图一行
+
+状态：**2026-09-26 本机复测通过。** 不是 `lvrow_pixel`，也不是完整 Windows 产品 CU。
+
+- 067 是单击一行。这次 `vcu type` 文本以 `lvrowdbl:` 开头，后面是行文字。辅助进程先把行滚进视图，再对文字中心连发两次点击并补 `WM_LBUTTONDBLCLK`。只发一次 DBLCLK 时选中行会变，但托管 `DoubleClick` / `ItemActivate` 不触发，所以不算成功。读回必须是这一行，并且事件把标签改成 `VCU-LVD-HIT`。再双击已选中的同一行必须再触发一次，标签变成 `VCU-LVD-HIT2`。缺失行拒绝。屏幕外的一行会先滚进客户区再双击。没有 SendInput。点击本身没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_listview_dblclick.ps1`
+- 结果：`CU-WIN-SESSION-079 OK win:powershell:4764 01M3E836676ARX589NZQQDP1FE ref=e3 path=lvrow_dblclick hit=VCU-LVD-HIT2 far=VCU-LV-FAR cursor=861,712`
+- 单击回退仍是 `lvrow_pixel`，没有改掉双击标签。没有 SendInput。Edge 扩展仍在轮询。单测 `windows_backend_platform_and_denials` 通过。
+- 不做：不把这次写成 `lvrow_pixel` 或 `listview_select`，也不写成完整产品 CU。这不是列表框的 `list_dblclick`。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
 - 树展开是 `tree_expand`，树折叠是 `tree_collapse`。折叠不是点图标。只清展开位而没有 `AfterCollapse` 不算成功。树节点文字点击是 `tree_pixel`，不是 `tree_select`。展开图标仍是 `tree_icon`。
-- 列表框双击是 `list_dblclick`，不是 `list_pixel`，也不是 `LB_SETCURSEL`。只改选中行而没有 DoubleClick 不算成功。列表视图双击不在本切片。
+- 列表框双击是 `list_dblclick`，不是 `list_pixel`，也不是 `LB_SETCURSEL`。列表视图双击是 `lvrow_dblclick`，不是 `lvrow_pixel`，也不是 `LVM_SETITEMSTATE`。只改选中行而没有 DoubleClick 或 ItemActivate 不算成功。
 - 时间框上箭头是 `time_pixel`，下箭头是 `time_down_pixel`。先点分钟字段再点上箭头是 `time_minute_pixel`。先点秒字段再点上箭头是 `time_second_pixel`。分钟字段的下箭头是 `time_minute_down_pixel`。秒字段的下箭头是 `time_second_down_pixel`。数字框微调仍是 `spin_up` / `spin_down`，不是时间框箭头。跨进程改文字如果没有对应变更事件，不能报成功。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
 - 052 在 PrintWindow 仍有像素时走窗口像素。060 已实测空白且中心被挡住时拒绝复制屏幕。
