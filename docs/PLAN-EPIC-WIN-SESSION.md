@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选、链接点击和菜单项已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -545,6 +545,20 @@
 - 结果：`CU-WIN-SESSION-044 OK win:powershell:9540 01M3DMFA7ES06SKKSB3KX7W87F ref=e1 path=menu_click value=VCU-MENU-B cursor=1187,239`
 - 点击后标签变成 `VCU-MENU-HIT`。`menu:VCU-MENU-MISSING` 被拒绝。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成点菜单像素，也不写成场景里已经有菜单项，也不写成完整产品 CU。
+
+
+
+## CU-WIN-SESSION-045 会话能在场景里看到菜单项
+
+状态：**2026-09-26 本机复测通过。** 不是 UIA 原生子项，也不是点菜单像素，也不是完整 Windows 产品 CU。
+
+- 菜单项仍然不是 UIA 控件子项。观察菜单条时，把辅助功能角色 12 的名字插进场景，角色是 `ControlType.MenuItem`。点击和写入的编号跟这些插入项对齐，不会把后面的控件点错。
+- `wait --name` 能找到菜单项。点击这个 ref 走 `menu_click`，并让 `Click` 发生。不存在的名字不会被编进场景。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，顶层项是 VCU-SCENE-FILE，子项是 VCU-SCENE-B。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_menu_scene.ps1`
+- 结果：`CU-WIN-SESSION-045 OK win:powershell:19984 01M3DN44P2P8GDVRTQR2P7TG96 ref=e5 path=menu_click value=VCU-SCENE-B cursor=1187,239`
+- 点击后标签变成 `VCU-SCENE-HIT`。`VCU-SCENE-MISSING` 等不到。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成 UIA 原生子项，也不写成点菜单像素。同名菜单项会点中第一个。也不写成完整产品 CU。
 
 
 ## 还没做

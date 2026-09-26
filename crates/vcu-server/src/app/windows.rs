@@ -301,6 +301,15 @@ pub fn uia_tree_script(pid: i32, max_nodes: i32) -> String {
     s.push_str(&format!(
         r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
+function Get-VcuMenuSceneNames([IntPtr]$hwnd) {{
+  if ($hwnd -eq [IntPtr]::Zero) {{ return @() }}
+  if (-not ("Vcu.VcuMenuScene" -as [type])) {{
+    Add-Type -MemberDefinition '[DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public static object Root(IntPtr hwnd) {{ System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; int hr = AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out acc); if (hr != 0) return null; return acc; }} public static int Role(object acc, int id) {{ try {{ return System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] {{ id }})); }} catch {{ return -1; }} }} public static string NameOf(object acc, int id) {{ try {{ return System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] {{ id }})); }} catch {{ return ""; }} }} public static object Child(object acc, int id) {{ if (id == 0) return acc; try {{ return acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] {{ id }}); }} catch {{ return null; }} }} public static void Collect(object acc, int id, System.Text.StringBuilder sb, int depth) {{ if (acc == null || depth > 5 || sb.Length > 600) return; string name = NameOf(acc, id); if (Role(acc, id) == 12 && name != null && name.Length > 0) {{ sb.Append(name.Replace("\r", " ").Replace("\n", " ").Replace("|", " ")); sb.Append((char)10); }} object child = Child(acc, id); if (child == null) return; int count = 0; try {{ count = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); }} catch {{ }} for (int i = 1; i <= count && i <= 8; i++) Collect(child, i, sb, depth + 1); }} public static string Names(IntPtr hwnd) {{ object acc = Root(hwnd); if (acc == null) return ""; int role = Role(acc, 0); if (role != 2 && role != 11) return ""; var sb = new System.Text.StringBuilder(); Collect(acc, 0, sb, 0); return sb.ToString(); }} public static bool ClickNamed(IntPtr hwnd, string expect) {{ object acc = Root(hwnd); if (acc == null) return false; return Act(acc, 0, expect, 0); }} public static bool Act(object acc, int id, string expect, int depth) {{ if (acc == null || depth > 5) return false; if (Role(acc, id) == 12 && NameOf(acc, id) == expect) {{ object target = id == 0 ? acc : Child(acc, id); if (target == null) return false; target.GetType().InvokeMember("accDoDefaultAction", System.Reflection.BindingFlags.InvokeMethod, null, target, new object[] {{ 0 }}); return true; }} object child = Child(acc, id); if (child == null) return false; int count = 0; try {{ count = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); }} catch {{ }} for (int i = 1; i <= count && i <= 8; i++) if (Act(child, i, expect, depth + 1)) return true; return false; }}' -Name VcuMenuScene -Namespace Vcu | Out-Null
+  }}
+  $raw = [string][Vcu.VcuMenuScene]::Names($hwnd)
+  if ([string]::IsNullOrWhiteSpace($raw)) {{ return @() }}
+  return @($raw.Split([char]10) | Where-Object {{ -not [string]::IsNullOrWhiteSpace($_) }})
+}}
 $targetPid = {pid}
 $max = {max}
 $hwnd = Wait-VcuHwnd $targetPid
@@ -477,6 +486,12 @@ public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lp
   if ($val.Length -gt 200) {{ $val = $val.Substring(0, 200) }}
   $r = $el.Current.BoundingRectangle
   '{{0}}|{{1}}|{{2}}|{{3}},{{4}},{{5}},{{6}}|{{7}}|{{8}}' -f ("e$n"), $ct, $nm, [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height, $cls, $val
+  foreach ($menuName in (Get-VcuMenuSceneNames ([IntPtr]([int64]$el.Current.NativeWindowHandle)))) {{
+    if ($n -ge $max) {{ break }}
+    $n++
+    $safeMenu = ($menuName -replace '[\r\n\|]', ' ')
+    '{{0}}|ControlType.MenuItem|{{1}}|0,0,0,0|MenuItem|menu' -f ("e$n"), $safeMenu
+  }}
   if ($n -ge $max) {{ break }}
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
   foreach ($k in $kids) {{ $q.Enqueue($k) }}
@@ -495,6 +510,15 @@ pub fn uia_invoke_script(pid: i32, eref: &str) -> String {
     s.push_str(&format!(
         r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
+function Get-VcuMenuSceneNames([IntPtr]$hwnd) {{
+  if ($hwnd -eq [IntPtr]::Zero) {{ return @() }}
+  if (-not ("Vcu.VcuMenuScene" -as [type])) {{
+    Add-Type -MemberDefinition '[DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public static object Root(IntPtr hwnd) {{ System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; int hr = AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out acc); if (hr != 0) return null; return acc; }} public static int Role(object acc, int id) {{ try {{ return System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] {{ id }})); }} catch {{ return -1; }} }} public static string NameOf(object acc, int id) {{ try {{ return System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] {{ id }})); }} catch {{ return ""; }} }} public static object Child(object acc, int id) {{ if (id == 0) return acc; try {{ return acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] {{ id }}); }} catch {{ return null; }} }} public static void Collect(object acc, int id, System.Text.StringBuilder sb, int depth) {{ if (acc == null || depth > 5 || sb.Length > 600) return; string name = NameOf(acc, id); if (Role(acc, id) == 12 && name != null && name.Length > 0) {{ sb.Append(name.Replace("\r", " ").Replace("\n", " ").Replace("|", " ")); sb.Append((char)10); }} object child = Child(acc, id); if (child == null) return; int count = 0; try {{ count = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); }} catch {{ }} for (int i = 1; i <= count && i <= 8; i++) Collect(child, i, sb, depth + 1); }} public static string Names(IntPtr hwnd) {{ object acc = Root(hwnd); if (acc == null) return ""; int role = Role(acc, 0); if (role != 2 && role != 11) return ""; var sb = new System.Text.StringBuilder(); Collect(acc, 0, sb, 0); return sb.ToString(); }} public static bool ClickNamed(IntPtr hwnd, string expect) {{ object acc = Root(hwnd); if (acc == null) return false; return Act(acc, 0, expect, 0); }} public static bool Act(object acc, int id, string expect, int depth) {{ if (acc == null || depth > 5) return false; if (Role(acc, id) == 12 && NameOf(acc, id) == expect) {{ object target = id == 0 ? acc : Child(acc, id); if (target == null) return false; target.GetType().InvokeMember("accDoDefaultAction", System.Reflection.BindingFlags.InvokeMethod, null, target, new object[] {{ 0 }}); return true; }} object child = Child(acc, id); if (child == null) return false; int count = 0; try {{ count = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); }} catch {{ }} for (int i = 1; i <= count && i <= 8; i++) if (Act(child, i, expect, depth + 1)) return true; return false; }}' -Name VcuMenuScene -Namespace Vcu | Out-Null
+  }}
+  $raw = [string][Vcu.VcuMenuScene]::Names($hwnd)
+  if ([string]::IsNullOrWhiteSpace($raw)) {{ return @() }}
+  return @($raw.Split([char]10) | Where-Object {{ -not [string]::IsNullOrWhiteSpace($_) }})
+}}
 $targetPid = {pid}
 $want = {n}
 $hwnd = Wait-VcuHwnd $targetPid
@@ -582,6 +606,17 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, In
     'error:no-invoke-pattern'
     exit 0
   }}
+  foreach ($menuName in (Get-VcuMenuSceneNames ([IntPtr]([int64]$el.Current.NativeWindowHandle)))) {{
+    $i++
+    if ($i -eq $want) {{
+      if ([Vcu.VcuMenuScene]::ClickNamed([IntPtr]([int64]$el.Current.NativeWindowHandle), [string]$menuName)) {{
+        'ok:menu_click'
+        exit 0
+      }}
+      'error:menu-name'
+      exit 0
+    }}
+  }}
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
   foreach ($k in $kids) {{ $q.Enqueue($k) }}
 }}
@@ -604,6 +639,15 @@ fn uia_set_value_script_for(pid: i32, eref: &str, value: &str, console: bool) ->
     let allow = if console { "1" } else { "0" };
     let body = r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
+function Get-VcuMenuSceneNames([IntPtr]$hwnd) {
+  if ($hwnd -eq [IntPtr]::Zero) { return @() }
+  if (-not ("Vcu.VcuMenuScene" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public static object Root(IntPtr hwnd) { System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; int hr = AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out acc); if (hr != 0) return null; return acc; } public static int Role(object acc, int id) { try { return System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch { return -1; } } public static string NameOf(object acc, int id) { try { return System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch { return ""; } } public static object Child(object acc, int id) { if (id == 0) return acc; try { return acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id }); } catch { return null; } } public static void Collect(object acc, int id, System.Text.StringBuilder sb, int depth) { if (acc == null || depth > 5 || sb.Length > 600) return; string name = NameOf(acc, id); if (Role(acc, id) == 12 && name != null && name.Length > 0) { sb.Append(name.Replace("\r", " ").Replace("\n", " ").Replace("|", " ")); sb.Append((char)10); } object child = Child(acc, id); if (child == null) return; int count = 0; try { count = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); } catch { } for (int i = 1; i <= count && i <= 8; i++) Collect(child, i, sb, depth + 1); } public static string Names(IntPtr hwnd) { object acc = Root(hwnd); if (acc == null) return ""; int role = Role(acc, 0); if (role != 2 && role != 11) return ""; var sb = new System.Text.StringBuilder(); Collect(acc, 0, sb, 0); return sb.ToString(); } public static bool ClickNamed(IntPtr hwnd, string expect) { object acc = Root(hwnd); if (acc == null) return false; return Act(acc, 0, expect, 0); } public static bool Act(object acc, int id, string expect, int depth) { if (acc == null || depth > 5) return false; if (Role(acc, id) == 12 && NameOf(acc, id) == expect) { object target = id == 0 ? acc : Child(acc, id); if (target == null) return false; target.GetType().InvokeMember("accDoDefaultAction", System.Reflection.BindingFlags.InvokeMethod, null, target, new object[] { 0 }); return true; } object child = Child(acc, id); if (child == null) return false; int count = 0; try { count = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); } catch { } for (int i = 1; i <= count && i <= 8; i++) if (Act(child, i, expect, depth + 1)) return true; return false; }' -Name VcuMenuScene -Namespace Vcu | Out-Null
+  }
+  $raw = [string][Vcu.VcuMenuScene]::Names($hwnd)
+  if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
+  return @($raw.Split([char]10) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
 if (-not ("Vcu.VcuSetValue070" -as [type])) {
   $sig = @'
 [DllImport("user32.dll", CharSet=CharSet.Unicode)]
@@ -1303,6 +1347,12 @@ while ($q.Count -gt 0) {
   $el = $q.Dequeue()
   $i++
   if ($i -eq $want) { $target = $el; break }
+  $menuHit = $false
+  foreach ($menuName in (Get-VcuMenuSceneNames ([IntPtr]([int64]$el.Current.NativeWindowHandle)))) {
+    $i++
+    if ($i -eq $want) { $menuHit = $true; break }
+  }
+  if ($menuHit) { 'error:menu-item'; exit 0 }
   $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
   foreach ($k in $kids) { $q.Enqueue($k) }
 }
@@ -1575,6 +1625,8 @@ pub fn invoke_from_uia_output(
         "toggle"
     } else if out.contains("ok:link_click") {
         "link_click"
+    } else if out.contains("ok:menu_click") {
+        "menu_click"
     } else if out.contains("ok:bm_click") {
         "bm_click"
     } else {
@@ -1680,6 +1732,15 @@ pub fn uia_scroll_script(pid: i32, eref: &str, dy: i32) -> String {
     let mut s = hwnd_resolve_ps().to_string();
     let body = r#"
 Add-Type -AssemblyName UIAutomationClient | Out-Null
+function Get-VcuMenuSceneNames([IntPtr]$hwnd) {
+  if ($hwnd -eq [IntPtr]::Zero) { return @() }
+  if (-not ("Vcu.VcuMenuScene" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public static object Root(IntPtr hwnd) { System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; int hr = AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out acc); if (hr != 0) return null; return acc; } public static int Role(object acc, int id) { try { return System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch { return -1; } } public static string NameOf(object acc, int id) { try { return System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch { return ""; } } public static object Child(object acc, int id) { if (id == 0) return acc; try { return acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id }); } catch { return null; } } public static void Collect(object acc, int id, System.Text.StringBuilder sb, int depth) { if (acc == null || depth > 5 || sb.Length > 600) return; string name = NameOf(acc, id); if (Role(acc, id) == 12 && name != null && name.Length > 0) { sb.Append(name.Replace("\r", " ").Replace("\n", " ").Replace("|", " ")); sb.Append((char)10); } object child = Child(acc, id); if (child == null) return; int count = 0; try { count = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); } catch { } for (int i = 1; i <= count && i <= 8; i++) Collect(child, i, sb, depth + 1); } public static string Names(IntPtr hwnd) { object acc = Root(hwnd); if (acc == null) return ""; int role = Role(acc, 0); if (role != 2 && role != 11) return ""; var sb = new System.Text.StringBuilder(); Collect(acc, 0, sb, 0); return sb.ToString(); } public static bool ClickNamed(IntPtr hwnd, string expect) { object acc = Root(hwnd); if (acc == null) return false; return Act(acc, 0, expect, 0); } public static bool Act(object acc, int id, string expect, int depth) { if (acc == null || depth > 5) return false; if (Role(acc, id) == 12 && NameOf(acc, id) == expect) { object target = id == 0 ? acc : Child(acc, id); if (target == null) return false; target.GetType().InvokeMember("accDoDefaultAction", System.Reflection.BindingFlags.InvokeMethod, null, target, new object[] { 0 }); return true; } object child = Child(acc, id); if (child == null) return false; int count = 0; try { count = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); } catch { } for (int i = 1; i <= count && i <= 8; i++) if (Act(child, i, expect, depth + 1)) return true; return false; }' -Name VcuMenuScene -Namespace Vcu | Out-Null
+  }
+  $raw = [string][Vcu.VcuMenuScene]::Names($hwnd)
+  if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
+  return @($raw.Split([char]10) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
 if (-not ("Vcu.VcuScroll180" -as [type])) {
   $sig = @'
 [DllImport("user32.dll")]
@@ -1746,6 +1807,12 @@ if ($want -gt 0) {
     $el = $q.Dequeue()
     $i++
     if ($i -eq $want) { $root = $el; break }
+    $menuHit = $false
+    foreach ($menuName in (Get-VcuMenuSceneNames ([IntPtr]([int64]$el.Current.NativeWindowHandle)))) {
+      $i++
+      if ($i -eq $want) { $menuHit = $true; break }
+    }
+    if ($menuHit) { 'not-found'; exit 0 }
     $kids = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
     foreach ($k in $kids) { $q.Enqueue($k) }
   }
@@ -2287,6 +2354,7 @@ mod tests {
         assert!(setv.contains("ok:date_set"));
         assert!(setv.contains("ok:number_set"));
         assert!(setv.contains("ok:menu_click"));
+        assert!(setv.contains("Get-VcuMenuSceneNames"));
         assert!(setv.contains("menu:"));
         assert!(setv.contains("number:"));
         assert!(setv.contains("0x1002"));
