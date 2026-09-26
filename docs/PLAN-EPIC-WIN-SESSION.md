@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点和列表视图和进度条已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、列表视图和进度条已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -424,22 +424,26 @@
 - 写入后场景值是 `progress=40`。`400` 和 `nope` 被拒绝。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成托管 `Value` 已经变化，也不写成完整产品 CU。
 
+
+## CU-WIN-SESSION-036 会话按名字展开树节点
+
+状态：**2026-09-26 本机复测通过。** 不是点节点像素，也不是完整 Windows 产品 CU。
+
+- 树节点展开不是点展开图标。`vcu type` 在类名含 TreeView 的控件上，文本以 `expand:` 开头时按后面的名字查节点，用 `TVM_EXPAND`（`0x1102`，`TVE_EXPAND=2`）展开。读回必须带 `TVIS_EXPANDED`（`0x20`）。这会让 WinForms 的 `AfterExpand` 跟着跑。没有同名节点不会报成功。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，根节点是 VCU-EXP-A，子节点是 VCU-EXP-B，初始未展开。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_tree_expand.ps1`
+- 结果：`CU-WIN-SESSION-036 OK win:powershell:12240 01M3DHBAP2TS79R1128HRKY8PY ref=e3 path=tree_expand value=VCU-EXP-A cursor=1187,239`
+- 展开后标签变成 `VCU-EXP-OPEN`。`expand:VCU-EXP-MISSING` 被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点节点像素，也不写成 `tree_select`，也不写成完整产品 CU。
+
+
 ## 还没做
 
-- 会话可以设置自建进度条的原生位置。这是 `progress_set`，不是托管 `ProgressBar.Value`。
-- 会话可以按名字选中自建列表视图的一行。这是 `listview_select`，不是列表框的 `list_select`，也不是点行像素。
-- 会话可以按名字选中自建树节点。这是 `tree_select`，不是点节点像素。
-- 会话可以按名字选中自建标签页。这是 `tab_select`，不是点标签像素。
-- 会话可以向自建滑块写入整数位置。这是 `track_select`，不是 RangeValuePattern，也不是拖动拖块。
-- 不把这次会话写成完整 `vcu session` 产品 CU。
+- 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
+- 树展开是 `tree_expand`，不是点展开图标。树选中仍是 `tree_select`，不是点节点像素。
+- 数字上下控件不在本切片。跨进程改文字如果没有对应变更事件，不能报成功。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
 - 会话截图在 `PrintWindow` 为空白时复制窗口矩形。窗口被挡住时，图里可能是挡住它的东西。
-- 会话等待可以按控件名找到自建按钮，也可以按文本框的值找到控件。缺失时超时。
-- 会话可以向自建文本框写入，再按新值等到。这是 `wm_settext`，不是 ValuePattern。
-- 会话可以点击自建按钮并看到标签变化。同名时优先返回控件；显式 ref 仍按请求的节点返回。
-- 会话可以按选择器提取自建文本框的值。没有命中时是空列表，不是假成功。
-- 会话可以按完整角色字符串等待。WinForms 按钮这里是 `ControlType.Pane`。会话点击可以翻转自建复选框，也可以切换单选按钮并保持互斥。状态来自 `IAccessible`，不是 TogglePattern。
-- 会话可以向自建下拉列表按条目文字选中。这是 `combo_select`，不是展开后点选。
-- 会话可以向自建列表框按行文字选中。这是 `list_select`，不是点行像素。
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
+- 跨源 iframe、trusted 手势、`TC-B-040` 仍未做。
