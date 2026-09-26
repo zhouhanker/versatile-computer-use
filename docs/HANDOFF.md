@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-083 已在本机复测：科学计算器平方 8 是 64，路径是 uia_invoke。显示为 64。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
+
 更新：2026-09-26。CU-WIN-SESSION-082 已在本机复测：科学计算器平方根 9 是 3，路径是 uia_invoke。显示为 3。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
 
 更新：2026-09-26。CU-WIN-SESSION-081 已在本机复测：会话右键打开自建上下文菜单并点中指定条目，路径是 context_item。标签变成 VCU-CTX-HIT。只打开菜单不算成功。左键不会点中条目。缺失条目被拒绝。再次点已完成的条目被拒绝。弹出层不认投递坐标，条目用 accDoDefaultAction 激活。没有 SendInput，没有移动系统光标。不是 context_pixel，也不是 menu_pixel，也不是完整 Windows 产品 CU。
