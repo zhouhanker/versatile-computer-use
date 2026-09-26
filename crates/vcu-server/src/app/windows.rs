@@ -2897,6 +2897,59 @@ function Click-VcuButtonPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   exit 0
 }
 
+
+function Click-VcuContextPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:context-pixel-name'; exit 0 }
+  $parts = $expect.Split("|")
+  if ($parts.Length -ne 2 -or [string]::IsNullOrWhiteSpace($parts[0]) -or [string]::IsNullOrWhiteSpace($parts[1])) { 'error:context-pixel-name'; exit 0 }
+  $name = $parts[0]
+  $label = $parts[1]
+  if (-not ("Vcu.VcuContextPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static IntPtr Find(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; IntPtr found = IntPtr.Zero; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (found == IntPtr.Zero && sb.ToString() == expect) found = child; return true; }, IntPtr.Zero); if (found == IntPtr.Zero) { var self = new System.Text.StringBuilder(128); GetWindowText(hwnd, self, 128); if (self.ToString() == expect) found = hwnd; } return found; } public static bool Seen(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; bool found = false; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (sb.ToString() == expect) found = true; return !found; }, IntPtr.Zero); return found; } public static string Center(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return null; int w = r.Right - r.Left; int h = r.Bottom - r.Top; if (w < 2 || h < 2) return null; return (w / 2).ToString() + "," + (h / 2).ToString(); }' -Name VcuContextPixel -Namespace Vcu | Out-Null
+  }
+  $hit = [Vcu.VcuContextPixel]::Find($h, $name)
+  if ($hit -eq [IntPtr]::Zero) { 'error:context-pixel-name'; exit 0 }
+  if ([Vcu.VcuContextPixel]::Seen($h, $label)) { 'error:context-pixel-state'; exit 0 }
+  $point = [string][Vcu.VcuContextPixel]::Center($hit)
+  if ([string]::IsNullOrWhiteSpace($point)) { 'error:context-pixel-rect'; exit 0 }
+  $xy = $point.Split(",")
+  $x = [int]$xy[0]
+  $y = [int]$xy[1]
+  # context-pixel-logical: right-click client center, then WM_CONTEXTMENU. Not SendInput. Not menu_pixel. Not button_pixel.
+  $hwnd64 = $hit.ToInt64()
+  $child = Join-Path $env:TEMP ("vcu-ctx-" + [guid]::NewGuid().ToString("N") + ".ps1")
+  @(
+    'Add-Type @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public static class VcuCtxChild {',
+    '  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);',
+    '  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);',
+    '  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int x; public int y; }',
+    '  public static void Right(long hwnd, int x, int y) {',
+    '    IntPtr h = new IntPtr(hwnd);',
+    '    IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF));',
+    '    PostMessage(h, 0x0204, (IntPtr)2, lp);',
+    '    PostMessage(h, 0x0205, IntPtr.Zero, lp);',
+    '    POINT p = new POINT(); p.x = x; p.y = y;',
+    '    ClientToScreen(h, ref p);',
+    '    IntPtr screen = (IntPtr)((p.y << 16) | (p.x & 0xFFFF));',
+    '    PostMessage(h, 0x007B, h, screen);',
+    '  }',
+    '}',
+    '"@',
+    "[VcuCtxChild]::Right($hwnd64, $x, $y)"
+  ) | Set-Content -Encoding ASCII -Path $child
+  & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File $child | Out-Null
+  Remove-Item $child -ErrorAction SilentlyContinue
+  for ($n = 0; $n -lt 12; $n++) {
+    if ([Vcu.VcuContextPixel]::Seen($h, $label)) { "ok:context_pixel"; exit 0 }
+    Start-Sleep -Milliseconds 50
+  }
+  'error:context-pixel-state'
+  exit 0
+}
+
 function Set-VcuElement($el, [string]$expect) {
   if ($expect.StartsWith("btnpix:")) {
     $bh = [int64]$el.Current.NativeWindowHandle
@@ -2906,6 +2959,11 @@ function Set-VcuElement($el, [string]$expect) {
   if ($expect.StartsWith("radiopix:")) {
     $rh = [int64]$el.Current.NativeWindowHandle
     if ($rh -ne 0) { Click-VcuRadioPixel ([IntPtr]$rh) $expect.Substring(9) $targetPid }
+    return
+  }
+  if ($expect.StartsWith("ctxpix:")) {
+    $ch = [int64]$el.Current.NativeWindowHandle
+    if ($ch -ne 0) { Click-VcuContextPixel ([IntPtr]$ch) $expect.Substring(7) $targetPid }
     return
   }
   if ($expect.StartsWith("menupix:")) {
@@ -3432,6 +3490,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:spin_up")
         || out.contains("ok:decimal_set")
         || out.contains("ok:number_set")
+        || out.contains("ok:context_pixel")
         || out.contains("ok:menu_pixel")
         || out.contains("ok:menu_click")
         || out.contains("ok:track_drag")
@@ -3459,6 +3518,8 @@ pub fn set_value_from_uia_output(
             "combo_drop"
         } else if out.contains("ok:combo_select") {
             "combo_select"
+        } else if out.contains("ok:context_pixel") {
+            "context_pixel"
         } else if out.contains("ok:menu_pixel") {
             "menu_pixel"
         } else if out.contains("ok:menu_click") {
@@ -4265,6 +4326,10 @@ mod tests {
         assert!(setv.contains("ok:decimal_set"));
         assert!(setv.contains("decimal:"));
         assert!(setv.contains("ok:number_set"));
+        assert!(setv.contains("ok:context_pixel"));
+        assert!(setv.contains("ctxpix:"));
+        assert!(setv.contains("context-pixel-logical"));
+        assert!(setv.contains("0x0204"));
         assert!(setv.contains("ok:menu_pixel"));
         assert!(setv.contains("menupix:"));
         assert!(setv.contains("ok:menu_click"));

@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-080 会话右键自建按钮打开上下文菜单已在本机复测，路径是 context_pixel。不是 button_pixel，也不是 menu_pixel。
+
 更新：2026-09-26。CU-WIN-SESSION-079 会话双击自建列表视图一行已在本机复测，路径是 lvrow_dblclick。不是 lvrow_pixel。
 
 更新：2026-09-26。CU-WIN-SESSION-078 会话双击自建列表框一行已在本机复测，路径是 list_dblclick。不是 list_pixel。
@@ -1019,10 +1021,24 @@
 - 不做：不把这次写成 `lvrow_pixel` 或 `listview_select`，也不写成完整产品 CU。这不是列表框的 `list_dblclick`。
 
 
+
+## CU-WIN-SESSION-080 会话右键打开自建上下文菜单
+
+状态：**2026-09-26 本机复测通过。** 不是 `button_pixel`，也不是 `menu_pixel`，也不是完整 Windows 产品 CU。
+
+- 055 是点已经打开的菜单栏弹出项。这次 `vcu type` 文本以 `ctxpix:` 开头，格式是 `控件名|打开标记`。辅助进程对控件客户区中心发送右键按下、抬起，再补 `WM_CONTEXTMENU`。读回必须出现打开标记。左键仍走 `button_pixel`，不能把菜单打开写成成功。标记已经出现时再右键会拒绝。找不到控件也拒绝。没有 SendInput。点击本身没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_context_pixel.ps1`
+- 结果：`CU-WIN-SESSION-080 OK win:powershell:3532 01M3E8C1FEE65D7PS9N6B883V7 ref=e3 path=context_pixel open=VCU-CTX-OPEN cursor=861,712`
+- 左键没有把标签改成 `VCU-CTX-OPEN`。没有 SendInput。Edge 扩展仍在轮询。单测 `windows_backend_platform_and_denials` 通过。
+- 不做：不把这次写成 `menu_pixel` 或 `button_pixel`，也不写成完整产品 CU。没有点上下文菜单里的条目。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
 - 树展开是 `tree_expand`，树折叠是 `tree_collapse`。折叠不是点图标。只清展开位而没有 `AfterCollapse` 不算成功。树节点文字点击是 `tree_pixel`，不是 `tree_select`。展开图标仍是 `tree_icon`。
+- 右键打开自建上下文菜单是 `context_pixel`，不是 `button_pixel`，也不是 `menu_pixel`。左键打开菜单不算成功。没有点菜单条目。
 - 列表框双击是 `list_dblclick`，不是 `list_pixel`，也不是 `LB_SETCURSEL`。列表视图双击是 `lvrow_dblclick`，不是 `lvrow_pixel`，也不是 `LVM_SETITEMSTATE`。只改选中行而没有 DoubleClick 或 ItemActivate 不算成功。
 - 时间框上箭头是 `time_pixel`，下箭头是 `time_down_pixel`。先点分钟字段再点上箭头是 `time_minute_pixel`。先点秒字段再点上箭头是 `time_second_pixel`。分钟字段的下箭头是 `time_minute_down_pixel`。秒字段的下箭头是 `time_second_down_pixel`。数字框微调仍是 `spin_up` / `spin_down`，不是时间框箭头。跨进程改文字如果没有对应变更事件，不能报成功。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
