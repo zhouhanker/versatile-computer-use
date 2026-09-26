@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-060 已在本机复测：没有重定向位图的自建窗口让 PrintWindow 变成空白，中心被挡住后会话截图拒绝复制屏幕。路径是 OCCLUDED。没有移动系统光标。052 的有像素窗口仍走窗口像素，不是这次拒绝。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-059 已在本机复测：会话点自建树节点 VCU-TREE-B 的文字，路径是 tree_pixel。标签变成 VCU-TREE-SHOW-B。已选中的节点和不存在的节点被拒绝。没有移动系统光标。不是 tree_select，也不是 TVM_SELECTITEM，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-058 已在本机复测：会话点自建列表框的一行 VCU-LIST-B，路径是 list_pixel。标签变成 VCU-LIST-HIT。滚出视口的 VCU-LIST-FAR 也会点中。已选中的行和不存在的行被拒绝。没有移动系统光标。不是 list_select，也不是 LB_SETCURSEL，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
