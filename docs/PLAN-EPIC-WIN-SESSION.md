@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-078 会话双击自建列表框一行已在本机复测，路径是 list_dblclick。不是 list_pixel。
+
 更新：2026-09-26。CU-WIN-SESSION-077 会话先点时间框秒字段再点下箭头已在本机复测，路径是 time_second_down_pixel。不是 time_second_pixel。
 
 更新：2026-09-26。CU-WIN-SESSION-076 会话先点时间框分钟字段再点下箭头已在本机复测，路径是 time_minute_down_pixel。不是 time_down_pixel。
@@ -989,10 +991,24 @@
 - 不做：不把这次写成 `time_second_pixel` 或 `time_down_pixel`，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-078 会话双击自建列表框一行
+
+状态：**2026-09-26 本机复测通过。** 不是 `list_pixel`，也不是完整 Windows 产品 CU。
+
+- 058 是单击一行。这次 `vcu type` 文本以 `listdbl:` 开头，后面是行文字。对自建列表框客户区发送 `WM_LBUTTONDBLCLK`，坐标仍是逻辑坐标，不按 AppliedDPI 放大。读回必须是这一行，并且 DoubleClick 把标签改成 `VCU-DBL-HIT`。再双击已选中的同一行必须再触发一次，标签变成 `VCU-DBL-HIT2`。只改选中行而没有 DoubleClick 不算成功。缺失行拒绝。屏幕外的一行会先滚进客户区再双击。没有 SendInput。点击本身没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_list_dblclick.ps1`
+- 结果：`CU-WIN-SESSION-078 OK win:powershell:972 01M3E7QEHGZBN0S2NMVQZGXEM1 ref=e3 path=list_dblclick hit=VCU-DBL-HIT2 far=VCU-LIST-FAR cursor=861,712`
+- 单击回退仍是 `list_pixel`，没有改掉双击标签。没有 SendInput。Edge 扩展仍在轮询。单测 `windows_backend_platform_and_denials` 通过。
+- 不做：不把这次写成 `list_pixel` 或 `list_select`，也不写成完整产品 CU。列表视图双击不在本切片。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
 - 树展开是 `tree_expand`，树折叠是 `tree_collapse`。折叠不是点图标。只清展开位而没有 `AfterCollapse` 不算成功。树节点文字点击是 `tree_pixel`，不是 `tree_select`。展开图标仍是 `tree_icon`。
+- 列表框双击是 `list_dblclick`，不是 `list_pixel`，也不是 `LB_SETCURSEL`。只改选中行而没有 DoubleClick 不算成功。列表视图双击不在本切片。
 - 时间框上箭头是 `time_pixel`，下箭头是 `time_down_pixel`。先点分钟字段再点上箭头是 `time_minute_pixel`。先点秒字段再点上箭头是 `time_second_pixel`。分钟字段的下箭头是 `time_minute_down_pixel`。秒字段的下箭头是 `time_second_down_pixel`。数字框微调仍是 `spin_up` / `spin_down`，不是时间框箭头。跨进程改文字如果没有对应变更事件，不能报成功。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
 - 052 在 PrintWindow 仍有像素时走窗口像素。060 已实测空白且中心被挡住时拒绝复制屏幕。

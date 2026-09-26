@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-078 已在本机复测：会话双击自建列表框的一行，路径是 list_dblclick。标签先变成 VCU-DBL-HIT，再双击已选中行变成 VCU-DBL-HIT2。屏幕外的一行也能双击。缺失行被拒绝。单击仍是 list_pixel，不会改双击标签。没有 SendInput，没有移动系统光标。不是 LB_SETCURSEL，也不是完整 Windows 产品 CU。
+
 更新：2026-09-26。CU-D-610 已在本机复测：滚动后旧截图 dry-run 被拒绝，错误含 stale_viewport。重新 observe --tab 后新截图 dry-run 成功，source=extension_dom。输入 vcu-d-610，scroll y=900，tab_id_source=last_observe，tab 1013794813。只开 127.0.0.1 抛页并关闭该标签。没有放宽 scroll_y 校验，没有 SendInput，没有测 Chrome，没有点 Allow。不是完整 Windows 产品 CU。
 
 更新：2026-09-26。Windows Stage 把淡阴影画进预乘文字层。红底上胶囊四角仍是红底，胶囊下方 4 到 10 像素略暗，18 像素外恢复红底。不是直角黑底，也不是 macOS 系统材质，也不是完整 Windows 产品 CU。

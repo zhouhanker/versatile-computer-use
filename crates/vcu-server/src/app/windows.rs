@@ -1940,6 +1940,51 @@ function Click-VcuList([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   exit 0
 }
 
+function Click-VcuListDouble([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:list-dblclick-name'; exit 0 }
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:list-dblclick-name'; exit 0 }
+  if (-not ("Vcu.VcuListPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static string Client(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return null; if (r.Right <= r.Left || r.Bottom <= r.Top) return null; return r.Right.ToString() + "," + r.Bottom.ToString(); }' -Name VcuListPixel -Namespace Vcu | Out-Null
+  }
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018B, [IntPtr]::Zero, [IntPtr]::Zero)
+  $hit = -1
+  for ($i = 0; $i -lt $count -and $i -lt 64; $i++) {
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 0x0189, $i, $sb)
+    if ($sb.ToString() -eq $expect) { $hit = $i; break }
+  }
+  if ($hit -lt 0) { 'error:list-dblclick-name'; exit 0 }
+  $height = [int][Vcu.VcuPaste140]::SendMessage($h, 0x01A1, [IntPtr]$hit, [IntPtr]::Zero)
+  if ($height -lt 2) { 'error:list-dblclick-rect'; exit 0 }
+  $client = [string][Vcu.VcuListPixel]::Client($h)
+  if ([string]::IsNullOrWhiteSpace($client)) { 'error:list-dblclick-rect'; exit 0 }
+  $parts = $client.Split(",")
+  $width = [int]$parts[0]
+  $bottom = [int]$parts[1]
+  if ($width -lt 2 -or $bottom -lt 2) { 'error:list-dblclick-rect'; exit 0 }
+  $top = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018E, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($top -lt 0) { $top = 0 }
+  $y = ($hit - $top) * $height + [int]($height / 2)
+  if ($y -lt 0 -or $y -ge $bottom) {
+    [void][Vcu.VcuPaste140]::SendMessage($h, 0x0197, [IntPtr]$hit, [IntPtr]::Zero)
+    $top = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018E, [IntPtr]::Zero, [IntPtr]::Zero)
+    if ($top -lt 0) { $top = 0 }
+    $y = ($hit - $top) * $height + [int]($height / 2)
+  }
+  if ($y -lt 0 -or $y -ge $bottom) { 'error:list-dblclick-rect'; exit 0 }
+  $x = [int]($width / 2)
+  # list-dblclick-logical: WM_LBUTTONDBLCLK on the row. Not LB_SETCURSEL. Not list_pixel. Not SendInput.
+  $lp = [IntPtr](($y -shl 16) -bor ($x -band 65535))
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0201, [IntPtr]1, $lp)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0202, [IntPtr]::Zero, $lp)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0203, [IntPtr]1, $lp)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0202, [IntPtr]::Zero, $lp)
+  $after = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0188, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($after -ne $hit) { 'error:list-dblclick-state'; exit 0 }
+  "ok:list_dblclick"
+  exit 0
+}
+
 function Select-VcuList([IntPtr]$h, [string]$expect) {
   $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018B, [IntPtr]::Zero, [IntPtr]::Zero)
   for ($i = 0; $i -lt $count; $i++) {
@@ -2872,6 +2917,8 @@ function Set-VcuElement($el, [string]$expect) {
       Click-VcuUncheckPixel ([IntPtr]$nh) $expect.Substring(11) $targetPid
     } elseif ($expect.StartsWith("uncheck:")) {
       Select-VcuUncheckedList ([IntPtr]$nh) $expect.Substring(8)
+    } elseif ($expect.StartsWith("listdbl:")) {
+      Click-VcuListDouble ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("listpix:")) {
       Click-VcuList ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } else {
@@ -3300,6 +3347,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:clipboard_paste")
         || out.contains("ok:combo_drop")
         || out.contains("ok:combo_select")
+        || out.contains("ok:list_dblclick")
         || out.contains("ok:list_pixel")
         || out.contains("ok:list_select")
         || out.contains("ok:button_pixel")
@@ -3398,6 +3446,8 @@ pub fn set_value_from_uia_output(
             "check_pixel"
         } else if out.contains("ok:check_set") {
             "check_set"
+        } else if out.contains("ok:list_dblclick") {
+            "list_dblclick"
         } else if out.contains("ok:list_pixel") {
             "list_pixel"
         } else if out.contains("ok:list_select") {
@@ -4085,6 +4135,10 @@ mod tests {
         assert!(setv.contains("drop:"));
         assert!(setv.contains("ok:combo_select"));
         assert!(setv.contains("0x014E"));
+        assert!(setv.contains("ok:list_dblclick"));
+        assert!(setv.contains("listdbl:"));
+        assert!(setv.contains("list-dblclick-logical"));
+        assert!(setv.contains("0x0203"));
         assert!(setv.contains("ok:list_pixel"));
         assert!(setv.contains("listpix:"));
         assert!(setv.contains("list-pixel-logical"));
