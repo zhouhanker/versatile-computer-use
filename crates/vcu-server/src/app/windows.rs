@@ -1761,6 +1761,72 @@ function Select-VcuListViewCheck([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   "ok:listview_check"
   exit 0
 }
+
+function Click-VcuListViewUncheckPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:lvuncheck-pixel-name'; exit 0 }
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:lvuncheck-pixel-name'; exit 0 }
+  Initialize-VcuListViewSelect
+  if (-not ("Vcu.VcuListViewSelect" -as [type])) { 'error:lvuncheck-pixel-name'; exit 0 }
+  if (-not ("Vcu.VcuLvCheckPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); public static string ItemRect(int pid, IntPtr hwnd, int index) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)16, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } byte[] seed = new byte[16]; UIntPtr wrote; WriteProcessMemory(proc, remote, seed, (UIntPtr)16, out wrote); IntPtr ret = SendMessage(hwnd, 0x100E, (IntPtr)index, remote); byte[] buf = new byte[16]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)16, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); if (ret == IntPtr.Zero) return null; int l = System.BitConverter.ToInt32(buf, 0); int t = System.BitConverter.ToInt32(buf, 4); int r = System.BitConverter.ToInt32(buf, 8); int b = System.BitConverter.ToInt32(buf, 12); if (r <= l || b <= t) return null; return l.ToString() + "," + t.ToString() + "," + r.ToString() + "," + b.ToString(); }' -Name VcuLvCheckPixel -Namespace Vcu | Out-Null
+  }
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x1004, [IntPtr]::Zero, [IntPtr]::Zero)
+  $hit = -1
+  for ($i = 0; $i -lt $count -and $i -lt 64; $i++) {
+    $text = [Vcu.VcuListViewSelect]::ItemText($ownerPid, $h, $i)
+    if ($text -eq $expect) { $hit = $i; break }
+  }
+  if ($hit -lt 0) { 'error:lvuncheck-pixel-name'; exit 0 }
+  $before = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]0xF000)
+  if ([int](($before -band 0xF000) / 4096) -ne 2) { 'error:lvuncheck-pixel-state'; exit 0 }
+  $rect = [string][Vcu.VcuLvCheckPixel]::ItemRect($ownerPid, $h, $hit)
+  if ([string]::IsNullOrWhiteSpace($rect)) { 'error:lvuncheck-pixel-rect'; exit 0 }
+  $parts = $rect.Split(",")
+  $x = [int]$parts[0] + 6
+  $y = [int](([int]$parts[1] + [int]$parts[3]) / 2)
+  if ($x -ge [int]$parts[2]) { $x = [int]$parts[0] + 2 }
+  # lvuncheck-pixel-logical: same-process UIA swallows this click, so a helper posts it. Not LVM_SETITEMSTATE. A fresh checked row may need a second click.
+  $hwnd64 = $h.ToInt64()
+  function Post-VcuLvUncheckClick([int64]$hwnd64, [int]$x, [int]$y) {
+    $child = Join-Path $env:TEMP ("vcu-lvupix-" + [guid]::NewGuid().ToString("N") + ".ps1")
+    @(
+      'Add-Type @"',
+      'using System;',
+      'using System.Runtime.InteropServices;',
+      'public static class VcuLvPixChild {',
+      '  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);',
+      '  public static void Click(long hwnd, int x, int y) {',
+      '    IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF));',
+      '    PostMessage(new IntPtr(hwnd), 0x0201, (IntPtr)1, lp);',
+      '    PostMessage(new IntPtr(hwnd), 0x0202, IntPtr.Zero, lp);',
+      '  }',
+      '}',
+      '"@',
+      "[VcuLvPixChild]::Click($hwnd64, $x, $y)"
+    ) | Set-Content -Encoding ASCII -Path $child
+    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File $child | Out-Null
+    Remove-Item $child -ErrorAction SilentlyContinue
+  }
+  Post-VcuLvUncheckClick $hwnd64 $x $y
+  $cleared = $false
+  for ($n = 0; $n -lt 8; $n++) {
+    Start-Sleep -Milliseconds 50
+    $after = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]0xF000)
+    if ([int](($after -band 0xF000) / 4096) -eq 1) { $cleared = $true; break }
+  }
+  if (-not $cleared) {
+    Post-VcuLvUncheckClick $hwnd64 $x $y
+    for ($n = 0; $n -lt 8; $n++) {
+      Start-Sleep -Milliseconds 50
+      $after = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]0xF000)
+      if ([int](($after -band 0xF000) / 4096) -eq 1) { $cleared = $true; break }
+    }
+  }
+  if ($cleared) { "ok:lvuncheck_pixel"; exit 0 }
+  'error:lvuncheck-pixel-state'
+  exit 0
+}
+
 function Select-VcuListViewUncheck([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   Initialize-VcuListViewSelect
   if (-not ("Vcu.VcuListViewSelect" -as [type])) { 'error:lvuncheck-type'; exit 0 }
@@ -1970,7 +2036,9 @@ function Set-VcuElement($el, [string]$expect) {
     return
   }
   if ((Test-VcuListViewClass $cls) -or (Test-VcuListViewClass $uiaCls)) {
-    if ($expect.StartsWith("lvuncheck:")) {
+    if ($expect.StartsWith("lvuncheckpix:")) {
+      Click-VcuListViewUncheckPixel ([IntPtr]$nh) $expect.Substring(13) $targetPid
+    } elseif ($expect.StartsWith("lvuncheck:")) {
       Select-VcuListViewUncheck ([IntPtr]$nh) $expect.Substring(10) $targetPid
     } elseif ($expect.StartsWith("lvcheckpix:")) {
       Click-VcuListViewCheckPixel ([IntPtr]$nh) $expect.Substring(11) $targetPid
@@ -2381,6 +2449,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:tree_icon")
         || out.contains("ok:tree_expand")
         || out.contains("ok:tree_collapse")
+        || out.contains("ok:lvuncheck_pixel")
         || out.contains("ok:listview_uncheck")
         || out.contains("ok:lvcheck_pixel")
         || out.contains("ok:listview_check")
@@ -2445,6 +2514,8 @@ pub fn set_value_from_uia_output(
             "tree_icon"
         } else if out.contains("ok:tree_expand") {
             "tree_expand"
+        } else if out.contains("ok:lvuncheck_pixel") {
+            "lvuncheck_pixel"
         } else if out.contains("ok:listview_uncheck") {
             "listview_uncheck"
         } else if out.contains("ok:lvcheck_pixel") {
@@ -3172,6 +3243,9 @@ mod tests {
         assert!(setv.contains("ok:listview_select"));
         assert!(setv.contains("ok:listview_uncheck"));
         assert!(setv.contains("lvuncheck:"));
+        assert!(setv.contains("ok:lvuncheck_pixel"));
+        assert!(setv.contains("lvuncheckpix:"));
+        assert!(setv.contains("lvuncheck-pixel-logical"));
         assert!(setv.contains("ok:lvcheck_pixel"));
         assert!(setv.contains("lvcheckpix:"));
         assert!(setv.contains("lvcheck-pixel-logical"));
