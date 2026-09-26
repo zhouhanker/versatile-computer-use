@@ -563,6 +563,18 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, In
     }}
     $nh = [int64]$el.Current.NativeWindowHandle
     if ($nh -ne 0) {{
+      if (-not ("Vcu.VcuLinkClick" -as [type])) {{
+        Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount); [DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public static bool ClickLink(IntPtr hwnd, string expect) {{ System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; int hr = AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out acc); if (hr != 0 || acc == null) return false; int count = System.Convert.ToInt32(acc.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, acc, null)); for (int i = 1; i <= count; i++) {{ int role = -1; string name = ""; try {{ role = System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] {{ i }})); }} catch {{}} try {{ name = System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] {{ i }})); }} catch {{}} if (role == 30 && (string.IsNullOrEmpty(expect) || name == expect)) {{ acc.GetType().InvokeMember("accDoDefaultAction", System.Reflection.BindingFlags.InvokeMethod, null, acc, new object[] {{ i }}); return true; }} }} return false; }} public static bool IsStatic(IntPtr hwnd) {{ var sb = new System.Text.StringBuilder(256); GetClassName(hwnd, sb, 256); string c = sb.ToString().ToLowerInvariant(); return c.Contains("static") || c.Contains("linklabel"); }}' -Name VcuLinkClick -Namespace Vcu | Out-Null
+      }}
+      $expectName = [string]$el.Current.Name
+      if ([Vcu.VcuLinkClick]::ClickLink([IntPtr]$nh, $expectName)) {{
+        'ok:link_click'
+        exit 0
+      }}
+      if ([Vcu.VcuLinkClick]::IsStatic([IntPtr]$nh)) {{
+        'error:no-invoke-pattern'
+        exit 0
+      }}
       [void][Vcu.VcuInvoke100]::SendMessage([IntPtr]$nh, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)
       'ok:bm_click'
       exit 0
@@ -1544,6 +1556,8 @@ pub fn invoke_from_uia_output(
         "expand_collapse"
     } else if out.contains("ok:toggle") {
         "toggle"
+    } else if out.contains("ok:link_click") {
+        "link_click"
     } else if out.contains("ok:bm_click") {
         "bm_click"
     } else {
@@ -2412,6 +2426,8 @@ mod tests {
         assert_eq!(bm["os_cursor_used"], false);
         assert!(invoke_from_uia_output("notepad", "e2", "not-found").is_err());
         assert!(inv.contains("ok:bm_click") || inv.contains("0x00F5"));
+        assert!(inv.contains("ok:link_click"));
+        assert!(inv.contains("accDoDefaultAction"));
         let typed = set_value_from_uia_output("notepad", "e2", "ok:uia_set_value").unwrap();
         assert_eq!(typed["input_path"], "uia_set_value");
         let paste = set_value_from_uia_output("cmd", "e1", "ok:clipboard_paste").unwrap();

@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-043 已在本机复测：会话点击自建链接 VCU-LINK-B，路径是 link_click。标签变成 VCU-LINK-HIT。普通静态标签不再被 BM_CLICK 假报成功。按钮点击仍是 bm_click。没有移动系统光标。不是点链接像素，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-042 已在本机复测：会话按名字勾选自建列表视图的 VCU-LV-B，路径是 listview_check。标签变成 VCU-LV-ON-B。已勾选的行和不存在的行被拒绝。没有移动系统光标。不是点复选框像素，也不是 listview_select，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-041 已在本机复测：会话把自建数字框从 10 设成 40，路径是 number_set。标签变成 VCU-NUM-40。同一数字、超出范围和非整数被拒绝。没有移动系统光标。只改编辑框文字而没有 ValueChanged 不算成功。不是普通文本框，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。

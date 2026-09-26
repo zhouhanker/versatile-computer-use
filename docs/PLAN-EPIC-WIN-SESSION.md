@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选和链接点击已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -516,6 +516,21 @@
 - 结果：`CU-WIN-SESSION-042 OK win:powershell:740 01M3DKVF36AXJPXHV05CXE11HR ref=e1 path=listview_check value=VCU-LV-B cursor=1187,239`
 - 勾选后标签变成 `VCU-LV-ON-B`。只有 B 的 `ItemCheck` 会改这个标签。再勾选同一行和 `lvcheck:VCU-LV-MISSING` 都被拒绝。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成点复选框像素，也不写成取消勾选，也不写成 `listview_select`，也不写成完整产品 CU。
+
+
+
+## CU-WIN-SESSION-043 会话点击自建链接
+
+状态：**2026-09-26 本机复测通过。** 不是 `bm_click`，也不是点链接像素，也不是完整 Windows 产品 CU。
+
+- 以前 `vcu click` 对链接标签发 `BM_CLICK` 并返回 `bm_click`。标签仍是 `VCU-LINK-OLD`，`LinkClicked` 没有发生。那种结果不能报成功。鼠标消息打在控件里也没有事件。
+- 现在先找辅助功能子项。角色 30 且名字匹配时，走 `accDoDefaultAction`。这会让 `LinkClicked` 跟着跑。路径是 `link_click`。普通静态标签没有这个子项，不再用 `BM_CLICK` 假报成功。按钮仍是 `bm_click`。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，里面有链接 VCU-LINK-B 和普通标签 VCU-PLAIN。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_link.ps1`
+- 结果：`CU-WIN-SESSION-043 OK win:powershell:10124 01M3DM49R1FZNSVHDFWXKFP69G ref=e3 path=link_click value=VCU-LINK-B cursor=1187,239`
+- 点击后标签变成 `VCU-LINK-HIT`。普通标签的点击被拒绝。没有 SendInput，没有移动系统光标。
+- 按钮回归：`scripts/poc_win_session_click_label.ps1` 仍是 `CU-WIN-SESSION-022 OK ... path=bm_click`。
+- 不做：不把这次写成点链接像素，也不写成菜单项已点中。菜单项仍不在场景树里。也不写成完整产品 CU。
 
 
 ## 还没做
