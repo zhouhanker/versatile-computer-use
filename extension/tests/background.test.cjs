@@ -548,3 +548,36 @@ test("ensureOffscreen skips create when an offscreen document already exists", a
   const after = state.calls.filter((call) => call.method === "offscreen.createDocument").length;
   assert.equal(after, before);
 });
+
+
+test("open does not steal the focused user tab and lands in the VCU group", async () => {
+  const h = makeHarness({
+    tabs: [{ id: 1, windowId: 4, url: "https://user.example/", active: true }],
+    focusedWindowId: 4,
+  });
+  const opened = await h.api.handleCommand({
+    method: "open_tab",
+    params: { url: "https://agent.example/", active: true },
+  });
+  assert.equal(opened.ok, true, opened.error);
+  assert.equal(h.state.focusedWindowId, 4);
+  assert.equal(h.state.tabs.find((tab) => tab.id === 1).active, true);
+  assert.equal(h.state.tabs.find((tab) => tab.id === 1).url, "https://user.example/");
+  const created = h.state.tabs.find((tab) => tab.url === "https://agent.example/");
+  assert.equal(created.active, false);
+  const group = h.state.groups.find((item) => item.id === created.groupId);
+  assert.equal(group.title, "VCU");
+  assert.equal(group.color, "purple");
+  assert.equal(group.collapsed, true);
+  assert.equal(h.state.calls.some((call) => call.method === "windows.update"), false);
+  const again = await h.api.handleCommand({
+    method: "open_tab",
+    params: { url: "https://agent2.example/" },
+  });
+  assert.equal(again.ok, true, again.error);
+  const second = h.state.tabs.find((tab) => tab.url === "https://agent2.example/");
+  assert.equal(second.groupId, created.groupId);
+  assert.equal(second.active, false);
+  assert.equal(h.state.groups.filter((item) => item.title === "VCU").length, 1);
+  assert.equal(h.state.tabs.find((tab) => tab.id === 1).active, true);
+});

@@ -1,3 +1,5 @@
+更新：2026-09-26。打开网页不再抢占用户当前页。`open_tab` 一律新建后台标签，不聚焦窗口，也不改用户正在看的地址。未指定分组时进入折叠的紫色原生标签组「VCU」，同窗口复用，不接管已有用户组。Codex 的做法是浏览器扩展用 `chrome.tabs.group` / `tabGroups.update` 建任务组，例如红色的「Lichess AI practice」，`openTabs` 带回 `tabGroup`；建组在扩展里，不替换用户当前页。本机没有 `~/.codex/computer-use/`，没有改它的安装。Edge 复测：焦点停在 `https://x.com/home`，example.com 进 VCU 组且 active=false，测完已关。
+
 更新：2026-09-26。CU-WIN-SESSION-091 已在本机复测：科学计算器名为「分数」的按钮计算的是阶乘。5 变成显示为 120。路径是 uia_invoke。这不是把小数换成分数。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是模数，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
 
 更新：2026-09-26。CU-WIN-SESSION-090 已在本机复测：科学计算器 8 模 3 是 2。按「八」、「模数」、「三」、「等于」。路径是 uia_invoke，显示为 2。模数按钮之前显示不能已经是 2。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是除法，也不是 x 的指数，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。

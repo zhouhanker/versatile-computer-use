@@ -1,6 +1,9 @@
 // VCU extension service worker — Codex-like: auto-pair with local daemon, no CDP Allow dialogs.
 const DEFAULT_ENDPOINT = "http://127.0.0.1:17890";
 const DEFAULT_GROUP_COLOR = "purple";
+// Codex keeps agent pages in one native tab group instead of replacing the
+// user's current tab. This title is ours; do not attach to an existing user group.
+const AGENT_GROUP_TITLE = "VCU";
 const TAB_GROUP_COLORS = new Set([
   "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange",
 ]);
@@ -768,6 +771,37 @@ async function userWindowIdForNewTab() {
   return null;
 }
 
+
+async function attachDedicatedAgentGroup(tab) {
+  if (!tab || tab.id == null || tab.windowId == null) return null;
+  if (!chrome.tabs || typeof chrome.tabs.group !== "function") return null;
+  if (!chrome.tabGroups || typeof chrome.tabGroups.update !== "function") return null;
+  const windowId = tab.windowId;
+  let groups = [];
+  try { groups = await queryTabGroups(); } catch (_) { groups = []; }
+  const existing = groups.find((g) => String(g.window_id) === String(windowId) && g.title === AGENT_GROUP_TITLE);
+  try {
+    if (existing) {
+      const id = groupIdNumber(existing.group_id);
+      if (id === null) return null;
+      await chrome.tabs.group({ tabIds: [tab.id], groupId: id });
+      return id;
+    }
+    const created = await chrome.tabs.group({
+      tabIds: [tab.id],
+      createProperties: { windowId },
+    });
+    await chrome.tabGroups.update(created, {
+      title: AGENT_GROUP_TITLE,
+      color: DEFAULT_GROUP_COLOR,
+      collapsed: true,
+    });
+    return created;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function openTab(params) {
   const url = params.url || "";
   if (!url || !/^https?:/i.test(url)) return { ok: false, error: "http(s) url required" };
@@ -776,7 +810,9 @@ async function openTab(params) {
   if (hasSessionName && hasGroupId) return { ok: false, error: "session_name and group_id are mutually exclusive" };
   const sessionName = hasSessionName && params.session_name != null ? String(params.session_name).trim() : "";
   if (hasSessionName && !sessionName) return { ok: false, error: "session_name must be nonempty" };
-  const active = params.active === undefined ? true : !!params.active;
+  // active=true used to switch the user's current tab and focus the window.
+  // That is not the Codex tab-group model. Open never replaces that page.
+  const active = false;
   const newWindow = params.new_window === true;
   if (params.new_window !== undefined && typeof params.new_window !== "boolean") return { ok: false, error: "new_window must be boolean" };
   if (newWindow && hasGroupId) return { ok: false, error: "new_window and group_id are mutually exclusive" };
@@ -794,7 +830,7 @@ async function openTab(params) {
   let tab;
   try {
     if (newWindow) {
-      const win = await chrome.windows.create({ url, type: "normal", focused: active });
+      const win = await chrome.windows.create({ url, type: "normal", focused: false });
       tab = win.tabs?.[0] || (await chrome.tabs.query({ windowId: win.id }))[0];
       if (!tab) return { ok: false, error: "new browser window has no tab", window_id: String(win.id) };
     } else {
@@ -810,13 +846,13 @@ async function openTab(params) {
       await chrome.tabGroups.update(createdGroupId, {
         title: sessionName,
         color: DEFAULT_GROUP_COLOR,
-        collapsed: false,
+        collapsed: true,
       });
     } else if (targetGroupId !== null) {
       await chrome.tabs.group({ tabIds: [tab.id], groupId: targetGroupId });
-      if (active && targetGroup.collapsed) await chrome.tabGroups.update(targetGroupId, { collapsed: false });
+    } else {
+      await attachDedicatedAgentGroup(tab);
     }
-    if (active) await chrome.windows.update(tab.windowId, { focused: true });
   } catch (e) {
     return { ok: false, error: "open tab: " + String(e) };
   }

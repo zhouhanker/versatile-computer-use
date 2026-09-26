@@ -468,7 +468,7 @@ enum BrowserCmd {
         #[arg(long = "ref")]
         target_ref: Option<String>,
     },
-    /// Open http(s) URL in the existing USER window from last observe (Chrome vs Edge). No HUD, no OS cursor.
+    /// Open http(s) URL as a background tab in the VCU tab group. Does not replace the user page or focus the window.
     Open {
         #[arg(long)]
         url: String,
@@ -1319,7 +1319,8 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 Ok(ok_exit(&v))
             }
             BrowserCmd::Open { url, session_name, group, background, new_window, browser } => {
-                let mut body = json!({"url": url, "active": !background, "new_window": new_window});
+                let _ = background;
+                let mut body = json!({"url": url, "active": false, "new_window": new_window});
                 if let Some(name) = session_name { body["session_name"] = json!(name); }
                 if let Some(id) = group { body["group_id"] = json!(id); }
                 if let Some(b) = browser { body["browser"] = json!(b); }

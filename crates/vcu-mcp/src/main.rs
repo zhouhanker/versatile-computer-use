@@ -204,8 +204,8 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_browser_tabs", "List USER browser tabs and native groups, including focus and collapsed state.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_select", "Select an exact tab, expand its group and focus its browser window. Pass browser=chrome|edge when tab_id collides.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
         tool("vcu_browser_close", "Close exactly the explicitly named tab. Pass browser=chrome|edge when tab_id collides. Never substitutes another tab.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
-        tool("vcu_browser_open", "Open a new TAB in the existing USER window. browser=chrome|edge overrides last observe. new_window=true is opt-in.", json!({"type":"object","required":["url"],"properties":{
-            "url":{"type":"string"},"session_name":{"type":"string"},"group_id":{"type":"string"},"active":{"type":"boolean","default":true},"new_window":{"type":"boolean","default":false},"browser":{"type":"string","description":"chrome or edge"}
+        tool("vcu_browser_open", "Open a background tab in the VCU tab group. Does not replace the user page or focus the window. browser=chrome|edge overrides last observe. new_window=true is opt-in.", json!({"type":"object","required":["url"],"properties":{
+            "url":{"type":"string"},"session_name":{"type":"string"},"group_id":{"type":"string"},"active":{"type":"boolean","default":false},"new_window":{"type":"boolean","default":false},"browser":{"type":"string","description":"chrome or edge"}
         }})),
         tool("vcu_browser_group", "Group explicit same-window tab IDs in one browser. Rejects Chrome+Edge mixes. Pass browser when tab_id collides.", json!({"type":"object","required":["tab_ids","title"],"properties":{
             "tab_ids":{"type":"array","minItems":1,"items":{"type":"string"}},"title":{"type":"string"},"color":{"type":"string","default":"purple"},"collapsed":{"type":"boolean","default":false},"browser":{"type":"string"}

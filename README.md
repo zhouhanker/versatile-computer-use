@@ -105,6 +105,8 @@ vcu browser ping --json
 
 登录态网页操作：
 
+`vcu browser open` 在当前窗口新建后台标签，并放进名为 VCU 的紫色原生标签组。不替换用户正在看的页面，也不聚焦窗口。这和 Codex 把代理标签放进单独标签组的方式一致。`--background` 仍可写，但已经不是防抢焦点的开关。
+
 ```bash
 vcu browser login-state
 vcu browser tabs --json
@@ -112,8 +114,8 @@ vcu browser observe --json          # 前台须为 Chrome 或 Edge
 vcu browser observe --tab <id> --json
 vcu browser observe --browser chrome --json
 vcu browser select --tab <id>
-vcu browser open --url https://example.com --background
-vcu browser open --url https://example.com --browser chrome --background
+vcu browser open --url https://example.com
+vcu browser open --url https://example.com --browser chrome
 vcu browser extract --tab <id> --selector a --json
 vcu browser extract --tab <id> --browser chrome --selector a --json
 vcu browser click --tab <id> --selector '#continue'
