@@ -1799,7 +1799,34 @@ function Click-VcuRadioPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   exit 0
 }
 
+function Click-VcuButtonPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:button-pixel-name'; exit 0 }
+  $parts = $expect.Split("|")
+  if ($parts.Length -ne 2 -or [string]::IsNullOrWhiteSpace($parts[0]) -or [string]::IsNullOrWhiteSpace($parts[1])) { 'error:button-pixel-name'; exit 0 }
+  $name = $parts[0]
+  $label = $parts[1]
+  if (-not ("Vcu.VcuButtonPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static IntPtr Find(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; IntPtr found = IntPtr.Zero; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (found == IntPtr.Zero && sb.ToString() == expect) found = child; return true; }, IntPtr.Zero); if (found == IntPtr.Zero) { var self = new System.Text.StringBuilder(128); GetWindowText(hwnd, self, 128); if (self.ToString() == expect) found = hwnd; } return found; } public static bool Seen(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; bool found = false; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (sb.ToString() == expect) found = true; return !found; }, IntPtr.Zero); return found; } public static bool Click(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return false; int w = r.Right - r.Left; int h = r.Bottom - r.Top; if (w < 2 || h < 2) return false; int x = w / 2; int y = h / 2; IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); SendMessage(hwnd, 0x0201, (IntPtr)1, lp); SendMessage(hwnd, 0x0202, IntPtr.Zero, lp); return true; }' -Name VcuButtonPixel -Namespace Vcu | Out-Null
+  }
+  $hit = [Vcu.VcuButtonPixel]::Find($h, $name)
+  if ($hit -eq [IntPtr]::Zero) { 'error:button-pixel-name'; exit 0 }
+  if ([Vcu.VcuButtonPixel]::Seen($h, $label)) { 'error:button-pixel-state'; exit 0 }
+  # button-pixel-logical: client center. Not BM_CLICK.
+  if (-not [Vcu.VcuButtonPixel]::Click($hit)) { 'error:button-pixel-rect'; exit 0 }
+  for ($n = 0; $n -lt 8; $n++) {
+    if ([Vcu.VcuButtonPixel]::Seen($h, $label)) { "ok:button_pixel"; exit 0 }
+    Start-Sleep -Milliseconds 50
+  }
+  'error:button-pixel-state'
+  exit 0
+}
+
 function Set-VcuElement($el, [string]$expect) {
+  if ($expect.StartsWith("btnpix:")) {
+    $bh = [int64]$el.Current.NativeWindowHandle
+    if ($bh -ne 0) { Click-VcuButtonPixel ([IntPtr]$bh) $expect.Substring(7) $targetPid }
+    return
+  }
   if ($expect.StartsWith("radiopix:")) {
     $rh = [int64]$el.Current.NativeWindowHandle
     if ($rh -ne 0) { Click-VcuRadioPixel ([IntPtr]$rh) $expect.Substring(9) $targetPid }
@@ -2276,6 +2303,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:combo_select")
         || out.contains("ok:list_pixel")
         || out.contains("ok:list_select")
+        || out.contains("ok:button_pixel")
         || out.contains("ok:radio_pixel")
         || out.contains("ok:check_pixel")
         || out.contains("ok:check_set")
@@ -2330,6 +2358,8 @@ pub fn set_value_from_uia_output(
             "uncheck_pixel"
         } else if out.contains("ok:uncheck_set") {
             "uncheck_set"
+        } else if out.contains("ok:button_pixel") {
+            "button_pixel"
         } else if out.contains("ok:radio_pixel") {
             "radio_pixel"
         } else if out.contains("ok:check_pixel") {
@@ -3024,6 +3054,9 @@ mod tests {
         assert!(setv.contains("0x0197"));
         assert!(!setv.contains("0x0198"));
         assert!(setv.contains("ok:list_select"));
+        assert!(setv.contains("ok:button_pixel"));
+        assert!(setv.contains("btnpix:"));
+        assert!(setv.contains("button-pixel-logical"));
         assert!(setv.contains("ok:radio_pixel"));
         assert!(setv.contains("radiopix:"));
         assert!(setv.contains("radio-pixel-logical"));
