@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条和勾选列表已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -462,6 +462,19 @@
 - 结果：`CU-WIN-SESSION-038 OK win:powershell:1464 01M3DJDC1HJ1M2Y1YFQPN52NYG ref=e1 path=check_set value=VCU-CHK-B cursor=1187,239`
 - 勾选后标签变成 `VCU-CHK-ON-B`。只有 B 的 `ItemCheck` 会改这个标签。`check:VCU-CHK-MISSING` 被拒绝。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成点复选框像素，也不写成取消勾选，也不写成完整产品 CU。
+
+
+
+## CU-WIN-SESSION-039 会话按名字取消勾选列表项
+
+状态：**2026-09-26 本机复测通过。** 不是点复选框像素，也不是 `check_set` 或 `list_select`，也不是完整 Windows 产品 CU。
+
+- `vcu type` 在类名含 ListBox 的控件上，文本以 `uncheck:` 开头时按行文字查找。该行必须已经勾选。用 `LBC_SETCHECKSTATE` 把状态设成 0，再用 `LBC_GETCHECKSTATE` 读回。读回不是未勾选就不报成功。这会让 `ItemCheck` 跟着跑。没有同名行不会报成功。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，VCU-CHK-A 未勾选，VCU-CHK-B 已勾选。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_unchecked_list.ps1`
+- 结果：`CU-WIN-SESSION-039 OK win:powershell:18556 01M3DJKX6FBW8EAJ5MNCFGNC8C ref=e1 path=uncheck_set value=VCU-CHK-B cursor=1187,239`
+- 取消后标签变成 `VCU-CHK-OFF-B`。只有 B 的取消 `ItemCheck` 会改这个标签。`uncheck:VCU-CHK-MISSING` 被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点复选框像素，也不写成 `check_set`，也不写成完整产品 CU。
 
 
 ## 还没做

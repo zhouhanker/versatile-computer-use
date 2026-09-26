@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-039 已在本机复测：会话按名字取消自建勾选列表的 VCU-CHK-B，路径是 uncheck_set。标签变成 VCU-CHK-OFF-B。不存在的行被拒绝。没有移动系统光标。不是点复选框像素，也不是 check_set，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-038 已在本机复测：会话按名字勾选自建勾选列表的 VCU-CHK-B，路径是 check_set。标签变成 VCU-CHK-ON-B。不存在的行被拒绝。没有移动系统光标。不是点复选框像素，也不是 list_select，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-037 已在本机复测：会话按名字折叠已展开的自建树节点 VCU-COL-A，路径是 tree_collapse。标签变成 VCU-COL-CLOSED。不存在的节点被拒绝。没有移动系统光标。只发 TVE_COLLAPSE 不会跑 AfterCollapse，成功路径在展开位清掉后反射 TVN_ITEMEXPANDEDW。不是点折叠图标，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
