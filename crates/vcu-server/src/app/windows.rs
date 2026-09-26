@@ -1582,7 +1582,19 @@ using System.Runtime.InteropServices;
 public static class VcuPrintWindow {{
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
   [StructLayout(LayoutKind.Sequential)] public struct RECT {{ public int Left; public int Top; public int Right; public int Bottom; }}
+  [StructLayout(LayoutKind.Sequential)] public struct POINT {{ public int x; public int y; }}
+  public static bool CenterBelongs(IntPtr target, int x, int y) {{
+    if (target == IntPtr.Zero || IsIconic(target)) return false;
+    POINT p = new POINT(); p.x = x; p.y = y;
+    IntPtr hit = WindowFromPoint(p);
+    if (hit == IntPtr.Zero) return false;
+    if (hit == target) return true;
+    return GetAncestor(hit, 2) == target;
+  }}
 }}
 "@
 $hwnd = Wait-VcuHwnd {pid}
@@ -1598,13 +1610,20 @@ $hdc = $g.GetHdc()
 $g.ReleaseHdc($hdc)
 $g.Dispose()
 # PrintWindow can return an empty black bitmap for some WinForms windows.
-# Only then copy this window rectangle, not the whole desktop. Occluders can appear.
+# Only then copy this window rectangle, not the whole desktop. If the center is covered, refuse.
 $blank = $true
 foreach ($pt in @(@([int]($w/2), [int]($h/2)), @(2, 2), @([Math]::Max(0, $w-3), [Math]::Max(0, $h-3)))) {{
   $px = $bmp.GetPixel($pt[0], $pt[1])
   if ($px.R -gt 40 -or $px.G -gt 40 -or $px.B -gt 40) {{ $blank = $false; break }}
 }}
 if ($blank) {{
+  $cx = [int](($rect.Left + $rect.Right) / 2)
+  $cy = [int](($rect.Top + $rect.Bottom) / 2)
+  if (-not [VcuPrintWindow]::CenterBelongs($hwnd, $cx, $cy)) {{
+    $bmp.Dispose()
+    'OCCLUDED'
+    exit 0
+  }}
   try {{
     $g2 = [System.Drawing.Graphics]::FromImage($bmp)
     $g2.CopyFromScreen($rect.Left, $rect.Top, 0, 0, (New-Object System.Drawing.Size $w, $h))
@@ -2436,7 +2455,9 @@ Get-Process -Name Notepad -ErrorAction SilentlyContinue | Where-Object { $_.Main
             };
             let raw = Self::run_powershell(&uia_capture_script(pid))?;
             let Some((png, frame)) = parse_uia_capture_output(&raw) else {
-                let why = if raw.contains("MISSING") {
+                let why = if raw.contains("OCCLUDED") {
+                    "window is covered; refusing to copy the screen rectangle"
+                } else if raw.contains("MISSING") {
                     "no visible HWND"
                 } else {
                     "PrintWindow output was not a PNG"
@@ -2790,6 +2811,8 @@ mod tests {
         assert!(cap_script.contains("PrintWindow"));
         assert!(cap_script.contains("GetWindowRect"));
         assert!(cap_script.contains("CopyFromScreen"));
+        assert!(cap_script.contains("OCCLUDED"));
+        assert!(cap_script.contains("WindowFromPoint"));
         assert!(cap_script.contains("$blank"));
         assert!(!cap_script.to_ascii_lowercase().contains("sendinput"));
         assert!(!cap_script.to_ascii_lowercase().contains("mouse_event"));
