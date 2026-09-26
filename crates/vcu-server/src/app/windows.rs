@@ -599,6 +599,28 @@ public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, In
         'error:no-invoke-pattern'
         exit 0
       }}
+      $xyName = [string]([char]0x201C + 'X' + [char]0x201D + [char]0x7684 + [char]0x6307 + [char]0x6570)
+      if ($expectName -eq $xyName) {{
+        for ($xyTry = 0; $xyTry -lt 4; $xyTry++) {{
+          try {{
+            $xyInv = $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+            $xyInv.Invoke()
+            'ok:uia_invoke'
+            exit 0
+          }} catch {{
+            Start-Sleep -Milliseconds 80
+          }}
+        }}
+        if (-not ("Vcu.VcuXyInvoke" -as [type])) {{
+          Add-Type -MemberDefinition '[DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public static bool Invoke(IntPtr hwnd) {{ System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; int hr = AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out acc); if (hr != 0 || acc == null) return false; try {{ acc.GetType().InvokeMember("accDoDefaultAction", System.Reflection.BindingFlags.InvokeMethod, null, acc, new object[] {{ 0 }}); return true; }} catch {{ return false; }} }}' -Name VcuXyInvoke -Namespace Vcu | Out-Null
+        }}
+        if ([Vcu.VcuXyInvoke]::Invoke([IntPtr]$nh)) {{
+          'ok:xy_invoke'
+          exit 0
+        }}
+        'error:xy-not-invoked'
+        exit 0
+      }}
       [void][Vcu.VcuInvoke100]::SendMessage([IntPtr]$nh, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)
       'ok:bm_click'
       exit 0
@@ -3543,6 +3565,8 @@ pub fn invoke_from_uia_output(
         "menu_nth"
     } else if out.contains("ok:menu_click") {
         "menu_click"
+    } else if out.contains("ok:xy_invoke") {
+        "xy_invoke"
     } else if out.contains("ok:bm_click") {
         "bm_click"
     } else {
@@ -4639,6 +4663,8 @@ mod tests {
         assert_eq!(bm["input_path"], "bm_click");
         assert_eq!(bm["os_cursor_used"], false);
         assert!(invoke_from_uia_output("notepad", "e2", "not-found").is_err());
+        assert!(inv.contains("ok:xy_invoke"));
+        assert!(inv.contains("0x201C"));
         assert!(inv.contains("ok:bm_click") || inv.contains("0x00F5"));
         assert!(inv.contains("ClickNth"));
         assert!(inv.contains("ok:menu_nth"));

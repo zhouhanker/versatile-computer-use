@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-087 科学计算器 x 的指数已在本机复测，2 的 3 次方是 8。不是 10 的指数。
+
 更新：2026-09-26。CU-WIN-SESSION-086 科学计算器 10 的指数已在本机复测，路径是 uia_invoke。不是绝对值。
 
 更新：2026-09-26。CU-WIN-SESSION-085 科学计算器绝对值已在本机复测，路径是 uia_invoke。不是倒数。
@@ -240,7 +242,7 @@
 - 两次结果不同。角度是「显示为 0.05480366514878953088774871353983」，弧度是「显示为 0」。
 - 三角菜单打开时「清除」可能不在树里。算完先把「三角学」再 toggle 一次，再找「清除」或「清除条目」。
 - 没有 SendInput，没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
-- 平方根 9、平方 8、倒数 4、绝对值和 10 的指数已复测。没有覆盖完整科学函数矩阵。
+- 平方根 9、平方 8、倒数 4、绝对值、10 的指数和 x 的指数已复测。没有覆盖完整科学函数矩阵。
 
 ## CU-WIN-SESSION-018 会话截图自建窗口
 
@@ -1122,6 +1124,19 @@
 - 切到科学模式后按「二」，确认「显示为 2」，再按「十的指数」。路径是 `uia_invoke`，显示是「显示为 100」。切回标准模式后 π 按钮消失。
 - 没有 SendInput。没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
 - 不做：不把这次写成绝对值或完整科学函数矩阵，也不放行整个 ApplicationFrameHost。
+
+
+
+## CU-WIN-SESSION-087 会话科学模式计算 x 的指数
+
+状态：**2026-09-26 本机复测通过。** 不是 10 的指数，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
+
+- 开始前没有已打开的计算器窗口。脚本自己启动计算器，测完切回标准模式，再只关闭 CalculatorApp。
+- 命令：`powershell -File scripts/poc_win_session_calc_pow.ps1`
+- 结果：`CU-WIN-SESSION-087 OK win:Calculator:18668 01M3EAW811Q4H51BN2HQHZ1FP4 2^3=8 restored cursor=801,555`
+- 切到科学模式后按「二」，确认「显示为 2」，再按「“X”的指数」。这次点击是 `uia_invoke`，引用 e50。`BM_CLICK` 不会让这个按钮进入乘方，所以不再把它报成成功；Invoke 没有立刻就绪时会重试。然后按「三」和「等于」。显示是「显示为 8」。乘方按钮之前显示不能已经是 8。切回标准模式后 π 按钮消失。
+- 没有 SendInput。没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。单测 `windows_backend_platform_and_denials` 通过。
+- 不做：不把这次写成 10 的指数或完整科学函数矩阵，也不放行整个 ApplicationFrameHost。
 
 
 ## 还没做

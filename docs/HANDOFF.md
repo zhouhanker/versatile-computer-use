@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-087 已在本机复测：科学计算器 2 的 3 次方是 8。按「“X”的指数」走 uia_invoke。BM_CLICK 不会让这个按钮进入乘方，所以不再把它报成成功。显示为 8。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是 10 的指数，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
+
 更新：2026-09-26。CU-WIN-SESSION-086 已在本机复测：科学计算器 10 的指数，2 的结果是 100。路径是 uia_invoke。显示为 100。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是绝对值，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
 
 更新：2026-09-26。CU-WIN-SESSION-085 已在本机复测：科学计算器先按正负再按绝对值，5 的负值变回 5。路径是 uia_invoke。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是倒数，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
