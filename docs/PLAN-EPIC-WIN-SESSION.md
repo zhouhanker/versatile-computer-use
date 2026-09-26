@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、空白遮挡拒绝、等待、写入、按钮点击、按钮像素点击、同名消歧、提取、按角色等待、复选框、单选按钮、单选按钮点击、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、勾选框点击、取消勾选点击、日期和数字框和列表视图勾选、列表视图复选框像素点击、列表视图取消勾选像素点击、列表视图行像素点击、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、空白遮挡拒绝、等待、写入、按钮点击、按钮像素点击、同名消歧、提取、按角色等待、复选框、单选按钮、单选按钮点击、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、勾选框点击、取消勾选点击、日期和数字框和列表视图勾选、列表视图复选框像素点击、列表视图取消勾选像素点击、列表视图行像素点击、日期下拉点击、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -849,6 +849,18 @@
 - 结果：`CU-WIN-SESSION-067 OK win:powershell:18808 01M3DZ9F4KW8AR5CRKWBX1XZ99 ref=e3 path=lvrow_pixel value=VCU-LV-B cursor=789,599`
 - 点中后标签变成 `VCU-LV-PICKED-B`。再点同一行和不存在的行被拒绝。`scripts/poc_win_session_listview.ps1` 仍是 `listview_select`。没有移动系统光标。Edge 扩展仍 `pong`。单测 `windows_backend_platform_and_denials` 通过。
 - 不做：不把这次写成 `listview_select`，也不写成完整产品 CU。
+
+
+## CU-WIN-SESSION-068 会话点日期框下拉箭头
+
+状态：**2026-09-26 本机复测通过。** 不是 `date_set`，也不是完整 Windows 产品 CU。
+
+- 040 用 `DTM_SETSYSTEMTIME` 写日期，不点下拉箭头。这次 `vcu type` 文本以 `datepix:` 开头，后面是 `YYYY-MM-DD`。格式不对、已经是这一天、或者不是当前显示的月份，都拒绝。下拉按钮宽度按垂直滚动条。点箭头用 `SendMessageTimeout`，因为同一进程的 `PostMessage` 打不开月历。月历弹出后再点当月可见的那一天。读回 `DTM_GETSYSTEMTIME` 必须是这一天。对不上就不报成功，也不改走 `DTM_SETSYSTEMTIME`。这会让 `ValueChanged` 跟着跑。没有 SendInput，没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，初始日期是 2026-01-02。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_date_pixel.ps1`
+- 结果：`CU-WIN-SESSION-068 OK win:powershell:9020 01M3E14N9EDZ6SF5QF1WDKCPGC ref=e1 path=date_pixel value=2026-01-20 cursor=763,791`
+- 点中后标签变成 `VCU-DTP-2026-01-20`。再点同一天、非法日期和别的月份被拒绝。`scripts/poc_win_session_date.ps1` 仍是 `date_set`。没有移动系统光标。Edge 扩展仍 `pong`。单测 `windows_backend_platform_and_denials` 通过。
+- 不做：不把这次写成 `date_set`，也不写成完整产品 CU。不点别的月份。
 
 
 ## 还没做
