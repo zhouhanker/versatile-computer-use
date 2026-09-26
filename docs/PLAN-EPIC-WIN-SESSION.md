@@ -586,6 +586,19 @@
 - 不做：不把这次写成点箭头，也不写成设置日期，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-048 会话设置自建数字框的小数
+
+状态：**2026-09-26 本机复测通过。** 不是点上下箭头，也不是整数 `number_set`，也不是完整 Windows 产品 CU。
+
+- 041 只接受整数。这次 `vcu type` 文本以 `decimal:` 开头时，只处理旋转按钮里的编辑框。文本必须是带小数点的十进制数，用不变区域性解析。没有小数点、格式不对，或当前数值已经等于这个数，都拒绝。写入后发 `WM_KILLFOCUS`，再按不变区域性或当前区域性读回。读回数值不是请求值就不报成功，所以超出范围被夹断也不算成功。这会让 `ValueChanged` 跟着跑。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，小数位是 2，范围 0 到 100，初始是 10.25。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_decimal.ps1`
+- 结果：`CU-WIN-SESSION-048 OK win:powershell:3908 01M3DPMGM1K7M5GTWNJH65XKAX ref=e1 path=decimal_set value=12.5 cursor=1187,239`
+- 事件把标签改成 `VCU-DEC-12.5`。再写 12.5、`decimal:150.5`、`decimal:nope` 和 `decimal:40` 都被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点箭头，也不写成整数路径，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。

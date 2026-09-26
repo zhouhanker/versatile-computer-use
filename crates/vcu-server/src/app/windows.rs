@@ -772,13 +772,16 @@ function Select-VcuUncheckedList([IntPtr]$h, [string]$expect) {
   "ok:uncheck_set"
   exit 0
 }
+function Initialize-VcuNumberHost {
+  if (-not ("Vcu.VcuNumberHost" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc lpEnumFunc, IntPtr lParam); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); public static bool HasSpinnerSibling(IntPtr parent, IntPtr edit) { bool found = false; EnumChildWindows(parent, (h, l) => { if (h == edit) return true; var sb = new System.Text.StringBuilder(256); GetClassName(h, sb, 256); string c = sb.ToString().ToLowerInvariant(); if (c.Contains("window") && !c.Contains("edit")) found = true; return true; }, IntPtr.Zero); return found; }' -Name VcuNumberHost -Namespace Vcu | Out-Null
+  }
+}
 function Select-VcuNumber([IntPtr]$h, [string]$expect, [IntPtr]$top) {
   $n = 0
   if (-not [int]::TryParse($expect, [ref]$n)) { 'error:number-format'; exit 0 }
   if ($expect -ne $n.ToString()) { 'error:number-format'; exit 0 }
-  if (-not ("Vcu.VcuNumberHost" -as [type])) {
-    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc lpEnumFunc, IntPtr lParam); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); public static bool HasSpinnerSibling(IntPtr parent, IntPtr edit) { bool found = false; EnumChildWindows(parent, (h, l) => { if (h == edit) return true; var sb = new System.Text.StringBuilder(256); GetClassName(h, sb, 256); string c = sb.ToString().ToLowerInvariant(); if (c.Contains("window") && !c.Contains("edit")) found = true; return true; }, IntPtr.Zero); return found; }' -Name VcuNumberHost -Namespace Vcu | Out-Null
-  }
+  Initialize-VcuNumberHost
   $parent = [Vcu.VcuNumberHost]::GetParent($h)
   if ($parent -eq [IntPtr]::Zero -or $parent -eq $top) { return }
   if (-not [Vcu.VcuNumberHost]::HasSpinnerSibling($parent, $h)) { return }
@@ -791,6 +794,33 @@ function Select-VcuNumber([IntPtr]$h, [string]$expect, [IntPtr]$top) {
   [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 13, 64, $tb2)
   if ($tb2.ToString() -ne $expect) { 'error:number-state'; exit 0 }
   "ok:number_set"
+  exit 0
+}
+
+function Select-VcuDecimal([IntPtr]$h, [string]$expect, [IntPtr]$top) {
+  if ($expect -notmatch '^-?\d+\.\d+$') { 'error:decimal-format'; exit 0 }
+  $want = [decimal]0
+  $style = [Globalization.NumberStyles]::AllowLeadingSign -bor [Globalization.NumberStyles]::AllowDecimalPoint
+  if (-not [decimal]::TryParse($expect, $style, [Globalization.CultureInfo]::InvariantCulture, [ref]$want)) { 'error:decimal-format'; exit 0 }
+  Initialize-VcuNumberHost
+  $parent = [Vcu.VcuNumberHost]::GetParent($h)
+  if ($parent -eq [IntPtr]::Zero -or $parent -eq $top) { return }
+  if (-not [Vcu.VcuNumberHost]::HasSpinnerSibling($parent, $h)) { return }
+  $tb = New-Object System.Text.StringBuilder 64
+  [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 13, 64, $tb)
+  $before = [decimal]0
+  $haveBefore = [decimal]::TryParse($tb.ToString(), $style, [Globalization.CultureInfo]::InvariantCulture, [ref]$before)
+  if (-not $haveBefore) { $haveBefore = [decimal]::TryParse($tb.ToString(), $style, [Globalization.CultureInfo]::CurrentCulture, [ref]$before) }
+  if ($haveBefore -and $before -eq $want) { 'error:decimal-state'; exit 0 }
+  [void][Vcu.VcuSetValue070]::SendMessage($h, 12, [IntPtr]::Zero, $expect)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0008, [IntPtr]::Zero, [IntPtr]::Zero)
+  $tb2 = New-Object System.Text.StringBuilder 64
+  [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 13, 64, $tb2)
+  $after = [decimal]0
+  $haveAfter = [decimal]::TryParse($tb2.ToString(), $style, [Globalization.CultureInfo]::InvariantCulture, [ref]$after)
+  if (-not $haveAfter) { $haveAfter = [decimal]::TryParse($tb2.ToString(), $style, [Globalization.CultureInfo]::CurrentCulture, [ref]$after) }
+  if (-not $haveAfter -or $after -ne $want) { 'error:decimal-state'; exit 0 }
+  "ok:decimal_set"
   exit 0
 }
 function Test-VcuDateClass([string]$cls) {
@@ -1364,6 +1394,10 @@ function Set-VcuElement($el, [string]$expect) {
   }
   if (Test-VcuConsoleClass $cls) { return }
   if (-not (Test-VcuEditClass $cls)) { return }
+  if ($expect.StartsWith("decimal:")) {
+    Select-VcuDecimal ([IntPtr]$nh) $expect.Substring(8) $hwnd
+    return
+  }
   if ($expect.StartsWith("number:")) {
     Select-VcuNumber ([IntPtr]$nh) $expect.Substring(7) $hwnd
     return
@@ -1707,6 +1741,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:uncheck_set")
         || out.contains("ok:time_set")
         || out.contains("ok:date_set")
+        || out.contains("ok:decimal_set")
         || out.contains("ok:number_set")
         || out.contains("ok:menu_click")
         || out.contains("ok:track_select")
@@ -1725,6 +1760,8 @@ pub fn set_value_from_uia_output(
             "combo_select"
         } else if out.contains("ok:menu_click") {
             "menu_click"
+        } else if out.contains("ok:decimal_set") {
+            "decimal_set"
         } else if out.contains("ok:number_set") {
             "number_set"
         } else if out.contains("ok:time_set") {
@@ -2406,6 +2443,8 @@ mod tests {
         assert!(setv.contains("ok:time_set"));
         assert!(setv.contains("time:"));
         assert!(setv.contains("ok:date_set"));
+        assert!(setv.contains("ok:decimal_set"));
+        assert!(setv.contains("decimal:"));
         assert!(setv.contains("ok:number_set"));
         assert!(setv.contains("ok:menu_click"));
         assert!(setv.contains("Get-VcuMenuSceneNames"));

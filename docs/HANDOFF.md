@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-048 已在本机复测：会话把自建数字框从 10.25 设成 12.5，路径是 decimal_set。标签变成 VCU-DEC-12.5。同一数值、超出范围、非小数和没有小数点的文本被拒绝。没有移动系统光标。不是点箭头，也不是 number_set，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-047 已在本机复测：会话把自建时间从 08:00:00 设成 15:30:45，路径是 time_set。标签变成 VCU-TIME-15:30:45。同一时刻、非法时间和非时间文本被拒绝。没有移动系统光标。不是点箭头，也不是 date_set，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-046 已在本机复测：会话按名字取消勾选自建列表视图的 VCU-LV-B，路径是 listview_uncheck。标签变成 VCU-LV-OFF-B。已取消的行和不存在的行被拒绝。没有移动系统光标。不是点复选框像素，也不是 listview_check，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
