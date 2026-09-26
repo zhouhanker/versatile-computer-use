@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-074 会话先点时间框分钟字段再点上箭头已在本机复测，路径是 time_minute_pixel。不是 time_pixel。
+
 更新：2026-09-26。CU-WIN-SESSION-073 会话点时间框下箭头已在本机复测，路径是 time_down_pixel。不是 time_pixel。
 
 更新：2026-09-26。CU-WIN-SESSION-072 会话点时间框上箭头已在本机复测，路径是 time_pixel。不是 time_set。
@@ -929,11 +931,24 @@
 - 不做：不把这次写成 `time_set` 或 `time_pixel`，也不写成完整产品 CU。不一次点击改分钟或秒。
 
 
+
+## CU-WIN-SESSION-074 会话点时间框分钟字段再点上箭头
+
+状态：**2026-09-26 本机复测通过。** 不是 `time_pixel`，也不是完整 Windows 产品 CU。
+
+- 072 只点上箭头，改的是当前小时字段。这次 `vcu type` 文本以 `timepix:mup:` 开头，后面是目标 `HH:mm:ss`。先点时间框客户区宽度 14% 处的分钟字段，再点 `msctls_updown32` 的上半部。读回必须是目标时间，并且发生 `ValueChanged`。已是目标时间、非法时间，或一次点击到不了目标，都拒绝。没有 SendInput。点击本身没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，`ShowUpDown` 打开，初始时间是 08:00:00。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_time_minute_pixel.ps1`
+- 结果：`CU-WIN-SESSION-074 OK win:powershell:16336 01M3E5G2YPT3PGNSWCZVH85XDZ ref=e1 path=time_minute_pixel value=08:01:00 cursor=1377,598`
+- 点中后标签变成 `VCU-TIME-08:01:00`。再点同一时刻、非法时间和一次点击跨两分钟被拒绝。没有 SendInput。Edge 扩展仍在轮询。单测 `windows_backend_platform_and_denials` 通过。
+- 不做：不把这次写成 `time_set` 或 `time_pixel`，也不写成完整产品 CU。秒字段不在本切片。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
 - 树展开是 `tree_expand`，树折叠是 `tree_collapse`。折叠不是点图标。只清展开位而没有 `AfterCollapse` 不算成功。树节点文字点击是 `tree_pixel`，不是 `tree_select`。展开图标仍是 `tree_icon`。
-- 时间框上箭头是 `time_pixel`，下箭头是 `time_down_pixel`。一次点击只改当前小时字段。数字框微调仍是 `spin_up` / `spin_down`。跨进程改文字如果没有对应变更事件，不能报成功。
+- 时间框上箭头是 `time_pixel`，下箭头是 `time_down_pixel`。先点分钟字段再点上箭头是 `time_minute_pixel`。秒字段不在本切片。数字框微调仍是 `spin_up` / `spin_down`。跨进程改文字如果没有对应变更事件，不能报成功。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
 - 052 在 PrintWindow 仍有像素时走窗口像素。060 已实测空白且中心被挡住时拒绝复制屏幕。
 - 没有在 100% DPI 和其他机器上复测。
