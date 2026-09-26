@@ -1,3 +1,73 @@
+# 会话交接
+
+更新：2026-09-26。这是当前 Windows 会话的上下文，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。
+
+## 这次做了什么
+
+Windows 浏览器相对 macOS 补了两点，都已推到 `origin/main`。
+
+| 点 | 做法 | 提交 |
+| --- | --- | --- |
+| 前台判断 | `GetForegroundWindow` + 进程映像名。不改焦点，不用 AX，不用 `CGWindowID` | `971a7b7` |
+| 扩展重载兜底 | worker 没接住 `reload_self` 时，只把 `chrome-extension://<id>/reload.html` 交给已经在跑的用户浏览器 | `971a7b7` |
+| 复测记录 | 见下方 | `858ef22` |
+
+作者 `zhouhanker <zhouhanker@gmail.com>`。远端 `git@github.com:zhouhanker/versatile-computer-use.git`。本机 GitHub 用户名是 `zhouhanker`。仓库 Contributors API 只有 `zhouhanker`，没有改写历史。
+
+流程细则在 `docs/WINDOWS-DEV.md`。扩展继续本地加载，不上 Chrome 网上应用店，也不上 Edge 加载项。README 不写大段边界。
+
+## 本机复测
+
+前台：
+
+- Windows Terminal 在前台时，`login-state` 的 `frontmost_app` 为空。不带 `--tab` 的 `observe` 失败，错误是 `frontmost is not USER Chrome/Edge`。
+- Edge 在前台时，`frontmost_app` 是 `Microsoft Edge`，`frontmost_matched=true`，`source=extension_viewport`，`app_id=proc:Microsoft_Edge:16520`。
+
+重载：
+
+- 已连接时 `vcu browser ping --reload` 仍走 `reload_self`。标签数不变，焦点不变。
+- 让正在跑的 worker 拒绝 `reload_self` 后，同一条命令返回 `page_reload=true`、`confirmed=true`，随后 `ping` 再次 pong。没有调试同意框，没有残留 reload 标签。
+- 直接 `msedge.exe chrome-extension://<id>/reload.html` 也能让扩展重载。标签经常马上消失，因为 `reload.js` 立刻调用 `chrome.runtime.reload()`。这不代表没打开。
+- `--app` 和 `--new-window` 会落到 `edge://newtab` 并留下窗口，不要用。摸文件 mtime 不会重载。不要加 `--remote-debugging-port`。浏览器没在跑就不冷启动。
+
+本机 Edge 扩展 id 是 `hmmglhlabkppklocfnnbogpajolnijgl`，目录是 `%USERPROFILE%\.vcu\lens-extension`。测试时临时改过已安装的 `background.js`，已经还原。ping 不再带 probe。
+
+没有测 Chrome。没有点「允许调试」。没有移动系统光标。没有自动化微信。没有改 `~/.codex/computer-use/`。不是 `TC-B-040`。
+
+## 下一次接着做时
+
+先读 `docs/PLAN.md`，再读 `docs/WINDOWS-DEV.md`，再读本文。不要把下面的旧快照当成排期。
+
+本机命令前缀用 `rtk`。工具链是 `cargo +stable-x86_64-pc-windows-gnu`。二进制在 `target/x86_64-pc-windows-gnu/debug/`。daemon 是独立 crate `vcu-daemon`。只编 `vcu-server` 不会换掉正在跑的 `vcu-daemon.exe`。替换时先 `Stop-Process` 停旧进程，再启动：
+
+```powershell
+target\x86_64-pc-windows-gnu\debug\vcu-daemon.exe --user-dir C:\Users\liyue\.vcu
+```
+
+`vcu daemon stop` 在 Windows 上会去调用不存在的 `kill`，只删 pid 文件，进程还在。用户目录是 `%USERPROFILE%\.vcu`，扩展轮询 `http://127.0.0.1:17890`。
+
+2026-09-26 晚间已经换上含 `confirmed` 字符串的新 daemon。除非要再换二进制，不要无故重启。
+
+macOS 同步：在仓库里 `git pull`，使检出与 `origin/main` 一致。扩展页指向仓库 `extension/` 时，点一次重新加载。指向 `~/.vcu/lens-extension` 时：
+
+```bash
+vcu browser install-lens --from ./extension --reload
+vcu browser ping --json
+```
+
+已经打开的网页不会自动换成新内容脚本，那些页要刷新，否则会报 `content lens is stale`。
+
+## 明确没做
+
+- 登录态地址栏输入仍是 macOS AX，没有搬到 Windows。
+- `TC-B-040`、微信、系统光标、Edge Allow、商店上架、新 Release，都不做。
+- Windows 上不另开 Chrome 复测，除非改动明确分浏览器。
+- `.gitignore` 里未提交的 AWR 本地目录不要放进产品提交。
+
+## 旧快照
+
+下面的行是当天更早的现场记录，不是当前计划。
+
 更新：2026-09-26。新 daemon 复测：worker 拒绝 reload_self 后，`vcu browser ping --reload` 返回 page_reload=true、confirmed=true，随后 ping 再次 pong。没有调试同意框，没有残留 reload 标签。前台是 Windows Terminal 时 observe 失败并要求 --tab；Edge 在前台时 frontmost_matched=true，source=extension_viewport。
 更新：2026-09-26。Windows 浏览器补齐：前台判断用 GetForegroundWindow，不改焦点。worker 没接住 reload_self 时，只把 chrome-extension reload.html 交给已在跑的用户 Edge，不加调试端口，也不用 --app/--new-window。本机 Edge 154 复测 probe 字段能随 ping 回来，没有调试同意框。不是 TC-B-040，没有测 Chrome，没有新的 GitHub Release。
 更新：2026-09-26。Windows 开发流程见 docs/WINDOWS-DEV.md。扩展继续本地加载，不上 Chrome 网上应用店，也不上 Edge 加载项。README 不再写大段边界。
