@@ -107,6 +107,8 @@ pub struct LoginBrowserReport {
     pub never_click_allow: bool,
     pub never_os_cursor: bool,
     pub never_wechat: bool,
+    /// Foreground USER Chrome/Edge, if the front window belongs to one. Never changes focus.
+    pub frontmost_app: Option<String>,
 }
 
 fn excerpt(cmd: &str) -> String {
@@ -418,6 +420,7 @@ pub fn inspect_login_browsers() -> LoginBrowserReport {
         never_click_allow: true,
         never_os_cursor: true,
         never_wechat: true,
+        frontmost_app: frontmost,
     }
 }
 
@@ -631,10 +634,271 @@ pub fn frontmost_user_browser_name() -> Option<String> {
         }
         None
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        return windows_frontmost_user_browser_name();
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         None
     }
+}
+
+/// Map a process image or macOS process name to the login-state browser label.
+/// WebView2 and updater executables are not the user browser.
+pub fn browser_name_from_process_image(path: &str) -> Option<&'static str> {
+    let file = std::path::Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path);
+    match file.to_ascii_lowercase().as_str() {
+        "msedge.exe" | "microsoft edge" | "microsoft edge.app" => Some("Microsoft Edge"),
+        "chrome.exe" | "google chrome" | "google chrome.app" | "chromium.exe" | "chromium" => {
+            Some("Chrome")
+        }
+        _ => None,
+    }
+}
+
+pub fn reload_page_url(runtime_id: &str) -> Option<String> {
+    if !is_extension_runtime_id(runtime_id) {
+        return None;
+    }
+    Some(format!("chrome-extension://{runtime_id}/reload.html"))
+}
+
+fn is_extension_runtime_id(id: &str) -> bool {
+    id.len() == 32 && id.bytes().all(|b| (b'a'..=b'p').contains(&b))
+}
+
+/// Arguments passed to the user browser. No debugging port and no extra flags.
+pub fn reload_page_args(runtime_id: &str) -> Option<Vec<String>> {
+    Some(vec![reload_page_url(runtime_id)?])
+}
+
+pub fn executable_from_command(command: &str) -> Option<std::path::PathBuf> {
+    let command = command.trim();
+    if command.is_empty() {
+        return None;
+    }
+    let raw = if command.starts_with('"') {
+        command.split('"').nth(1)?
+    } else {
+        command.split_whitespace().next()?
+    };
+    let path = std::path::PathBuf::from(raw);
+    if path.is_file() {
+        Some(path)
+    } else {
+        None
+    }
+}
+
+#[cfg(windows)]
+fn windows_frontmost_user_browser_name() -> Option<String> {
+    let image = foreground_process_image()?;
+    let kind = browser_name_from_process_image(&image)?;
+    let pid = foreground_process_id()?;
+    let (users, agents) = scan_login_browsers();
+    if users.iter().any(|proc| proc.pid == pid) {
+        return Some(kind.to_string());
+    }
+    if agents.iter().any(|proc| proc.pid == pid) {
+        return None;
+    }
+    // A browser top-level window can belong to a helper pid that the login scan skips.
+    // Accept the image only when this kind has a user process and no agent process.
+    let user_kind = users.iter().any(|proc| browser_name_is_frontmost(&proc.name, kind));
+    let agent_kind = agents.iter().any(|proc| browser_name_is_frontmost(&proc.name, kind));
+    if user_kind && !agent_kind {
+        return Some(kind.to_string());
+    }
+    None
+}
+
+#[cfg(windows)]
+fn foreground_process_id() -> Option<i32> {
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd == 0 {
+            return None;
+        }
+        let mut pid = 0u32;
+        if GetWindowThreadProcessId(hwnd, &mut pid) == 0 || pid == 0 {
+            return None;
+        }
+        Some(pid as i32)
+    }
+}
+
+#[cfg(windows)]
+fn foreground_process_image() -> Option<String> {
+    use std::os::windows::ffi::OsStringExt;
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd == 0 {
+            return None;
+        }
+        let mut pid = 0u32;
+        if GetWindowThreadProcessId(hwnd, &mut pid) == 0 || pid == 0 {
+            return None;
+        }
+        let handle = OpenProcess(0x1000, 0, pid);
+        if handle == 0 {
+            return None;
+        }
+        let mut buf = [0u16; 1024];
+        let mut len = buf.len() as u32;
+        let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut len);
+        CloseHandle(handle);
+        if ok == 0 || len == 0 {
+            return None;
+        }
+        let name = std::ffi::OsString::from_wide(&buf[..len as usize]);
+        Some(name.to_string_lossy().into_owned())
+    }
+}
+
+#[cfg(windows)]
+#[link(name = "user32")]
+extern "system" {
+    fn GetForegroundWindow() -> isize;
+    fn GetWindowThreadProcessId(hwnd: isize, pid: *mut u32) -> u32;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> isize;
+    fn CloseHandle(handle: isize) -> i32;
+    fn QueryFullProcessImageNameW(
+        handle: isize,
+        flags: u32,
+        buf: *mut u16,
+        size: *mut u32,
+    ) -> i32;
+}
+
+pub fn installed_lens_runtime_id(kind: &str) -> Option<String> {
+    for path in secure_preference_candidates(kind) {
+        let Ok(raw) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        if let Some(id) = lens_runtime_id_from_secure_preferences(&raw) {
+            return Some(id);
+        }
+    }
+    None
+}
+
+fn secure_preference_candidates(kind: &str) -> Vec<std::path::PathBuf> {
+    let Some(local) = std::env::var_os("LOCALAPPDATA") else {
+        return Vec::new();
+    };
+    let folder = match kind {
+        "edge" => "Microsoft\\Edge\\User Data",
+        "chrome" => "Google\\Chrome\\User Data",
+        _ => return Vec::new(),
+    };
+    let root = std::path::PathBuf::from(local).join(folder);
+    let mut out = vec![root.join("Default").join("Secure Preferences")];
+    if let Ok(entries) = std::fs::read_dir(&root) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with("Profile ") {
+                out.push(entry.path().join("Secure Preferences"));
+            }
+        }
+    }
+    out
+}
+
+pub fn lens_runtime_id_from_secure_preferences(raw: &str) -> Option<String> {
+    let value: Value = serde_json::from_str(raw).ok()?;
+    let settings = value.get("extensions")?.get("settings")?.as_object()?;
+    for (id, ext) in settings {
+        if !is_extension_runtime_id(id) {
+            continue;
+        }
+        let path = ext.get("path").and_then(Value::as_str).unwrap_or("");
+        let norm = path.replace('\\', "/").to_ascii_lowercase();
+        if norm.ends_with("/.vcu/lens-extension") || norm.ends_with("/.vcu/lens-extension/") {
+            return Some(id.clone());
+        }
+    }
+    None
+}
+
+pub fn user_browser_is_running(kind: &str) -> bool {
+    if kind != "edge" && kind != "chrome" {
+        return false;
+    }
+    let want = if kind == "edge" { "Microsoft Edge" } else { "Chrome" };
+    let (users, _) = scan_login_browsers();
+    users
+        .iter()
+        .any(|user| browser_name_is_frontmost(&user.name, want))
+}
+
+pub fn open_user_browser_reload_page(kind: &str, runtime_id: &str) -> bool {
+    if cfg!(test) {
+        return false;
+    }
+    // Do not cold-start a browser. A dead worker only exists in a process that is already open.
+    if !user_browser_is_running(kind) {
+        return false;
+    }
+    let Some(args) = reload_page_args(runtime_id) else {
+        return false;
+    };
+    let Some(exe) = user_browser_executable(kind) else {
+        return false;
+    };
+    // The URL is the only argument. Edge 154 opens this in the existing user window and
+    // reload.js calls chrome.runtime.reload() immediately, so the tab often vanishes.
+    // --app and --new-window fall through to edge://newtab and leave a window. Do not use them.
+    // Do not add a debugging port and do not click Allow.
+    std::process::Command::new(exe).args(&args).spawn().is_ok()
+}
+
+fn user_browser_executable(kind: &str) -> Option<std::path::PathBuf> {
+    if kind != "edge" && kind != "chrome" {
+        return None;
+    }
+    let (users, _) = scan_login_browsers();
+    for user in &users {
+        if !browser_name_is_frontmost(&user.name, if kind == "edge" { "Microsoft Edge" } else { "Chrome" }) {
+            continue;
+        }
+        if let Some(path) = executable_from_command(&user.command_excerpt) {
+            return Some(path);
+        }
+    }
+    known_browser_executable(kind)
+}
+
+fn known_browser_executable(kind: &str) -> Option<std::path::PathBuf> {
+    let mut candidates = Vec::new();
+    if kind == "edge" {
+        for key in ["ProgramFiles(x86)", "ProgramFiles"] {
+            if let Some(root) = std::env::var_os(key) {
+                candidates.push(std::path::PathBuf::from(root).join(r"Microsoft\Edge\Application\msedge.exe"));
+            }
+        }
+    } else if kind == "chrome" {
+        for key in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
+            if let Some(root) = std::env::var_os(key) {
+                let path = if key == "LOCALAPPDATA" {
+                    std::path::PathBuf::from(root).join(r"Google\Chrome\Application\chrome.exe")
+                } else {
+                    std::path::PathBuf::from(root).join(r"Google\Chrome\Application\chrome.exe")
+                };
+                candidates.push(path);
+            }
+        }
+    }
+    candidates.into_iter().find(|path| path.is_file())
 }
 
 pub fn order_user_browsers_frontmost_first(
@@ -1060,6 +1324,39 @@ mod tests {
             profile: "user".into(),
             command_excerpt: name.into(),
         }
+    }
+
+    #[test]
+    fn classifies_browser_image_and_reload_url() {
+        assert_eq!(
+            browser_name_from_process_image(r"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"),
+            Some("Microsoft Edge")
+        );
+        assert_eq!(
+            browser_name_from_process_image(r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"),
+            Some("Chrome")
+        );
+        assert_eq!(
+            browser_name_from_process_image(r"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\msedgewebview2.exe"),
+            None
+        );
+        assert_eq!(browser_name_from_process_image("notepad.exe"), None);
+        let id = "hmmglhlabkppklocfnnbogpajolnijgl";
+        assert_eq!(
+            reload_page_args(id).as_deref(),
+            Some(&[format!("chrome-extension://{id}/reload.html")][..])
+        );
+        assert!(reload_page_args("not-an-id").is_none());
+        assert!(reload_page_args(id).unwrap()[0].contains("--remote-debugging") == false);
+        assert!(!reload_page_args(id).unwrap()[0].contains("--app"));
+        assert!(!reload_page_args(id).unwrap()[0].contains("--new-window"));
+        assert!(!user_browser_is_running("firefox"));
+        let prefs = r#"{"extensions":{"settings":{"hmmglhlabkppklocfnnbogpajolnijgl":{"path":"C:\\Users\\liyue\\.vcu\\lens-extension","from_webstore":false}}}}"#;
+        assert_eq!(
+            lens_runtime_id_from_secure_preferences(prefs).as_deref(),
+            Some(id)
+        );
+        assert!(lens_runtime_id_from_secure_preferences("{\"extensions\":{\"settings\":{}}}").is_none());
     }
 
     #[test]

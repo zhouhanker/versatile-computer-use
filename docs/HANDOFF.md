@@ -1,3 +1,4 @@
+更新：2026-09-26。Windows 浏览器补齐：前台判断用 GetForegroundWindow，不改焦点。worker 没接住 reload_self 时，只把 chrome-extension reload.html 交给已在跑的用户 Edge，不加调试端口，也不用 --app/--new-window。本机 Edge 154 复测 probe 字段能随 ping 回来，没有调试同意框。不是 TC-B-040，没有测 Chrome，没有新的 GitHub Release。
 更新：2026-09-26。Windows 开发流程见 docs/WINDOWS-DEV.md。扩展继续本地加载，不上 Chrome 网上应用店，也不上 Edge 加载项。README 不再写大段边界。
 
 更新：2026-09-26。打开网页不再抢占用户当前页。`open_tab` 一律新建后台标签，不聚焦窗口，也不改用户正在看的地址。未指定分组时进入折叠的紫色原生标签组「VCU」，同窗口复用，不接管已有用户组。Codex 的做法是浏览器扩展用 `chrome.tabs.group` / `tabGroups.update` 建任务组，例如红色的「Lichess AI practice」，`openTabs` 带回 `tabGroup`；建组在扩展里，不替换用户当前页。本机没有 `~/.codex/computer-use/`，没有改它的安装。Edge 复测：焦点停在 `https://x.com/home`，example.com 进 VCU 组且 active=false，测完已关。

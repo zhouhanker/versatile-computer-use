@@ -1820,6 +1820,7 @@ async fn browser_login_state(
         "never_click_allow": report.never_click_allow,
         "never_os_cursor": report.never_os_cursor,
         "never_wechat": report.never_wechat,
+        "frontmost_app": report.frontmost_app,
         "extension_sw_stale": sw_stale,
     }))).into_response()
 }

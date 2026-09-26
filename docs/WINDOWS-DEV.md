@@ -24,11 +24,21 @@ vcu browser install-lens --from extension --reload
 vcu browser ping --json
 ```
 
-`--reload` 让已连接的 service worker 执行 `chrome.runtime.reload()`。worker 已经死掉时，Windows 没有 macOS 那种打开 `reload.html` 的兜底。先复制文件，再在 `edge://extensions` 点一次重新加载。
+`--reload` 让已连接的 service worker 执行 `chrome.runtime.reload()`。没有接住时，只把 `chrome-extension://<id>/reload.html` 作为唯一参数传给已经在跑的用户 Edge 或 Chrome。不加调试端口，也不加 `--app` 或 `--new-window`。后两个会落到 `edge://newtab` 并留下窗口。`reload.js` 会立刻调用 `chrome.runtime.reload()`，标签经常马上消失，这不代表没打开。daemon 等扩展重新 pong，再关掉残留的 reload 标签。浏览器没在跑就不冷启动。不要点「允许调试」。
+
+2026-09-26 本机 Edge 154 复测：已安装的 `background.js` 临时加上 `probe` 后，这条启动让 `vcu browser ping` 带回该字段。没有调试同意框。文件已还原并再次重载，ping 不再带 probe。没有测 Chrome。
+
 
 已经打开的网页不会自动换成新内容脚本。那些页要刷新，否则会报 `content lens is stale`。
 
 `vcu self update` 和 Release `v0.2.8` 的 `vcu-lens-extension.zip` 只含已发布包。只在 `main` 上的提交不会通过这两条路径到达浏览器。
+
+
+## 前台浏览器
+
+没有 `--tab` / `--browser` 时，observe 只绑当前前台的用户 Edge 或 Chrome。Windows 用 `GetForegroundWindow` 和进程映像名，不改焦点，也不用 AX 或 `CGWindowID`。WebView2 和 updater 不算浏览器。Agent profile 的 pid 返回空。
+
+`login-state` 写出 `frontmost_app`。`user_browsers` 仍把前台浏览器排在前面。前台不是用户浏览器时，不带 `--tab` 的 observe 失败。
 
 ## 打开网页
 

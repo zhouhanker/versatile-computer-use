@@ -631,6 +631,7 @@ mod tests {
             never_click_allow: true,
             never_os_cursor: true,
             never_wechat: true,
+            frontmost_app: None,
         };
         let c = login_browser_check(&report);
         assert_eq!(c.name, "login_browser");

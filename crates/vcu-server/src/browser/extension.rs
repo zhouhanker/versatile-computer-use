@@ -89,7 +89,11 @@ fn open_extension_reload_page(browser: &str, runtime_id: &str) -> bool {
             .map(|st| st.success())
             .unwrap_or(false)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        crate::login_state::open_user_browser_reload_page(browser, runtime_id)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = (browser, runtime_id);
         false
@@ -546,22 +550,41 @@ impl ExtensionBridge {
                     continue;
                 }
                 if let Some((browser, rid)) = split_client_key(&id) {
-                    let opened = open_extension_reload_page(browser, rid);
-                    reloaded.push(serde_json::json!({
-                        "ok": opened,
-                        "page_reload": opened,
-                        "browser": browser,
-                        "error": rows.first().and_then(|v| v.get("error")).cloned().unwrap_or(serde_json::json!("reload_self timeout")),
-                    }));
+                    let mut row = self.confirm_extension_page_reload(browser, rid).await;
+                    if let Some(err) = rows.first().and_then(|v| v.get("error")) {
+                        row["reload_self_error"] = err.clone();
+                    }
+                    reloaded.push(row);
                 } else {
                     reloaded.extend(rows);
                 }
             }
         }
-        let ok_n = reloaded
+        let mut ok_n = reloaded
             .iter()
             .filter(|v| v.get("ok").and_then(|x| x.as_bool()) == Some(true))
             .count();
+        if ok_n == 0 {
+            for kind in ["edge", "chrome"] {
+                let Some(id) = crate::login_state::installed_lens_runtime_id(kind) else {
+                    continue;
+                };
+                if !crate::login_state::user_browser_is_running(kind) {
+                    continue;
+                }
+                let mut row = self.confirm_extension_page_reload(kind, &id).await;
+                row["discovered"] = serde_json::json!(true);
+                let ok = row.get("ok").and_then(|x| x.as_bool()) == Some(true);
+                reloaded.push(row);
+                if ok {
+                    break;
+                }
+            }
+            ok_n = reloaded
+                .iter()
+                .filter(|v| v.get("ok").and_then(|x| x.as_bool()) == Some(true))
+                .count();
+        }
         if ok_n == 0 {
             return Err(VcuError::coded(
                 ErrorCode::ExtensionDisconnected,
@@ -574,6 +597,89 @@ impl ExtensionBridge {
             "reloaded": ok_n,
             "clients": reloaded,
         }))
+    }
+
+
+    async fn confirm_extension_page_reload(&self, browser: &str, runtime_id: &str) -> serde_json::Value {
+        let opened = open_extension_reload_page(browser, runtime_id);
+        if !opened {
+            return serde_json::json!({
+                "ok": false,
+                "page_reload": false,
+                "browser": browser,
+                "error": "reload.html was not opened",
+            });
+        }
+        // reload.js calls chrome.runtime.reload() as soon as the tab exists. Spawn
+        // success is not reload success, and the tab often disappears before a later list.
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        let pong = self.wait_for_pong(8).await;
+        let ok = pong.is_ok();
+        let closed = if ok { self.close_reload_tabs().await } else { 0 };
+        match pong {
+            Ok(v) => serde_json::json!({
+                "ok": true,
+                "page_reload": true,
+                "browser": browser,
+                "confirmed": true,
+                "closed_reload_tabs": closed,
+                "ping": v,
+            }),
+            Err(e) => serde_json::json!({
+                "ok": false,
+                "page_reload": true,
+                "browser": browser,
+                "confirmed": false,
+                "error": e,
+            }),
+        }
+    }
+
+    async fn wait_for_pong(&self, timeout_secs: u64) -> Result<serde_json::Value, String> {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs.max(1));
+        let mut last = "extension did not pong after reload.html".to_string();
+        while tokio::time::Instant::now() < deadline {
+            if self.is_connected().await {
+                match self.call_timeout("ping", serde_json::json!({}), 2).await {
+                    Ok(v) if v.get("pong").and_then(|x| x.as_bool()) == Some(true)
+                        || v.get("ok").and_then(|x| x.as_bool()) == Some(true) =>
+                    {
+                        return Ok(v);
+                    }
+                    Ok(v) => last = v.to_string(),
+                    Err(e) => last = e.message().to_string(),
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        Err(last)
+    }
+
+    async fn close_reload_tabs(&self) -> usize {
+        let Ok(listed) = self.call_timeout("list_tabs", serde_json::json!({}), 4).await else {
+            return 0;
+        };
+        let Some(tabs) = listed.get("tabs").and_then(|v| v.as_array()) else {
+            return 0;
+        };
+        let mut closed = 0usize;
+        for tab in tabs {
+            let url = tab.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            if !url.contains("/reload.html") {
+                continue;
+            }
+            let Some(id) = json_id(tab.get("tab_id")) else {
+                continue;
+            };
+            if self
+                .call_timeout("close_tab", serde_json::json!({"tab_id": id}), 4)
+                .await
+                .is_ok()
+            {
+                closed += 1;
+            }
+        }
+        closed
     }
 
     async fn fire_reload_commands(
