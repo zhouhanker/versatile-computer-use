@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-054 已在本机复测：会话点已展开的自建树节点 VCU-COL-A 的折叠图标，路径是 fold_icon。标签变成 VCU-COL-CLOSED。已折叠的节点和不存在的节点被拒绝。没有移动系统光标。不是 tree_collapse，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-053 已在本机复测：会话点自建树节点 VCU-EXP-A 的展开图标，路径是 tree_icon。标签变成 VCU-EXP-OPEN。已展开的节点和不存在的节点被拒绝。没有移动系统光标。不是 TVM_EXPAND，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-052 已在本机复测：绿色置顶窗盖住品红窗口中心后，会话截图中心仍是窗口颜色，不是挡板。路径是 window-pixels。PrintWindow 空白且中心属于别的窗口时会拒绝复制屏幕；这一轮没有走到拒绝分支。没有移动系统光标。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。

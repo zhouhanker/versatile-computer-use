@@ -664,6 +664,19 @@
 - 不做：不把这次写成 `TVM_EXPAND`，也不写成折叠图标，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-054 会话点树节点的折叠图标
+
+状态：**2026-09-26 本机复测通过。** 不是 `tree_collapse`，也不是完整 Windows 产品 CU。
+
+- 037 用 `TVE_COLLAPSE` 再反射通知，不点图标。这次 `vcu type` 文本以 `foldicon:` 开头时按名字找节点。节点必须已经展开。用 `TVM_GETITEMRECT` 读文字矩形，在文字左侧发 `WM_LBUTTONDOWN` / `WM_LBUTTONUP`。读回不能再带 `TVIS_EXPANDED`。点完仍展开就不报成功，也不改走 `TVM_EXPAND` 或反射 `TVN_ITEMEXPANDEDW`。这会让 `AfterCollapse` 跟着跑。没有同名节点不会报成功。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，根节点 VCU-COL-A 已展开。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_tree_fold.ps1`
+- 结果：`CU-WIN-SESSION-054 OK win:powershell:15624 01M3DRKNBHRE3KJVWXS2P86SFZ ref=e3 path=fold_icon value=VCU-COL-A cursor=1187,239`
+- 点图标后标签变成 `VCU-COL-CLOSED`。再点同一节点和不存在的节点被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成 `tree_collapse`，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
