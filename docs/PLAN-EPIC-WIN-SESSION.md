@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-084 科学计算器倒数 4 已在本机复测，路径是 uia_invoke。不是平方。
+
 更新：2026-09-26。CU-WIN-SESSION-083 科学计算器平方 8 已在本机复测，路径是 uia_invoke。不是完整函数矩阵。
 
 更新：2026-09-26。CU-WIN-SESSION-082 科学计算器平方根 9 已在本机复测，路径是 uia_invoke。不是完整函数矩阵。
@@ -234,7 +236,7 @@
 - 两次结果不同。角度是「显示为 0.05480366514878953088774871353983」，弧度是「显示为 0」。
 - 三角菜单打开时「清除」可能不在树里。算完先把「三角学」再 toggle 一次，再找「清除」或「清除条目」。
 - 没有 SendInput，没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
-- 平方根 9 和平方 8 已复测。没有覆盖完整科学函数矩阵。
+- 平方根 9、平方 8 和倒数 4 已复测。没有覆盖完整科学函数矩阵。
 
 ## CU-WIN-SESSION-018 会话截图自建窗口
 
@@ -1077,6 +1079,19 @@
 - 切到科学模式后按「八」，确认「显示为 8」，再按「平方」。路径是 `uia_invoke`，显示是「显示为 64」。切回标准模式后 π 按钮消失。
 - 没有 SendInput。没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
 - 不做：不把这次写成平方根或完整科学函数矩阵，也不放行整个 ApplicationFrameHost。
+
+
+
+## CU-WIN-SESSION-084 会话科学模式计算倒数
+
+状态：**2026-09-26 本机复测通过。** 不是平方，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
+
+- 开始前没有已打开的计算器窗口。脚本自己启动计算器，测完切回标准模式，再只关闭 CalculatorApp。
+- 命令：`powershell -File scripts/poc_win_session_calc_recip.ps1`
+- 结果：`CU-WIN-SESSION-084 OK win:Calculator:18668 01M3E9NW2XXSD4DPDQ0PK9Z1ZG reciprocal(4)=0.25 restored cursor=861,712`
+- 切到科学模式后按「四」，确认「显示为 4」，再按「倒数」。路径是 `uia_invoke`，显示是「显示为 0.25」。切回标准模式后 π 按钮消失。
+- 没有 SendInput。没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
+- 不做：不把这次写成平方或完整科学函数矩阵，也不放行整个 ApplicationFrameHost。
 
 
 ## 还没做
