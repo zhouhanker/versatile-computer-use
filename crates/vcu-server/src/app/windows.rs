@@ -668,6 +668,30 @@ function Select-VcuTrack([IntPtr]$h, [string]$expect) {
     exit 0
   }
 }
+function Select-VcuCheckedList([IntPtr]$h, [string]$expect) {
+  if (-not ("Vcu.VcuCheckList" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern uint RegisterWindowMessage(string msg); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);' -Name VcuCheckList -Namespace Vcu | Out-Null
+  }
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018B, [IntPtr]::Zero, [IntPtr]::Zero)
+  $index = -1
+  for ($i = 0; $i -lt $count -and $i -lt 64; $i++) {
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 0x0189, $i, $sb)
+    if ($sb.ToString() -eq $expect) { $index = $i; break }
+  }
+  if ($index -lt 0) { 'error:check-name'; exit 0 }
+  $getMsg = [Vcu.VcuCheckList]::RegisterWindowMessage("LBC_GETCHECKSTATE")
+  $setMsg = [Vcu.VcuCheckList]::RegisterWindowMessage("LBC_SETCHECKSTATE")
+  if ($getMsg -eq 0 -or $setMsg -eq 0) { 'error:check-msg'; exit 0 }
+  $before = [int][Vcu.VcuCheckList]::SendMessage($h, $getMsg, [IntPtr]$index, [IntPtr]::Zero)
+  if ($before -ne 0) { 'error:check-state'; exit 0 }
+  $sent = [int][Vcu.VcuCheckList]::SendMessage($h, $setMsg, [IntPtr]$index, [IntPtr]1)
+  if ($sent -ne 1) { 'error:check-state'; exit 0 }
+  $after = [int][Vcu.VcuCheckList]::SendMessage($h, $getMsg, [IntPtr]$index, [IntPtr]::Zero)
+  if ($after -ne 1) { 'error:check-state'; exit 0 }
+  "ok:check_set"
+  exit 0
+}
 function Select-VcuList([IntPtr]$h, [string]$expect) {
   $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018B, [IntPtr]::Zero, [IntPtr]::Zero)
   for ($i = 0; $i -lt $count; $i++) {
@@ -1076,7 +1100,11 @@ function Set-VcuElement($el, [string]$expect) {
     return
   }
   if (Test-VcuListClass $cls) {
-    Select-VcuList ([IntPtr]$nh) $expect
+    if ($expect.StartsWith("check:")) {
+      Select-VcuCheckedList ([IntPtr]$nh) $expect.Substring(6)
+    } else {
+      Select-VcuList ([IntPtr]$nh) $expect
+    }
     return
   }
   if (Test-VcuTrackClass $cls) {
@@ -1430,6 +1458,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:clipboard_paste")
         || out.contains("ok:combo_select")
         || out.contains("ok:list_select")
+        || out.contains("ok:check_set")
         || out.contains("ok:track_select")
         || out.contains("ok:tab_select")
         || out.contains("ok:tree_select")
@@ -1442,6 +1471,8 @@ pub fn set_value_from_uia_output(
             "uia_set_value"
         } else if out.contains("ok:combo_select") {
             "combo_select"
+        } else if out.contains("ok:check_set") {
+            "check_set"
         } else if out.contains("ok:list_select") {
             "list_select"
         } else if out.contains("ok:track_select") {
@@ -2089,6 +2120,8 @@ mod tests {
         assert!(setv.contains("ok:combo_select"));
         assert!(setv.contains("0x014E"));
         assert!(setv.contains("ok:list_select"));
+        assert!(setv.contains("ok:check_set"));
+        assert!(setv.contains("LBC_SETCHECKSTATE"));
         assert!(setv.contains("0x0186"));
         assert!(setv.contains("ok:track_select"));
         assert!(setv.contains("0x0405"));
