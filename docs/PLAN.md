@@ -1,6 +1,6 @@
 # VCU 当前计划（浏览器版）
 
-更新：2026-09-26。本文优先于 HANDOFF 历史快照；作者 zhouhanker。Windows 产品会话证据到 CU-WIN-SESSION-071。不要把旧哈希 `e5d47df` 当成当前 HEAD。
+更新：2026-09-26。本文优先于 HANDOFF 历史快照；作者 zhouhanker。Windows 产品会话证据到 CU-WIN-SESSION-071。Windows Stage 的直角黑底已从 Acrylic accent 改成圆角区域模糊。不要把旧哈希 `e5d47df` 当成当前 HEAD。
 
 ## 当前节点
 

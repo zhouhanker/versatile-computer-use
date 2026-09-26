@@ -66,24 +66,23 @@ public static class VcuStageWin {
   [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
   [DllImport("user32.dll")] public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
   [DllImport("gdi32.dll")] public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFO bmi, uint usage, out IntPtr bits, IntPtr section, uint offset);
-  [StructLayout(LayoutKind.Sequential)] public struct AccentPolicy { public int AccentState; public int AccentFlags; public int GradientColor; public int AnimationId; }
-  [StructLayout(LayoutKind.Sequential)] public struct Wca { public int Attribute; public IntPtr Data; public int SizeOfData; }
-  [DllImport("user32.dll")] public static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref Wca data);
-  public static bool EnableAcrylic(IntPtr hwnd) {
-    AccentPolicy accent = new AccentPolicy();
-    accent.AccentState = 4;
-    accent.AccentFlags = 2;
-    accent.GradientColor = unchecked((int)0x99221C18);
-    int size = Marshal.SizeOf(typeof(AccentPolicy));
-    IntPtr ptr = Marshal.AllocHGlobal(size);
-    Marshal.StructureToPtr(accent, ptr, false);
-    Wca data = new Wca();
-    data.Attribute = 19;
-    data.Data = ptr;
-    data.SizeOfData = size;
-    int hr = SetWindowCompositionAttribute(hwnd, ref data);
-    Marshal.FreeHGlobal(ptr);
-    return hr != 0;
+  [StructLayout(LayoutKind.Sequential)] public struct BlurBehind { public int dwFlags; public int fEnable; public IntPtr hRgnBlur; public int fTransitionOnMaximized; }
+  [DllImport("gdi32.dll")] public static extern IntPtr CreateRoundRectRgn(int left, int top, int right, int bottom, int widthEllipse, int heightEllipse);
+  [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool redraw);
+  [DllImport("dwmapi.dll")] public static extern int DwmEnableBlurBehindWindow(IntPtr hwnd, ref BlurBehind blur);
+  // acrylic accent paints a rectangle and ignores the pill region.
+  public static bool EnablePillBlur(IntPtr hwnd, int w, int h) {
+    IntPtr blurRgn = CreateRoundRectRgn(0, 0, w + 1, h + 1, h, h);
+    BlurBehind blur = new BlurBehind();
+    blur.dwFlags = 1 | 2;
+    blur.fEnable = 1;
+    blur.hRgnBlur = blurRgn;
+    int hr = DwmEnableBlurBehindWindow(hwnd, ref blur);
+    DeleteObject(blurRgn);
+    IntPtr clip = CreateRoundRectRgn(0, 0, w + 1, h + 1, h, h);
+    int rgn = SetWindowRgn(hwnd, clip, true);
+    if (rgn == 0) { DeleteObject(clip); return false; }
+    return hr == 0;
   }
   public static bool ShowBitmap(IntPtr hwnd, Bitmap bitmap, int x, int y, bool clickThrough) {
     int ex = GetWindowLong(hwnd, -20);
@@ -207,34 +206,12 @@ function Set-HudPill($form) {
   $form.Region = New-Object System.Drawing.Region $path
 }
 function New-HudTextBitmap {
-  $pad = [int][Math]::Round(10 * $script:DpiScale)
-  $shift = [int][Math]::Round(2 * $script:DpiScale)
-  $script:HudTextPad = $pad
-  $w = $script:HudW + (2 * $pad)
-  $h = $script:HudH + $pad + $shift
-  $bmp = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  # Labels and hairline only. A larger shadow bitmap paints a black plate behind the capsule.
+  $bmp = New-Object System.Drawing.Bitmap $script:HudW, $script:HudH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
   $g.Clear([System.Drawing.Color]::Transparent)
-  foreach ($spread in @(8, 5, 3)) {
-    $s = [int][Math]::Round($spread * $script:DpiScale)
-    $alpha = 40 - ($spread * 2)
-    if ($alpha -lt 12) { $alpha = 12 }
-    $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($alpha, 0, 0, 0))
-    $x = $pad - $s
-    $y = $shift
-    $rw = $script:HudW + (2 * $s)
-    $rh = $script:HudH + (2 * $s)
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $path.AddArc($x, $y, $rh, $rh, 90, 180)
-    $path.AddArc(($x + $rw - $rh), $y, $rh, $rh, 270, 180)
-    $path.CloseFigure()
-    $g.FillPath($brush, $path)
-    $path.Dispose()
-    $brush.Dispose()
-  }
-  $g.TranslateTransform($pad, 0)
   $inset = [Math]::Max(1, [int][Math]::Round($script:DpiScale))
   $d = $script:HudH - (2 * $inset)
   $ring = New-Object System.Drawing.Drawing2D.GraphicsPath
@@ -246,17 +223,12 @@ function New-HudTextBitmap {
   $pen.Dispose()
   $ring.Dispose()
   Draw-HudLabels $g
-  $g.ResetTransform()
   $g.Dispose()
   return $bmp
 }
 function Show-HudText {
   if (-not $script:HudAcrylic -or $null -eq $script:HudText -or -not $script:HudText.Visible) { return }
-  $pad = 0
-  if ($script:HudTextPad) { $pad = [int]$script:HudTextPad }
-  $left = $hud.Left - $pad
-  if ($left -lt 0) { $left = 0 }
-  [void][VcuStageWin]::ShowBitmap($script:HudText.Handle, $script:HudTextBmp, $left, $hud.Top, $true)
+  [void][VcuStageWin]::ShowBitmap($script:HudText.Handle, $script:HudTextBmp, $hud.Left, $hud.Top, $true)
 }
 
 function New-HudShadowBitmap {
@@ -504,24 +476,20 @@ $script:HudAcrylic = $false
 $script:HudText = $null
 try {
   Set-HudPill $hud
-  if ([VcuStageWin]::EnableAcrylic($hud.Handle)) { $script:HudAcrylic = $true }
+  if ([VcuStageWin]::EnablePillBlur($hud.Handle, $script:HudW, $script:HudH)) { $script:HudAcrylic = $true }
 } catch { $script:HudAcrylic = $false }
 if ($script:HudAcrylic) {
   $script:HudTextBmp = New-HudTextBitmap
-  $pad = 0
-  if ($script:HudTextPad) { $pad = [int]$script:HudTextPad }
   $script:HudText = New-Object System.Windows.Forms.Form
   $script:HudText.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
   $script:HudText.ShowInTaskbar = $false
   $script:HudText.TopMost = $true
   $script:HudText.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
-  $script:HudText.ClientSize = New-Object System.Drawing.Size $script:HudTextBmp.Width, $script:HudTextBmp.Height
-  $textLeft = $hudLeft - $pad
-  if ($textLeft -lt 0) { $textLeft = 0 }
-  $script:HudText.Left = $textLeft
+  $script:HudText.ClientSize = New-Object System.Drawing.Size $script:HudW, $script:HudH
+  $script:HudText.Left = $hudLeft
   $script:HudText.Top = $hudTop
   $script:HudText.Show()
-  # Soft shadow is drawn in the text overlay. A separate shadow form paints an opaque black rectangle. Do not show it.
+  # acrylic accent paints a rectangle behind the capsule. Pill blur clips to the round region. A separate shadow form also paints an opaque black rectangle. Do not show it.
   $script:HudShadow = $null
   $script:HudShadowBmp = $null
   Sync-HudLayers
@@ -578,7 +546,10 @@ $timer.Add_Tick({
   }
 })
 $hud.Add_Shown({
-  if ($script:HudAcrylic) { Sync-HudLayers } else {
+  if ($script:HudAcrylic) {
+    [void][VcuStageWin]::EnablePillBlur($hud.Handle, $script:HudW, $script:HudH)
+    Sync-HudLayers
+  } else {
     [void][VcuStageWin]::ShowBitmap($hud.Handle, $script:HudBmp, $hud.Left, $hud.Top, $false)
   }
 })
@@ -1327,17 +1298,19 @@ mod tests {
         assert!(STAGE_WINPS.contains("0x11"));
         assert!(STAGE_WINPS.contains("HudTick"));
         assert!(STAGE_WINPS.contains("NSVisualEffectView"));
-        assert!(STAGE_WINPS.contains("EnableAcrylic"));
-        assert!(STAGE_WINPS.contains("AccentState = 4"));
-        assert!(STAGE_WINPS.contains("SetWindowCompositionAttribute"));
+        assert!(STAGE_WINPS.contains("EnablePillBlur"));
+        assert!(STAGE_WINPS.contains("DwmEnableBlurBehindWindow"));
+        assert!(STAGE_WINPS.contains("CreateRoundRectRgn"));
+        assert!(STAGE_WINPS.contains("acrylic accent paints a rectangle"));
+        assert!(!STAGE_WINPS.contains("EnableAcrylic"));
+        assert!(!STAGE_WINPS.contains("SetWindowCompositionAttribute"));
         assert!(STAGE_WINPS.contains("HudAcrylic"));
         assert!(STAGE_WINPS.contains("New-HudTextBitmap"));
-        assert!(STAGE_WINPS.contains("0x99221C18"));
         assert!(STAGE_WINPS.contains("Segoe UI Semibold"));
         assert!(STAGE_WINPS.contains("New-HudShadowBitmap"));
         assert!(STAGE_WINPS.contains("opaque black rectangle"));
-        assert!(STAGE_WINPS.contains("HudTextPad"));
-        assert!(STAGE_WINPS.contains("Soft shadow is drawn in the text overlay"));
+        assert!(STAGE_WINPS.contains("Labels and hairline only"));
+        assert!(!STAGE_WINPS.contains("HudTextPad"));
         assert!(STAGE_WINPS.contains("Sync-HudLayers"));
         assert!(STAGE_WINPS.contains("FromArgb(115, 255, 255, 255)"));
         assert!(STAGE_WINPS.contains("FromArgb(150, 24, 28, 34)"));
