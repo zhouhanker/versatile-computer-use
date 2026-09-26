@@ -6,50 +6,19 @@
 
 GitHub Contributors 目前只有 zhouhanker。仓库页和贡献图没有单独的 zhouhan。没有改写历史。旧图缓存若还显示这个名字，不是当前提交作者。
 
-## 产品定位
+Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。`vcu --version` 打印的是 crate 版本，不代表浏览器桥没有更新。
 
-VCU 附着用户自己的 Chrome / Edge 登录态，完成网页观察、DOM 操作、截图坐标点击与原生标签组管理。同一套运行时也提供 macOS 桌面会话（可见 Stage、Guide 虚拟指针、允许名单应用上的辅助功能操作），以及 Windows 侧的窗口观察与控件动作。
-
-Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。
-
-## 能力
-
-**浏览器**
+## 能做什么
 
 - 使用已登录的 Chrome / Edge，不另开空的 Agent 配置
-- 列出、选择、打开、关闭标签；默认在现有窗口打开新标签
-- 原生标签组：名称、颜色、折叠与展开
-- 按 CSS selector 进行 click、hover、type、scroll、extract
-- `observe` 生成 viewport PNG；可用 `observe --tab` 指定标签
-- 按截图像素点击（`capture_id` + `space=viewport`）
-- 已加载扩展可通过 `vcu browser install-lens --reload` 热更新
-- CLI、HTTP、MCP 同一套接口
+- 列出、选择、打开、关闭标签。打开网页时新建后台标签，放进折叠的紫色原生标签组「VCU」，不替换当前页
+- 按 CSS selector 做 click、hover、type、scroll、extract
+- `observe` 生成 viewport PNG，可按截图像素点击
+- 同一套运行时也提供 macOS 桌面会话，以及 Windows 窗口观察与控件动作
 
-**桌面**
+接入方式：`vcu` CLI、本机 HTTP daemon、`vcu-mcp`。
 
-- macOS：desktop 会话升起 Stage HUD，Abort 结束会话；TextEdit / Notes / Finder / Terminal 等允许名单应用上的观察与输入
-- Windows：Notepad、Explorer、命令行、计算器等窗口的观察与控件动作（CI 真机覆盖）
-
-接入方式：`vcu` CLI、本机 HTTP daemon、以及 `vcu-mcp`（stdio MCP）。
-
-## 边界
-
-已发布的是浏览器 Bridge 0.2.8，加上允许名单内的桌面切片。这不是完整 Codex Computer Use，也不是完整 Windows 产品 CU。Windows 产品会话证据到 CU-WIN-SESSION-071。
-
-- 网页细操作走 extension DOM（`source=extension_dom`），不用 AX 树冒充 HTML
-- 不搬系统光标，不代点 Edge「允许调试」，不自动化微信，不修改 Codex CU 安装
-- 跨源 iframe、trusted 手势、通用 AX 网页像素真点（TC-B-040）未做
-- Windows 证据是 CI 上的 Notepad / Explorer / cmd / 计算器切片，不是带 Stage HUD 的产品会话
-- Windows 登录态会枚举本机 Edge/Chrome 主进程，不再依赖 Unix `ps`。扩展已轮询且 lens 已安装时，`login-state` 不应再要求打开浏览器或重新加载扩展。2026-09-26 本机只复测了 Edge：自建 `127.0.0.1` 页的 extract、选择器点击和输入都是 `source=extension_dom`，已有标签没有被改，没有测 Chrome
-- 桌面会话如果点名的窗口没有可见窗体，会拒绝并保持不改绑到其他应用
-- Windows 商店版记事本的启动桩进程会解析到唯一的可见记事本窗口；多开时仍拒绝，不猜窗口
-- Windows Terminal 进程名 `WindowsTerminal` 在允许名单内，可以观察
-- Windows 桌面截图失败会说明没有可见窗口或 PrintWindow 没产出 PNG，不再提示 macOS 的屏幕录制权限
-- Windows UIA 名称按 UTF-8 返回，记事本的「文件」和 Windows Terminal 中文标题不再是乱码
-- Windows 上的官方 POC 按 UTF-8 读取 vcu 输出，避免中文系统的 GBK 解码把验收脚本打崩。CU-D-610 滚动后旧截图会被拒绝为 stale_viewport；重新 observe 后的截图 dry-run 才通过，source=extension_dom。没有放宽 scroll_y 校验，也不是完整 Windows 产品 CU
-- Windows Stage 条是 280x28 半透明圆角胶囊，桌面 Guide 是和 macOS 相同几何的短箭加软雾，箭尖对准坐标，不移动系统光标。Stage 按物理像素摆指针，和这台 144 DPI 机器的 UIA 窗口框一致。胶囊上的标题和 Esc 取消左右分开。桌面短箭雾色和网页指针使用同一组蓝灰。网页指针的雾心也是箭尖 + (6, 6)，半径 36，和 macOS 短箭同一点。这份指针已经写进当前 Release 的 `vcu-lens-extension.zip`。 Windows 胶囊在升起前采样背后桌面并模糊，再盖半透明石墨；刷新时短暂排除自身截图，采的是正后方，不是只采下方。Windows 11 上胶囊按圆角区域做系统模糊。Acrylic accent 会忽略圆角，在胶囊后面画出直角黑底，所以不再使用。半粗白字和 1px 描边在点击穿透层。模糊不可用时才退回采样模糊。这不是 macOS `NSVisualEffectView`。不再单独开阴影窗。淡阴影画在已经预乘的文字层里，不会再露出直角黑底。胶囊内容按 macOS 排成一组：系统强调色圆点、半粗标题、常规字重的「Esc 取消」，宽度随内容收缩并限制在 220 到 320。Windows 计算器窗口可以按标题绑定，不放行整个 ApplicationFrameHost。`vcu session start --surface desktop --app-id win:Calculator:<pid>` 会拉起 Stage，Abort 会拆掉 HUD。经会话按「七」、1+1、12+7、记忆、科学模式的 π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)、sin(π) 的角度/弧度、平方根 9、平方 8、倒数 4、绝对值、10 的指数、x 的指数、科学计数法、Euler 数、模数和名为分数的阶乘 走 UIA，不移动系统光标。列表项用 SelectionItem，不用系统光标。会话悬停只移动 Guide，系统光标坐标不变。会话滚动会先找列表；顶行没变就不把窗体滚动当成成功。会话截图对自建窗口能读回窗口颜色；PrintWindow 空白时只复制该窗口矩形，不扫整张桌面。窗口被挡住但 PrintWindow 仍有像素时，读到的是窗口颜色，不是挡板。`PrintWindow` 空白且中心属于别的窗口时拒绝复制屏幕，不把挡板采进图。会话等待可以按控件名或文本框的值找到自建控件，缺失时超时。会话可以向自建文本框写入后再等到新值，路径是 `wm_settext`，不是 ValuePattern。会话可以点击自建按钮并等到标签变化。窗口和按钮同名时优先返回控件。会话可以按选择器提取自建文本框的值，没有命中时是空列表。会话可以按完整角色字符串等待。会话点击可以翻转自建复选框，也可以切换单选按钮并保持互斥。状态来自 IAccessible，不是 TogglePattern。会话也可以点单选按钮的客户区中心，路径是 `radio_pixel`。读回没有勾选位就不算成功。这不是 `BM_CLICK`。会话也可以点普通按钮的客户区中心，路径是 `button_pixel`。点击事件没把指定标签改掉就不算成功。这不是 `BM_CLICK`。会话可以向自建下拉列表按条目文字选中，路径是 `combo_select`。会话也可以先展开下拉层再点选，路径是 `combo_drop`。列表没打开或选中项没变，都不算成功。这不是 `CB_SETCURSEL`。列表框按行文字选中，路径是 `list_select`。会话也可以点自建列表框的一行，路径是 `list_pixel`。读回选中行不一致就不算成功。这不是 `LB_SETCURSEL`。会话也可以双击自建列表框的一行，路径是 `list_dblclick`。只改选中行而没有 DoubleClick 不算成功。这不是 `list_pixel`，也不是 `LB_SETCURSEL`。user32 列表框用逻辑坐标，不按 AppliedDPI 放大。会话可以向自建滑块写入整数位置，路径是 `track_select`，不是 RangeValuePattern。会话也可以拖动拖块到整数位置，路径是 `track_drag`。读回位置不一致就不算成功。这不是 `TBM_SETPOS`。会话可以按名字选中自建标签页，路径是 `tab_select`，不是点标签像素。会话也可以点标签标题，路径是 `tab_pixel`。选中页没有变成这一页就不算成功。这不是 `accSelect`。会话可以按名字选中自建树节点，路径是 `tree_select`。会话也可以点节点文字，路径是 `tree_pixel`。读回选中节点不一致就不算成功。这不是 `TVM_SELECTITEM`，也不点展开图标。会话可以按名字展开自建树节点，路径是 `tree_expand`，不是点展开图标。会话也可以点展开图标，路径是 `tree_icon`。点完没有 `TVIS_EXPANDED` 或没有 `AfterExpand`，都不算成功。这不是 `TVM_EXPAND`。会话可以按名字折叠已展开的自建树节点，路径是 `tree_collapse`。只清展开位而没有 AfterCollapse 不算成功。会话也可以点折叠图标，路径是 `fold_icon`。点完仍展开就不算成功。这不是 `TVM_EXPAND`。会话可以按名字勾选自建勾选列表的一行，路径是 `check_set`，不是 `list_select`。会话也可以点这一行的复选框，路径是 `check_pixel`。读回不是已勾选就不算成功。这不是注册消息写勾选状态。会话可以按名字取消已勾选的一行，路径是 `uncheck_set`。会话也可以点这一行的复选框取消勾选，路径是 `uncheck_pixel`。读回仍是已勾选就不算成功。未勾选的行不会被写成成功。会话可以把自建日期设成 `YYYY-MM-DD`，路径是 `date_set`。只改原生日期而没有 `ValueChanged` 不算成功。会话也可以点日期框的下拉箭头，再点当月可见的一天，路径是 `date_pixel`。读回不是这一天就不算成功。这不是 `DTM_SETSYSTEMTIME`。会话也可以先点下拉箭头，再点前后月按钮，然后点那个月里的一天，路径是 `month_pixel`。只允许跨一个月。会话也可以连点两次前后月按钮，路径是 `month2_pixel`。第一次点击后目标日期还不可见才算点了两次。会话也可以连点三次前后月按钮，路径是 `month3_pixel`。前两次点击后目标日期仍不可见。会话可以把自建时间设成 `HH:mm:ss`，路径是 `time_set`。只改原生时间而没有 `ValueChanged` 不算成功。同一时刻和非法时间不会被写成成功。会话也可以点自建时间框的上箭头，路径是 `time_pixel`。读回不是目标时间就不算成功。这不是 `time_set`，也不是 `DTM_SETSYSTEMTIME`。会话也可以点自建时间框的下箭头，路径是 `time_down_pixel`。读回不是目标时间就不算成功。这不是 `time_pixel`，也不是 `DTM_SETSYSTEMTIME`。会话也可以先点自建时间框的分钟字段，再点上箭头，路径是 `time_minute_pixel`。读回不是目标时间就不算成功。这不是 `time_pixel`，也不是 `DTM_SETSYSTEMTIME`。会话也可以先点自建时间框的秒字段，再点上箭头，路径是 `time_second_pixel`。读回不是目标时间就不算成功。这不是 `time_minute_pixel`，也不是 `DTM_SETSYSTEMTIME`。会话也可以先点自建时间框的分钟字段，再点下箭头，路径是 `time_minute_down_pixel`。读回不是目标时间就不算成功。这不是 `time_down_pixel`，也不是 `DTM_SETSYSTEMTIME`。会话也可以先点自建时间框的秒字段，再点下箭头，路径是 `time_second_down_pixel`。读回不是目标时间就不算成功。这不是 `time_second_pixel`，也不是 `DTM_SETSYSTEMTIME`。会话可以把自建数字框设成整数，路径是 `number_set`。只改编辑框文字而没有 `ValueChanged` 不算成功。会话可以把自建数字框设成带小数点的十进制数，路径是 `decimal_set`。读回数值不一致，或没有 `ValueChanged`，都不算成功。没有小数点的文本不会走这条路径。会话可以按自建数字框的上箭头或下箭头增减，路径是 `spin_up` / `spin_down`。数值没有按方向变化就不算成功。这不是直接写数值，也不移动系统光标。会话可以按名字勾选自建列表视图的一行，路径是 `listview_check`，不是点复选框像素，也不是 `listview_select`。会话也可以点自建列表视图一行的复选框，路径是 `lvcheck_pixel`。状态图没有变成已勾选就不算成功。这不是 `LVM_SETITEMSTATE`。会话也可以点已勾选的列表视图复选框把它取消，路径是 `lvuncheck_pixel`。状态图没有变成未勾选就不算成功。这不是 `LVM_SETITEMSTATE`。会话可以按名字取消已勾选的列表视图一行，路径是 `listview_uncheck`。状态图读回不是 1，或 `ItemCheck` 没发生，都不算成功。未勾选的行不会被写成成功。会话点击自建链接走 `link_click`，不是 `bm_click`。普通静态标签不再被假报成功。会话可以按名字点击自建菜单项，路径是 `menu_click`。菜单项会出现在场景里，但不是 UIA 原生子项。会话也可以先打开菜单再点可见行，路径是 `menu_pixel`。弹出层里没有这个名字就不算成功。这不是 `accDoDefaultAction`。同名菜单项各占一个场景编号。点击后面的编号走 `menu_nth`，按出现次序点中那一项，不再总是第一个。第一次出现仍是 `menu_click`。会话可以按名字选中自建列表视图的一行，路径是 `listview_select`，不是列表框的 `list_select`。会话也可以点自建列表视图一行的文字中心，路径是 `lvrow_pixel`。选中位没有置上就不算成功。这不是 `LVM_SETITEMSTATE`。会话也可以双击自建列表视图的一行，路径是 `lvrow_dblclick`。只改选中行而没有 DoubleClick 或 ItemActivate 不算成功。这不是 `lvrow_pixel`，也不是 `LVM_SETITEMSTATE`。会话也可以右键自建按钮打开上下文菜单，路径是 `context_pixel`。左键打开菜单，或菜单没有打开，都不算成功。这不是 `button_pixel`，也不是 `menu_pixel`。会话也可以点开这个菜单里的指定条目，路径是 `context_item`。只打开菜单不算成功。弹出层不认投递进去的点击坐标，所以条目用辅助功能默认动作激活，不移动系统光标。这不是 `context_pixel`，也不是 `menu_pixel`。会话可以设置自建进度条的原生位置，路径是 `progress_set`，不是托管 `ProgressBar.Value`。不移动系统光标。这不是完整 Windows 产品 CU。powershell.exe 托管的图形编辑框会先写子控件；只有控制台窗口类才剪贴板粘贴，写不进就不报成功
-
-- 飞书只观察，不自动发送；macOS 深 AX 全树停放
+扩展不进 Chrome 网上应用店，也不进 Edge 加载项。Windows 上怎么改、怎么测、怎么更新，见 [docs/WINDOWS-DEV.md](docs/WINDOWS-DEV.md)。
 
 ## 安装
 
@@ -65,97 +34,29 @@ Windows：
 irm https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.ps1 | iex
 ```
 
-从源码打包：
-
-```bash
-bash scripts/pack-release.sh
-VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
-```
-
-浏览器扩展不用商店上架。Windows 可以直接从已有的 GitHub Release 压缩包解出扩展，不点调试同意弹窗：
-
-```powershell
-irm https://raw.githubusercontent.com/zhouhanker/versatile-computer-use/main/scripts/install/install-lens.ps1 | iex
-```
-
-不需要先克隆仓库。脚本优先下载 Release 上的 `vcu-lens-extension.zip`。这个包已经由 `.github/workflows/lens-asset.yml` 挂到 Latest Release `v0.2.8`，不新开产品版本。2026-09-26 本机从该地址下载并装到临时目录，回执是 `LENS_FROM zip`，包含 `manifest.json`、`content.js` 和图标，不含测试目录。若该包以后不在，仍改用 `vcu-latest-windows-x64.tar.gz` 里的 `extension/`。装到 `%USERPROFILE%\.vcu\lens-extension` 后，仍要在 Edge 里手动“加载解压缩的扩展”。不要点允许调试。已有检出时也可以：
-
-```powershell
-powershell -File scripts/install/install-lens.ps1 -FromRelease -Open
-```
-
-下一次打 tag 会把 `vcu-lens-extension.zip` 和 `install-lens.ps1` 放进 Release 资产。这不是新的 GitHub Release。
-
-安装说明见 [`docs/INSTALL.md`](docs/INSTALL.md)。
+安装说明见 [docs/INSTALL.md](docs/INSTALL.md)。Release `v0.2.8` 不包含只存在于 `main` 的后续提交。
 
 ## 开始使用
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
 vcu daemon start
 vcu browser install-lens
-```
-
-首次使用时，在用户自己的 Edge 与 Chrome 中打开扩展页，Developer mode → Load unpacked → `~/.vcu/lens-extension`。之后更新扩展：
-
-```bash
-vcu browser install-lens --reload
 vcu browser ping --json
-```
-
-登录态网页操作：
-
-`vcu browser open` 在当前窗口新建后台标签，并放进名为 VCU 的紫色原生标签组。不替换用户正在看的页面，也不聚焦窗口。这和 Codex 把代理标签放进单独标签组的方式一致。`--background` 仍可写，但已经不是防抢焦点的开关。
-
-```bash
-vcu browser login-state
-vcu browser tabs --json
-vcu browser observe --json          # 前台须为 Chrome 或 Edge
-vcu browser observe --tab <id> --json
-vcu browser observe --browser chrome --json
-vcu browser select --tab <id>
 vcu browser open --url https://example.com
-vcu browser open --url https://example.com --browser chrome
-vcu browser extract --tab <id> --selector a --json
-vcu browser extract --tab <id> --browser chrome --selector a --json
-vcu browser click --tab <id> --selector '#continue'
-vcu browser hover --tab <id> --selector '#continue'
-vcu browser type --tab <id> --selector 'input[name=q]' --text 'hello'
-vcu browser scroll --tab <id> --dy 600
-vcu browser hover --tab <id> --selector '#pad'
-vcu browser wait --selector '#ready' --text ready --ms 2000
-vcu browser screenshot --tab <id> --json
-vcu browser click --space viewport --capture <capture_id> --pixel-x <x> --pixel-y <y>
-vcu browser close --tab <id>
-vcu browser close --tab <id> --browser chrome
+vcu browser observe --tab <id> --json
 ```
 
-标签组：
+首次在用户自己的 Edge 或 Chrome 里加载解压缩的扩展，目录是 `~/.vcu/lens-extension`。不要点「允许调试」。
 
-```bash
-vcu browser group --tabs <id>,<id> --title '设计' --color purple
-vcu browser group-update --group <id> --collapsed true
-```
-
-浏览器操作手册：[`playbooks/user-browser.md`](playbooks/user-browser.md)。桌面最短环：[`playbooks/desktop.md`](playbooks/desktop.md)。
-
-## MCP
-
-将 `vcu-mcp` 配入宿主即可调用浏览器与桌面工具，包括 `vcu_browser_observe`、`vcu_browser_click`、`vcu_browser_extract`、`vcu_hover`、`vcu_session_abort` 等。
-
-```bash
-vcu mcp print-config --json
-```
-
-推荐顺序：`ping` → `observe`（查看返回的 PNG）→ 在 60 秒内对 last observe 执行 click / type / screenshot / open。也可用 `observe` 的 `tab_id` 指定标签。
+浏览器手册：[playbooks/user-browser.md](playbooks/user-browser.md)。桌面手册：[playbooks/desktop.md](playbooks/desktop.md)。
 
 ## 文档
 
 | 文档 | 说明 |
 | --- | --- |
-| [`docs/PLAN.md`](docs/PLAN.md) | 当前版本计划 |
-| [`docs/ROADMAP-CU.md`](docs/ROADMAP-CU.md) | Computer Use 路线图 |
-| [`docs/HANDOFF.md`](docs/HANDOFF.md) | 会话交接 |
-| [`docs/INSTALL.md`](docs/INSTALL.md) | 安装 |
-| [`playbooks/user-browser.md`](playbooks/user-browser.md) | 浏览器操作 |
-| [`playbooks/desktop.md`](playbooks/desktop.md) | 桌面操作 |
+| [docs/PLAN.md](docs/PLAN.md) | 当前版本计划 |
+| [docs/WINDOWS-DEV.md](docs/WINDOWS-DEV.md) | Windows 开发与扩展更新 |
+| [docs/INSTALL.md](docs/INSTALL.md) | 安装 |
+| [docs/ROADMAP-CU.md](docs/ROADMAP-CU.md) | Computer Use 路线图 |
+| [playbooks/user-browser.md](playbooks/user-browser.md) | 浏览器手册 |
+| [playbooks/desktop.md](playbooks/desktop.md) | 桌面手册 |

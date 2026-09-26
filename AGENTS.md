@@ -22,6 +22,7 @@ awr --project . context compile --work <ID> --goal 'goal#vcu' --budget 5000
 Authoritative sources (in order):
 
 - `docs/PLAN.md` — current released version (browser Bridge 0.2.8)
+- `docs/WINDOWS-DEV.md` — Windows checkout, Edge-only test, and unpacked extension update. Do not publish the extension to a store.
 - `docs/ROADMAP-CU.md` — next epic: Codex-like CU including desktop
 - `docs/testing/DESKTOP_CU_TEST_PLAN.md` — desktop CU tests
 - `.awr/intake/GOALS.md`
@@ -35,6 +36,7 @@ Authoritative sources (in order):
 - Login-state web path stays USER Edge/Chrome + `~/.vcu/lens-extension`. Host vision (Grok) is enough; do not require `vcu init model`.
 - DOM extract/click/type/scroll must be `source=extension_dom` when using the extension. AX chrome is not HTML DOM.
 - Never click Edge Allow debugging. Never automate WeChat. Never warp the OS cursor. Local `/reference/` (gitignored) may be reverse-engineered for architecture notes. Do not commit the .app, decompiled sources, or extracted official assets. Do not edit the live `~/.codex/computer-use/` install. Reimplement in VCU with original code under `assets/`.
+- Browser extension stays unpacked in the user profile. Do not publish it to the Chrome Web Store or Edge Add-ons.
 - Prefer editing authoritative Markdown/YAML; reindex with `awr source reindex`.
 - Preserve unrelated edits; keep commits focused.
 

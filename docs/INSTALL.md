@@ -98,3 +98,5 @@ irm https://raw.githubusercontent.com/zhouhanker/versatile-computer-use/main/scr
 The script tries `vcu-lens-extension.zip` first, then falls back to `vcu-latest-windows-x64.tar.gz`. It copies the extension to `%USERPROFILE%\.vcu\lens-extension`. Then in Edge: `edge://extensions`, Developer mode, Load unpacked. Do not start CDP. A checkout can still run `powershell -File scripts/install/install-lens.ps1 -FromRelease -Open`.
 
 From a source checkout, omit `-FromRelease` to copy `extension/` directly.
+
+Checkout updates do not go through a browser store or `vcu self update`. See [WINDOWS-DEV.md](WINDOWS-DEV.md). `git pull` does not update `~/.vcu/lens-extension`.

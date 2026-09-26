@@ -82,7 +82,7 @@ vcu browser key --key return --dry-run
 
 ## 扩展安装与健康
 
-`vcu browser install-lens` 复制到 `~/.vcu/lens-extension`，在 USER Edge/Chrome load unpacked。更新后 Reload 扩展，`vcu browser ping` 核实版本；本次新能力要求 Bridge 0.2.5。已打开的旧网页建议刷新后再测新内容脚本。
+`vcu browser install-lens` 复制到 `~/.vcu/lens-extension`，在 USER Edge/Chrome load unpacked。更新流程见 [docs/WINDOWS-DEV.md](../docs/WINDOWS-DEV.md)。只点重新加载不够，除非扩展页加载的就是刚更新的目录。然后 `vcu browser ping` 核实版本；本次新能力要求 Bridge 0.2.5。已打开的旧网页建议刷新后再测新内容脚本。
 
 `extension_profile=user` 才是登录态主线；`agent` 表示空 Agent profile，`none` 表示未配对。`unknown method` 表示后台旧版本，应 Reload，不是点击 Allow。DOM 扩展失败不改用 AX 冒充成功。
 
