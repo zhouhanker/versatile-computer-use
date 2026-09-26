@@ -1735,6 +1735,34 @@ function Click-VcuTimeUpPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   exit 0
 }
 
+function Click-VcuTimeSecondDownPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  # time-second-down-pixel-logical: click the second field, then the down arrow. Prefix timepix:sdn: . Not DTM_SETSYSTEMTIME.
+  if ($ownerPid -lt 1) { 'error:time-second-down-pixel-name'; exit 0 }
+  if ($expect -notmatch '^sdn:(\d{2}):(\d{2}):(\d{2})$') { 'error:time-second-down-pixel-format'; exit 0 }
+  $hour = [int]$Matches[1]
+  $minute = [int]$Matches[2]
+  $second = [int]$Matches[3]
+  if ($hour -gt 23 -or $minute -gt 59 -or $second -gt 59) { 'error:time-second-down-pixel-format'; exit 0 }
+  $want = $hour.ToString("00") + ":" + $minute.ToString("00") + ":" + $second.ToString("00")
+  Initialize-VcuTimeArrow
+  if (-not ("Vcu.VcuTimeUp" -as [type])) { 'error:time-second-down-pixel-read'; exit 0 }
+  $current = [Vcu.VcuTimeUp]::ReadClock($ownerPid, $h)
+  if ([string]::IsNullOrWhiteSpace($current) -or $current.Length -lt 8) { 'error:time-second-down-pixel-read'; exit 0 }
+  if ($current.Substring($current.Length - 8) -eq $want) { 'error:time-second-down-pixel-state'; exit 0 }
+  $up = [Vcu.VcuTimeUp]::FindUpDown($h)
+  if ($up -eq [IntPtr]::Zero) { 'error:time-second-down-pixel-rect'; exit 0 }
+  if (-not [Vcu.VcuTimeUp]::ClickField($h, 26)) { 'error:time-second-down-pixel-click'; exit 0 }
+  Start-Sleep -Milliseconds 40
+  if (-not [Vcu.VcuTimeUp]::ClickDown($up)) { 'error:time-second-down-pixel-click'; exit 0 }
+  for ($n = 0; $n -lt 8; $n++) {
+    Start-Sleep -Milliseconds 40
+    $after = [Vcu.VcuTimeUp]::ReadClock($ownerPid, $h)
+    if (-not [string]::IsNullOrWhiteSpace($after) -and $after.EndsWith($want) -and $after -ne $current) { "ok:time_second_down_pixel"; exit 0 }
+  }
+  'error:time-second-down-pixel-state'
+  exit 0
+}
+
 function Click-VcuTimeMinuteDownPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   # time-minute-down-pixel-logical: click the minute field, then the down arrow. Prefix timepix:mdn: . Not DTM_SETSYSTEMTIME.
   if ($ownerPid -lt 1) { 'error:time-minute-down-pixel-name'; exit 0 }
@@ -2816,6 +2844,8 @@ function Set-VcuElement($el, [string]$expect) {
       Click-VcuDateMonthPixel ([IntPtr]$nh) $expect.Substring(9) $targetPid
     } elseif ($expect.StartsWith("datepix:")) {
       Click-VcuDatePixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
+    } elseif ($expect.StartsWith("timepix:sdn:")) {
+      Click-VcuTimeSecondDownPixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("timepix:mdn:")) {
       Click-VcuTimeMinuteDownPixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("timepix:sup:")) {
@@ -3278,6 +3308,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:check_set")
         || out.contains("ok:uncheck_pixel")
         || out.contains("ok:uncheck_set")
+        || out.contains("ok:time_second_down_pixel")
         || out.contains("ok:time_minute_down_pixel")
         || out.contains("ok:time_second_pixel")
         || out.contains("ok:time_minute_pixel")
@@ -3331,6 +3362,8 @@ pub fn set_value_from_uia_output(
             "decimal_set"
         } else if out.contains("ok:number_set") {
             "number_set"
+        } else if out.contains("ok:time_second_down_pixel") {
+            "time_second_down_pixel"
         } else if out.contains("ok:time_minute_down_pixel") {
             "time_minute_down_pixel"
         } else if out.contains("ok:time_second_pixel") {
@@ -4073,6 +4106,9 @@ mod tests {
         assert!(setv.contains("uncheckpix:"));
         assert!(setv.contains("uncheck-pixel-logical"));
         assert!(setv.contains("ok:uncheck_set"));
+        assert!(setv.contains("ok:time_second_down_pixel"));
+        assert!(setv.contains("timepix:sdn:"));
+        assert!(setv.contains("time-second-down-pixel-logical"));
         assert!(setv.contains("ok:time_minute_down_pixel"));
         assert!(setv.contains("timepix:mdn:"));
         assert!(setv.contains("time-minute-down-pixel-logical"));
