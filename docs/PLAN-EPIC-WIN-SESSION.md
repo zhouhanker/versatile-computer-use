@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-081 会话点中自建上下文菜单条目已在本机复测，路径是 context_item。不是 context_pixel。
+
 更新：2026-09-26。CU-WIN-SESSION-080 会话右键自建按钮打开上下文菜单已在本机复测，路径是 context_pixel。不是 button_pixel，也不是 menu_pixel。
 
 更新：2026-09-26。CU-WIN-SESSION-079 会话双击自建列表视图一行已在本机复测，路径是 lvrow_dblclick。不是 lvrow_pixel。
@@ -1034,11 +1036,24 @@
 - 不做：不把这次写成 `menu_pixel` 或 `button_pixel`，也不写成完整产品 CU。没有点上下文菜单里的条目。
 
 
+
+## CU-WIN-SESSION-081 会话点中自建上下文菜单条目
+
+状态：**2026-09-26 本机复测通过。** 不是 `context_pixel`，也不是 `menu_pixel`，也不是完整 Windows 产品 CU。
+
+- 080 只打开菜单。这次 `vcu type` 文本以 `ctxitem:` 开头，格式是 `控件名|条目名|结果标记`。先右键打开菜单，再在弹出层里找这个条目。投递到弹出层的点击坐标不会触发条目，所以条目用 `accDoDefaultAction` 激活，不移动系统光标。读回必须是结果标记。只打开菜单、左键、缺失条目、结果标记已经出现，都不算成功。没有 SendInput。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_context_item.ps1`
+- 结果：`CU-WIN-SESSION-081 OK win:powershell:6600 01M3E8TX455B805DD07VRQXJW3 ref=e3 path=context_item hit=VCU-CTX-HIT cursor=861,712`
+- 左键没有把标签改成 `VCU-CTX-HIT`。没有 SendInput。Edge 扩展仍在轮询。单测 `windows_backend_platform_and_denials` 通过。
+- 不做：不把这次写成 `context_pixel` 或 `menu_pixel`，也不写成完整产品 CU。这不是像素点中弹出层。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
 - 树展开是 `tree_expand`，树折叠是 `tree_collapse`。折叠不是点图标。只清展开位而没有 `AfterCollapse` 不算成功。树节点文字点击是 `tree_pixel`，不是 `tree_select`。展开图标仍是 `tree_icon`。
-- 右键打开自建上下文菜单是 `context_pixel`，不是 `button_pixel`，也不是 `menu_pixel`。左键打开菜单不算成功。没有点菜单条目。
+- 右键打开自建上下文菜单是 `context_pixel`，不是 `button_pixel`，也不是 `menu_pixel`。左键打开菜单不算成功。点中条目是 `context_item`，用 `accDoDefaultAction`，不是投递点击坐标。
 - 列表框双击是 `list_dblclick`，不是 `list_pixel`，也不是 `LB_SETCURSEL`。列表视图双击是 `lvrow_dblclick`，不是 `lvrow_pixel`，也不是 `LVM_SETITEMSTATE`。只改选中行而没有 DoubleClick 或 ItemActivate 不算成功。
 - 时间框上箭头是 `time_pixel`，下箭头是 `time_down_pixel`。先点分钟字段再点上箭头是 `time_minute_pixel`。先点秒字段再点上箭头是 `time_second_pixel`。分钟字段的下箭头是 `time_minute_down_pixel`。秒字段的下箭头是 `time_second_down_pixel`。数字框微调仍是 `spin_up` / `spin_down`，不是时间框箭头。跨进程改文字如果没有对应变更事件，不能报成功。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。

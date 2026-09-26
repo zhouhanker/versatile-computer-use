@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-081 已在本机复测：会话右键打开自建上下文菜单并点中指定条目，路径是 context_item。标签变成 VCU-CTX-HIT。只打开菜单不算成功。左键不会点中条目。缺失条目被拒绝。再次点已完成的条目被拒绝。弹出层不认投递坐标，条目用 accDoDefaultAction 激活。没有 SendInput，没有移动系统光标。不是 context_pixel，也不是 menu_pixel，也不是完整 Windows 产品 CU。
+
 更新：2026-09-26。CU-WIN-SESSION-080 已在本机复测：会话右键自建按钮打开上下文菜单，路径是 context_pixel。左键仍是 button_pixel，不会打开菜单。再次右键已打开的菜单被拒绝。缺失目标被拒绝。没有 SendInput，没有移动系统光标。不是 menu_pixel，也不是完整 Windows 产品 CU。
 
 更新：2026-09-26。CU-WIN-SESSION-079 已在本机复测：会话双击自建列表视图的一行，路径是 lvrow_dblclick。标签先变成 VCU-LVD-HIT，再双击已选中行变成 VCU-LVD-HIT2。屏幕外的一行先滚进视图再双击。只发一次 WM_LBUTTONDBLCLK 不会触发托管事件，所以辅助进程连发两次点击再补 DBLCLK。单击仍是 lvrow_pixel，不会改双击标签。没有 SendInput，没有移动系统光标。不是 LVM_SETITEMSTATE，也不是完整 Windows 产品 CU。

@@ -2898,6 +2898,109 @@ function Click-VcuButtonPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
 }
 
 
+
+function Click-VcuContextItem([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:context-item-name'; exit 0 }
+  $parts = $expect.Split("|")
+  if ($parts.Length -ne 3 -or [string]::IsNullOrWhiteSpace($parts[0]) -or [string]::IsNullOrWhiteSpace($parts[1]) -or [string]::IsNullOrWhiteSpace($parts[2])) { 'error:context-item-name'; exit 0 }
+  $name = $parts[0]
+  $item = $parts[1]
+  $label = $parts[2]
+  if (-not ("Vcu.VcuContextPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static IntPtr Find(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; IntPtr found = IntPtr.Zero; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (found == IntPtr.Zero && sb.ToString() == expect) found = child; return true; }, IntPtr.Zero); if (found == IntPtr.Zero) { var self = new System.Text.StringBuilder(128); GetWindowText(hwnd, self, 128); if (self.ToString() == expect) found = hwnd; } return found; } public static bool Seen(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; bool found = false; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (sb.ToString() == expect) found = true; return !found; }, IntPtr.Zero); return found; } public static string Center(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return null; int w = r.Right - r.Left; int h = r.Bottom - r.Top; if (w < 2 || h < 2) return null; return (w / 2).ToString() + "," + (h / 2).ToString(); } public static IntPtr Root(IntPtr hwnd) { IntPtr root = GetAncestor(hwnd, 2); return root == IntPtr.Zero ? hwnd : root; }' -Name VcuContextPixel -Namespace Vcu | Out-Null
+  }
+  if (-not ("Vcu.VcuContextItem" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr lParam); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT r); [DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; } public static IntPtr FindPopup(int pid, IntPtr form) { uint want = (uint)pid; IntPtr found = IntPtr.Zero; EnumWindows((h, l) => { if (h == form || !IsWindowVisible(h)) return true; uint wp; GetWindowThreadProcessId(h, out wp); if (wp != want) return true; var sb = new System.Text.StringBuilder(80); GetClassName(h, sb, 80); string c = sb.ToString().ToLowerInvariant(); if (c.Contains("shadow")) return true; RECT r; GetWindowRect(h, out r); int w = r.R - r.L; int hgt = r.B - r.T; if (w < 40 || hgt < 16 || hgt > 400) return true; found = h; return false; }, IntPtr.Zero); return found; } public static string Slot(IntPtr popup, string expect) { System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; if (AccessibleObjectFromWindow(popup, 0xFFFFFFFC, ref iid, out acc) != 0 || acc == null) return ""; int index = -1; int count = 0; Walk(acc, 0, expect, 0, ref index, ref count); if (index < 0 || count < 1) return ""; return index.ToString() + "," + count.ToString(); } static void Walk(object acc, int id, string expect, int depth, ref int index, ref int count) { if (acc == null || depth > 6) return; int role = -1; string name = ""; try { role = System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch {} try { name = System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch {} if (role == 12 && name != null && name.Length > 0) { if (name == expect && index < 0) index = count; count++; } object child = id == 0 ? acc : null; if (id != 0) { try { child = acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id }); } catch { return; } } if (child == null) return; int n = 0; try { n = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); } catch {} for (int i = 1; i <= n && i <= 12; i++) Walk(child, i, expect, depth + 1, ref index, ref count); } public static string Point(IntPtr popup, int index, int count) { RECT r; if (!GetWindowRect(popup, out r)) return null; int h = r.B - r.T; if (count < 1 || index < 0 || index >= count || h < 8) return null; int slot = h / count; if (slot < 8) return null; int x = (r.L + r.R) / 2; int y = r.T + index * slot + slot / 2; return x.ToString() + "," + y.ToString(); } public static bool Invoke(IntPtr popup, string expect) { System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; if (AccessibleObjectFromWindow(popup, 0xFFFFFFFC, ref iid, out acc) != 0 || acc == null) return false; return DoItem(acc, 0, expect, 0); } static bool DoItem(object acc, int id, string expect, int depth) { if (acc == null || depth > 6) return false; int role = -1; string name = ""; try { role = System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch {} try { name = System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch {} if (role == 12 && name == expect) { try { acc.GetType().InvokeMember("accDoDefaultAction", System.Reflection.BindingFlags.InvokeMethod, null, acc, new object[] { id }); return true; } catch { return false; } } object child = id == 0 ? acc : null; if (id != 0) { try { child = acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id }); } catch { return false; } } if (child == null) return false; int n = 0; try { n = System.Convert.ToInt32(child.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, child, null)); } catch {} for (int i = 1; i <= n && i <= 12; i++) { if (DoItem(child, i, expect, depth + 1)) return true; } return false; }' -Name VcuContextItem -Namespace Vcu | Out-Null
+  }
+  $hit = [Vcu.VcuContextPixel]::Find($h, $name)
+  if ($hit -eq [IntPtr]::Zero) { 'error:context-item-name'; exit 0 }
+  if ([Vcu.VcuContextPixel]::Seen($h, $label)) { 'error:context-item-state'; exit 0 }
+  $point = [string][Vcu.VcuContextPixel]::Center($hit)
+  if ([string]::IsNullOrWhiteSpace($point)) { 'error:context-item-rect'; exit 0 }
+  $xy = $point.Split(",")
+  $x = [int]$xy[0]
+  $y = [int]$xy[1]
+  # context-item-logical: open with a right click, then click the named popup row. Not context_pixel. Not menu_pixel. Not SendInput.
+  $hwnd64 = $hit.ToInt64()
+  $open = Join-Path $env:TEMP ("vcu-ctxitem-open-" + [guid]::NewGuid().ToString("N") + ".ps1")
+  @(
+    'Add-Type @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public static class VcuCtxItemOpen {',
+    '  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);',
+    '  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);',
+    '  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int x; public int y; }',
+    '  public static void Right(long hwnd, int x, int y) {',
+    '    IntPtr h = new IntPtr(hwnd);',
+    '    IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF));',
+    '    PostMessage(h, 0x0204, (IntPtr)2, lp);',
+    '    PostMessage(h, 0x0205, IntPtr.Zero, lp);',
+    '    POINT p = new POINT(); p.x = x; p.y = y;',
+    '    ClientToScreen(h, ref p);',
+    '    IntPtr screen = (IntPtr)((p.y << 16) | (p.x & 0xFFFF));',
+    '    PostMessage(h, 0x007B, h, screen);',
+    '  }',
+    '}',
+    '"@',
+    "[VcuCtxItemOpen]::Right($hwnd64, $x, $y)"
+  ) | Set-Content -Encoding ASCII -Path $open
+  & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File $open | Out-Null
+  Remove-Item $open -ErrorAction SilentlyContinue
+  $form = [Vcu.VcuContextPixel]::Root($hit)
+  if ($form -eq [IntPtr]::Zero) { $form = $hit }
+  $popup = [IntPtr]::Zero
+  for ($n = 0; $n -lt 12 -and $popup -eq [IntPtr]::Zero; $n++) {
+    Start-Sleep -Milliseconds 50
+    $popup = [Vcu.VcuContextItem]::FindPopup($ownerPid, $form)
+  }
+  if ($popup -eq [IntPtr]::Zero) { 'error:context-item-popup'; exit 0 }
+  $slot = [string][Vcu.VcuContextItem]::Slot($popup, $item)
+  if ([string]::IsNullOrWhiteSpace($slot)) { 'error:context-item-name'; exit 0 }
+  $sp = $slot.Split(",")
+  $where = [string][Vcu.VcuContextItem]::Point($popup, [int]$sp[0], [int]$sp[1])
+  if ([string]::IsNullOrWhiteSpace($where)) { 'error:context-item-rect'; exit 0 }
+  $wp = $where.Split(",")
+  $sx = [int]$wp[0]
+  $sy = [int]$wp[1]
+  $pop64 = $popup.ToInt64()
+  $click = Join-Path $env:TEMP ("vcu-ctxitem-click-" + [guid]::NewGuid().ToString("N") + ".ps1")
+  @(
+    'Add-Type @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public static class VcuCtxItemClick {',
+    '  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);',
+    '  [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr hWnd, ref POINT p);',
+    '  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int x; public int y; }',
+    '  public static void Click(long hwnd, int sx, int sy) {',
+    '    IntPtr h = new IntPtr(hwnd);',
+    '    POINT p = new POINT(); p.x = sx; p.y = sy;',
+    '    ScreenToClient(h, ref p);',
+    '    IntPtr lp = (IntPtr)((p.y << 16) | (p.x & 0xFFFF));',
+    '    PostMessage(h, 0x0201, (IntPtr)1, lp);',
+    '    PostMessage(h, 0x0202, IntPtr.Zero, lp);',
+    '  }',
+    '}',
+    '"@',
+    "[VcuCtxItemClick]::Click($pop64, $sx, $sy)"
+  ) | Set-Content -Encoding ASCII -Path $click
+  & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File $click | Out-Null
+  Remove-Item $click -ErrorAction SilentlyContinue
+  for ($n = 0; $n -lt 4; $n++) {
+    if ([Vcu.VcuContextPixel]::Seen($h, $label)) { "ok:context_item"; exit 0 }
+    Start-Sleep -Milliseconds 40
+  }
+  # The dropdown ignores posted click coordinates, so activate the named row without moving the cursor.
+  if (-not [Vcu.VcuContextItem]::Invoke($popup, $item)) { 'error:context-item-invoke'; exit 0 }
+  for ($n = 0; $n -lt 12; $n++) {
+    if ([Vcu.VcuContextPixel]::Seen($h, $label)) { "ok:context_item"; exit 0 }
+    Start-Sleep -Milliseconds 50
+  }
+  'error:context-item-state'
+  exit 0
+}
+
 function Click-VcuContextPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   if ($ownerPid -lt 1) { 'error:context-pixel-name'; exit 0 }
   $parts = $expect.Split("|")
@@ -2905,7 +3008,7 @@ function Click-VcuContextPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   $name = $parts[0]
   $label = $parts[1]
   if (-not ("Vcu.VcuContextPixel" -as [type])) {
-    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static IntPtr Find(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; IntPtr found = IntPtr.Zero; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (found == IntPtr.Zero && sb.ToString() == expect) found = child; return true; }, IntPtr.Zero); if (found == IntPtr.Zero) { var self = new System.Text.StringBuilder(128); GetWindowText(hwnd, self, 128); if (self.ToString() == expect) found = hwnd; } return found; } public static bool Seen(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; bool found = false; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (sb.ToString() == expect) found = true; return !found; }, IntPtr.Zero); return found; } public static string Center(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return null; int w = r.Right - r.Left; int h = r.Bottom - r.Top; if (w < 2 || h < 2) return null; return (w / 2).ToString() + "," + (h / 2).ToString(); }' -Name VcuContextPixel -Namespace Vcu | Out-Null
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static IntPtr Find(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; IntPtr found = IntPtr.Zero; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (found == IntPtr.Zero && sb.ToString() == expect) found = child; return true; }, IntPtr.Zero); if (found == IntPtr.Zero) { var self = new System.Text.StringBuilder(128); GetWindowText(hwnd, self, 128); if (self.ToString() == expect) found = hwnd; } return found; } public static bool Seen(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; bool found = false; EnumChildWindows(root, (child, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(child, sb, 128); if (sb.ToString() == expect) found = true; return !found; }, IntPtr.Zero); return found; } public static string Center(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return null; int w = r.Right - r.Left; int h = r.Bottom - r.Top; if (w < 2 || h < 2) return null; return (w / 2).ToString() + "," + (h / 2).ToString(); } public static IntPtr Root(IntPtr hwnd) { IntPtr root = GetAncestor(hwnd, 2); return root == IntPtr.Zero ? hwnd : root; }' -Name VcuContextPixel -Namespace Vcu | Out-Null
   }
   $hit = [Vcu.VcuContextPixel]::Find($h, $name)
   if ($hit -eq [IntPtr]::Zero) { 'error:context-pixel-name'; exit 0 }
@@ -2959,6 +3062,11 @@ function Set-VcuElement($el, [string]$expect) {
   if ($expect.StartsWith("radiopix:")) {
     $rh = [int64]$el.Current.NativeWindowHandle
     if ($rh -ne 0) { Click-VcuRadioPixel ([IntPtr]$rh) $expect.Substring(9) $targetPid }
+    return
+  }
+  if ($expect.StartsWith("ctxitem:")) {
+    $ih = [int64]$el.Current.NativeWindowHandle
+    if ($ih -ne 0) { Click-VcuContextItem ([IntPtr]$ih) $expect.Substring(8) $targetPid }
     return
   }
   if ($expect.StartsWith("ctxpix:")) {
@@ -3490,6 +3598,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:spin_up")
         || out.contains("ok:decimal_set")
         || out.contains("ok:number_set")
+        || out.contains("ok:context_item")
         || out.contains("ok:context_pixel")
         || out.contains("ok:menu_pixel")
         || out.contains("ok:menu_click")
@@ -3518,6 +3627,8 @@ pub fn set_value_from_uia_output(
             "combo_drop"
         } else if out.contains("ok:combo_select") {
             "combo_select"
+        } else if out.contains("ok:context_item") {
+            "context_item"
         } else if out.contains("ok:context_pixel") {
             "context_pixel"
         } else if out.contains("ok:menu_pixel") {
@@ -4326,6 +4437,10 @@ mod tests {
         assert!(setv.contains("ok:decimal_set"));
         assert!(setv.contains("decimal:"));
         assert!(setv.contains("ok:number_set"));
+        assert!(setv.contains("ok:context_item"));
+        assert!(setv.contains("ctxitem:"));
+        assert!(setv.contains("context-item-logical"));
+        assert!(setv.contains("accDoDefaultAction"));
         assert!(setv.contains("ok:context_pixel"));
         assert!(setv.contains("ctxpix:"));
         assert!(setv.contains("context-pixel-logical"));
