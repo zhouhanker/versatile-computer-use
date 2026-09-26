@@ -4,6 +4,8 @@
 
 仓库：[github.com/zhouhanker/versatile-computer-use](https://github.com/zhouhanker/versatile-computer-use)
 
+GitHub Contributors 目前只有 zhouhanker。仓库页和贡献图没有单独的 zhouhan。没有改写历史。旧图缓存若还显示这个名字，不是当前提交作者。
+
 ## 产品定位
 
 VCU 附着用户自己的 Chrome / Edge 登录态，完成网页观察、DOM 操作、截图坐标点击与原生标签组管理。同一套运行时也提供 macOS 桌面会话（可见 Stage、Guide 虚拟指针、允许名单应用上的辅助功能操作），以及 Windows 侧的窗口观察与控件动作。
