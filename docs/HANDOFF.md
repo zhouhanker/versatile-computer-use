@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-065 已在本机复测：会话点自建列表视图 VCU-LV-B 的复选框，路径是 lvcheck_pixel。标签变成 VCU-LV-ON-B。已勾选的行和不存在的行被拒绝。没有移动系统光标。不是 listview_check，也不是 LVM_SETITEMSTATE，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-064 已在本机复测：会话点自建按钮 VCU-CLICK-022 的客户区中心，路径是 button_pixel。标签变成 VCU-CLICKED-022。标签已经是这个文本、以及不存在的按钮被拒绝。没有移动系统光标。不是 bm_click，也不是完整 Windows 产品 CU。列表视图复选框的像素点击从 daemon 脚本里没有勾上，没有写成成功。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-063 已在本机复测：会话点自建单选按钮 VCU-RADIO-B 的客户区中心，路径是 radio_pixel。B 变成选中，A 被清掉，标签变成 VCU-RADIO-SHOW-B。已选中的按钮和不存在的按钮被拒绝。没有移动系统光标。不是 bm_click，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
