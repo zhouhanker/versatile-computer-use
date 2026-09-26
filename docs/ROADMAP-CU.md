@@ -2,7 +2,7 @@
 
 更新：2026-09-26。作者 zhouhanker。当前证据以 docs/PLAN.md 为准，不要把 `e5d47df` 当成当前 HEAD。
 
-**排期切片已停在 CU-D-700。** 本文保留已关闭切片的执行记录，不是进行中工单。Windows 产品会话的已复测切片在 `docs/PLAN-EPIC-WIN-SESSION.md`，目前到 CU-WIN-SESSION-070，仍不是完整 Windows 产品 CU。已发布的浏览器 Bridge **0.2.8** 冻结仍有效，见 [`PLAN.md`](PLAN.md)。桌面工作不得回退浏览器门禁，不得把未测桌面能力写成已完成。
+**排期切片已停在 CU-D-700。** 本文保留已关闭切片的执行记录，不是进行中工单。Windows 产品会话的已复测切片在 `docs/PLAN-EPIC-WIN-SESSION.md`，目前到 CU-WIN-SESSION-071，仍不是完整 Windows 产品 CU。已发布的浏览器 Bridge **0.2.8** 冻结仍有效，见 [`PLAN.md`](PLAN.md)。桌面工作不得回退浏览器门禁，不得把未测桌面能力写成已完成。
 
 测试细则：[`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。结构参照：[`design/06-stage-steward.md`](design/06-stage-steward.md)、[`design/08-codex-cu-parity.md`](design/08-codex-cu-parity.md)。
 

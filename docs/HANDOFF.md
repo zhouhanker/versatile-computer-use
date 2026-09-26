@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-071 已在本机复测：会话点自建日期框的下拉箭头，再连点三次下个月按钮，然后点 15 日，路径是 month3_pixel。标签变成 VCU-DTP-2026-04-15。前两次点击后目标日期还不可见。同一天、非法日期和只跨两个月被拒绝。没有移动系统光标。不是 date_set，也不是 DTM_SETSYSTEMTIME，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-070 已在本机复测：会话点自建日期框的下拉箭头，再连点两次下个月按钮，然后点 15 日，路径是 month2_pixel。标签变成 VCU-DTP-2026-03-15。第一次点击后目标日期还不可见。同一天、非法日期和只跨一个月被拒绝。没有移动系统光标。不是 date_set，也不是 DTM_SETSYSTEMTIME，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-069 已在本机复测：会话点自建日期框的下拉箭头，再点下个月按钮，然后点 15 日，路径是 month_pixel。标签变成 VCU-DTP-2026-02-15。同一天、非法日期、同月和跨两个月被拒绝。没有移动系统光标。不是 date_set，也不是 DTM_SETSYSTEMTIME，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
