@@ -1,3 +1,5 @@
+更新：2026-09-26。Windows Stage 胶囊后面的纯黑长方形是阴影窗。分层内容没有盖住整窗，露出的客户区是黑的。不再显示这层阴影窗。胶囊还在。不是完整 Windows 产品 CU。
+
 更新：2026-09-26。CU-WIN-SESSION-067 已在本机复测：会话点自建列表视图一行 VCU-LV-B 的文字中心，路径是 lvrow_pixel。标签变成 VCU-LV-PICKED-B。已选中的行和不存在的行被拒绝。没有移动系统光标。不是 listview_select，也不是 LVM_SETITEMSTATE，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。GitHub Contributors API 仍只有 zhouhanker（267）。仓库历史作者只有 zhouhanker <zhouhanker@gmail.com>。stats/contributors 这次返回空缓存。不改写历史。网页图如果还显示 zhouhan，那是 GitHub 图缓存，不是当前提交作者。

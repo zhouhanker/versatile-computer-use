@@ -489,17 +489,10 @@ if ($script:HudAcrylic) {
   $script:HudText.Left = $hudLeft
   $script:HudText.Top = $hudTop
   $script:HudText.Show()
-  $pad = [int][Math]::Round(10 * $script:DpiScale)
-  $script:HudShadowBmp = New-HudShadowBitmap
-  $script:HudShadow = New-Object System.Windows.Forms.Form
-  $script:HudShadow.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
-  $script:HudShadow.ShowInTaskbar = $false
-  $script:HudShadow.TopMost = $true
-  $script:HudShadow.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
-  $script:HudShadow.ClientSize = New-Object System.Drawing.Size $script:HudShadowBmp.Width, $script:HudShadowBmp.Height
-  $script:HudShadow.Left = $hudLeft - $pad
-  $script:HudShadow.Top = $hudTop - $pad
-  $script:HudShadow.Show()
+  # The shadow form is a larger layered window behind the capsule. On this
+  # DPI setup its client paints as an opaque black rectangle. Do not show it.
+  $script:HudShadow = $null
+  $script:HudShadowBmp = $null
   Sync-HudLayers
 } else {
   [void][VcuStageWin]::ShowBitmap($hud.Handle, $hudBmp, $hudLeft, $hudTop, $false)
@@ -1311,6 +1304,7 @@ mod tests {
         assert!(STAGE_WINPS.contains("0x99221C18"));
         assert!(STAGE_WINPS.contains("Segoe UI Semibold"));
         assert!(STAGE_WINPS.contains("New-HudShadowBitmap"));
+        assert!(STAGE_WINPS.contains("opaque black rectangle"));
         assert!(STAGE_WINPS.contains("Sync-HudLayers"));
         assert!(STAGE_WINPS.contains("FromArgb(115, 255, 255, 255)"));
         assert!(STAGE_WINPS.contains("FromArgb(150, 24, 28, 34)"));
