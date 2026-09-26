@@ -1704,6 +1704,12 @@ function Select-VcuDate([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   exit 0
 }
 
+function Initialize-VcuTimeArrow {
+  if (-not ("Vcu.VcuTimeUp" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; } [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buf, UIntPtr size, out UIntPtr read); [StructLayout(LayoutKind.Sequential)] public struct SYSTEMTIME { public ushort wYear; public ushort wMonth; public ushort wDayOfWeek; public ushort wDay; public ushort wHour; public ushort wMinute; public ushort wSecond; public ushort wMilliseconds; } public static IntPtr FindUpDown(IntPtr parent) { IntPtr found = IntPtr.Zero; EnumChildWindows(parent, (h, l) => { var sb = new System.Text.StringBuilder(80); GetClassName(h, sb, 80); if (sb.ToString().ToLowerInvariant().Contains("updown")) found = h; return true; }, IntPtr.Zero); return found; } public static bool ClickUp(IntPtr up) { RECT r; if (!GetClientRect(up, out r)) return false; int w = r.R - r.L; int hgt = r.B - r.T; if (w < 4 || hgt < 4) return false; int x = w / 2; int y = hgt / 4; if (y < 1) y = 1; IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); IntPtr result; IntPtr down = SendMessageTimeout(up, 0x0201, (IntPtr)1, lp, 2, 400, out result); IntPtr upm = SendMessageTimeout(up, 0x0202, IntPtr.Zero, lp, 2, 400, out result); return down != IntPtr.Zero && upm != IntPtr.Zero; } public static bool ClickDown(IntPtr up) { RECT r; if (!GetClientRect(up, out r)) return false; int w = r.R - r.L; int hgt = r.B - r.T; if (w < 4 || hgt < 4) return false; int x = w / 2; int y = (hgt * 3) / 4; if (y <= hgt / 2) y = hgt / 2 + 1; if (y >= hgt) y = hgt - 1; IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); IntPtr result; IntPtr down = SendMessageTimeout(up, 0x0201, (IntPtr)1, lp, 2, 400, out result); IntPtr upm = SendMessageTimeout(up, 0x0202, IntPtr.Zero, lp, 2, 400, out result); return down != IntPtr.Zero && upm != IntPtr.Zero; } public static string ReadClock(int pid, IntPtr hwnd) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(SYSTEMTIME)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } int code = (int)SendMessage(hwnd, 0x1001, IntPtr.Zero, remote); byte[] buf = new byte[size]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)size, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(size); System.Runtime.InteropServices.Marshal.Copy(buf, 0, local, size); SYSTEMTIME st = (SYSTEMTIME)System.Runtime.InteropServices.Marshal.PtrToStructure(local, typeof(SYSTEMTIME)); System.Runtime.InteropServices.Marshal.FreeHGlobal(local); if (code != 0 || st.wYear == 0) return null; return st.wHour.ToString("00") + ":" + st.wMinute.ToString("00") + ":" + st.wSecond.ToString("00"); }' -Name VcuTimeUp -Namespace Vcu | Out-Null
+  }
+}
+
 function Click-VcuTimeUpPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   # time-pixel-logical: click the owned up-down arrow. Prefix timepix:up: . Not DTM_SETSYSTEMTIME.
   if ($ownerPid -lt 1) { 'error:time-pixel-name'; exit 0 }
@@ -1713,9 +1719,7 @@ function Click-VcuTimeUpPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   $second = [int]$Matches[3]
   if ($hour -gt 23 -or $minute -gt 59 -or $second -gt 59) { 'error:time-pixel-format'; exit 0 }
   $want = $hour.ToString("00") + ":" + $minute.ToString("00") + ":" + $second.ToString("00")
-  if (-not ("Vcu.VcuTimeUp" -as [type])) {
-    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; } [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buf, UIntPtr size, out UIntPtr read); [StructLayout(LayoutKind.Sequential)] public struct SYSTEMTIME { public ushort wYear; public ushort wMonth; public ushort wDayOfWeek; public ushort wDay; public ushort wHour; public ushort wMinute; public ushort wSecond; public ushort wMilliseconds; } public static IntPtr FindUpDown(IntPtr parent) { IntPtr found = IntPtr.Zero; EnumChildWindows(parent, (h, l) => { var sb = new System.Text.StringBuilder(80); GetClassName(h, sb, 80); if (sb.ToString().ToLowerInvariant().Contains("updown")) found = h; return true; }, IntPtr.Zero); return found; } public static bool ClickUp(IntPtr up) { RECT r; if (!GetClientRect(up, out r)) return false; int w = r.R - r.L; int hgt = r.B - r.T; if (w < 4 || hgt < 4) return false; int x = w / 2; int y = hgt / 4; if (y < 1) y = 1; IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); IntPtr result; IntPtr down = SendMessageTimeout(up, 0x0201, (IntPtr)1, lp, 2, 400, out result); IntPtr upm = SendMessageTimeout(up, 0x0202, IntPtr.Zero, lp, 2, 400, out result); return down != IntPtr.Zero && upm != IntPtr.Zero; } public static string ReadClock(int pid, IntPtr hwnd) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(SYSTEMTIME)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } int code = (int)SendMessage(hwnd, 0x1001, IntPtr.Zero, remote); byte[] buf = new byte[size]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)size, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(size); System.Runtime.InteropServices.Marshal.Copy(buf, 0, local, size); SYSTEMTIME st = (SYSTEMTIME)System.Runtime.InteropServices.Marshal.PtrToStructure(local, typeof(SYSTEMTIME)); System.Runtime.InteropServices.Marshal.FreeHGlobal(local); if (code != 0 || st.wYear == 0) return null; return st.wHour.ToString("00") + ":" + st.wMinute.ToString("00") + ":" + st.wSecond.ToString("00"); }' -Name VcuTimeUp -Namespace Vcu | Out-Null
-  }
+  Initialize-VcuTimeArrow
   $current = [Vcu.VcuTimeUp]::ReadClock($ownerPid, $h)
   if ([string]::IsNullOrWhiteSpace($current) -or $current.Length -lt 8) { 'error:time-pixel-read'; exit 0 }
   if ($current.Substring($current.Length - 8) -eq $want) { 'error:time-pixel-state'; exit 0 }
@@ -1728,6 +1732,32 @@ function Click-VcuTimeUpPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
     if (-not [string]::IsNullOrWhiteSpace($after) -and $after.EndsWith($want) -and $after -ne $current) { "ok:time_pixel"; exit 0 }
   }
   'error:time-pixel-state'
+  exit 0
+}
+
+function Click-VcuTimeDownPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  # time-down-pixel-logical: click the owned up-down lower half. Prefix timepix:down: . Not DTM_SETSYSTEMTIME.
+  if ($ownerPid -lt 1) { 'error:time-down-pixel-name'; exit 0 }
+  if ($expect -notmatch '^down:(\d{2}):(\d{2}):(\d{2})$') { 'error:time-down-pixel-format'; exit 0 }
+  $hour = [int]$Matches[1]
+  $minute = [int]$Matches[2]
+  $second = [int]$Matches[3]
+  if ($hour -gt 23 -or $minute -gt 59 -or $second -gt 59) { 'error:time-down-pixel-format'; exit 0 }
+  $want = $hour.ToString("00") + ":" + $minute.ToString("00") + ":" + $second.ToString("00")
+  Initialize-VcuTimeArrow
+  if (-not ("Vcu.VcuTimeUp" -as [type])) { 'error:time-down-pixel-read'; exit 0 }
+  $current = [Vcu.VcuTimeUp]::ReadClock($ownerPid, $h)
+  if ([string]::IsNullOrWhiteSpace($current) -or $current.Length -lt 8) { 'error:time-down-pixel-read'; exit 0 }
+  if ($current.Substring($current.Length - 8) -eq $want) { 'error:time-down-pixel-state'; exit 0 }
+  $up = [Vcu.VcuTimeUp]::FindUpDown($h)
+  if ($up -eq [IntPtr]::Zero) { 'error:time-down-pixel-rect'; exit 0 }
+  if (-not [Vcu.VcuTimeUp]::ClickDown($up)) { 'error:time-down-pixel-click'; exit 0 }
+  for ($n = 0; $n -lt 8; $n++) {
+    Start-Sleep -Milliseconds 40
+    $after = [Vcu.VcuTimeUp]::ReadClock($ownerPid, $h)
+    if (-not [string]::IsNullOrWhiteSpace($after) -and $after.EndsWith($want) -and $after -ne $current) { "ok:time_down_pixel"; exit 0 }
+  }
+  'error:time-down-pixel-state'
   exit 0
 }
 
@@ -2702,6 +2732,8 @@ function Set-VcuElement($el, [string]$expect) {
       Click-VcuDateMonthPixel ([IntPtr]$nh) $expect.Substring(9) $targetPid
     } elseif ($expect.StartsWith("datepix:")) {
       Click-VcuDatePixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
+    } elseif ($expect.StartsWith("timepix:down:")) {
+      Click-VcuTimeDownPixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("timepix:")) {
       Click-VcuTimeUpPixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("time:")) {
@@ -3156,6 +3188,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:check_set")
         || out.contains("ok:uncheck_pixel")
         || out.contains("ok:uncheck_set")
+        || out.contains("ok:time_down_pixel")
         || out.contains("ok:time_pixel")
         || out.contains("ok:time_set")
         || out.contains("ok:month3_pixel")
@@ -3205,6 +3238,8 @@ pub fn set_value_from_uia_output(
             "decimal_set"
         } else if out.contains("ok:number_set") {
             "number_set"
+        } else if out.contains("ok:time_down_pixel") {
+            "time_down_pixel"
         } else if out.contains("ok:time_pixel") {
             "time_pixel"
         } else if out.contains("ok:time_set") {
@@ -3939,6 +3974,9 @@ mod tests {
         assert!(setv.contains("uncheckpix:"));
         assert!(setv.contains("uncheck-pixel-logical"));
         assert!(setv.contains("ok:uncheck_set"));
+        assert!(setv.contains("ok:time_down_pixel"));
+        assert!(setv.contains("timepix:down:"));
+        assert!(setv.contains("time-down-pixel-logical"));
         assert!(setv.contains("ok:time_pixel"));
         assert!(setv.contains("timepix:up:"));
         assert!(setv.contains("time-pixel-logical"));

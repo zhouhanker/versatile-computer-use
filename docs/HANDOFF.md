@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-073 已在本机复测：会话点自建时间框的下箭头，路径是 time_down_pixel。标签变成 VCU-TIME-07:00:00。同一时刻、非法时间和一次点击跨两小时被拒绝。没有移动系统光标。不是 time_pixel，也不是 time_set，也不是 DTM_SETSYSTEMTIME，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-072 已在本机复测：会话点自建时间框的上箭头，路径是 time_pixel。标签变成 VCU-TIME-09:00:00。同一时刻、非法时间和一次点击跨两小时被拒绝。没有移动系统光标。不是 time_set，也不是 DTM_SETSYSTEMTIME，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。Windows Stage 胶囊后面的直角黑底是 Acrylic accent，它不裁圆角。已改成按胶囊区域做系统模糊，文字层只留描边和白字。不是 macOS 系统材质，也不是完整 Windows 产品 CU。
