@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-059 已在本机复测：会话点自建树节点 VCU-TREE-B 的文字，路径是 tree_pixel。标签变成 VCU-TREE-SHOW-B。已选中的节点和不存在的节点被拒绝。没有移动系统光标。不是 tree_select，也不是 TVM_SELECTITEM，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-058 已在本机复测：会话点自建列表框的一行 VCU-LIST-B，路径是 list_pixel。标签变成 VCU-LIST-HIT。滚出视口的 VCU-LIST-FAR 也会点中。已选中的行和不存在的行被拒绝。没有移动系统光标。不是 list_select，也不是 LB_SETCURSEL，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-057 已在本机复测：会话点自建标签页 VCU-TAB-B 的标题，路径是 tab_pixel。标签变成 VCU-TAB-SHOW-B。已选中的页和不存在的页被拒绝。没有移动系统光标。不是 tab_select，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。

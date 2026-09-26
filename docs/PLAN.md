@@ -1,12 +1,12 @@
 # VCU 当前计划（浏览器版）
 
-更新：2026-09-26。本文优先于 HANDOFF 历史快照；作者 zhouhanker。Windows 产品会话证据到 CU-WIN-SESSION-058。不要把旧哈希 `e5d47df` 当成当前 HEAD。
+更新：2026-09-26。本文优先于 HANDOFF 历史快照；作者 zhouhanker。Windows 产品会话证据到 CU-WIN-SESSION-059。不要把旧哈希 `e5d47df` 当成当前 HEAD。
 
 ## 当前节点
 
 **已发布：浏览器版 Bridge 0.2.8。** GitHub Release `v0.2.8`（Latest）已上线，`curl | sh` 与 `vcu self update` 均真机验证通过。浏览器门禁仍有效。`vcu --version` 仍打印 crate `0.1.0`，不代表没更新。
 
-**排期切片停在 CU-D-700。** CU-D-010…700 已关闭。Windows 产品会话的已复测切片见 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md)，目前到 CU-WIN-SESSION-058。这不是完整 Codex CU，也不是完整 Windows 产品 CU。CI 门禁已由 Actions run `36129175359`（代码 `9c69b8c`）恢复：`test` 三平台与 `package-macos` / `package-windows` 全绿。不要 claim `MAC-NEXT` 或 `FEISHU-001`，除非用户点名。
+**排期切片停在 CU-D-700。** CU-D-010…700 已关闭。Windows 产品会话的已复测切片见 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md)，目前到 CU-WIN-SESSION-059。这不是完整 Codex CU，也不是完整 Windows 产品 CU。CI 门禁已由 Actions run `36129175359`（代码 `9c69b8c`）恢复：`test` 三平台与 `package-macos` / `package-windows` 全绿。不要 claim `MAC-NEXT` 或 `FEISHU-001`，除非用户点名。
 
 ## 下一步大纲（未开工）
 

@@ -1312,6 +1312,48 @@ function Initialize-VcuTreeIcon {
     Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); public static string ButtonPoint(int pid, IntPtr hwnd, IntPtr item) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)16, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } byte[] raw = System.BitConverter.GetBytes(item.ToInt64()); UIntPtr wrote; if (!WriteProcessMemory(proc, remote, raw, (UIntPtr)raw.Length, out wrote)) { VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); return null; } SendMessage(hwnd, 0x1104, (IntPtr)1, remote); byte[] buf = new byte[16]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)16, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); int left = System.BitConverter.ToInt32(buf, 0); int top = System.BitConverter.ToInt32(buf, 4); int bottom = System.BitConverter.ToInt32(buf, 12); if (bottom <= top) return null; int x = left - 8; if (x < 1) x = 1; int y = (top + bottom) / 2; if (y < 0) return null; return x.ToString() + "," + y.ToString(); }' -Name VcuTreeIcon -Namespace Vcu | Out-Null
   }
 }
+function Click-VcuTreePixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:tree-pixel-name'; exit 0 }
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:tree-pixel-name'; exit 0 }
+  Initialize-VcuTreeNative $h $ownerPid
+  if (-not ("Vcu.VcuTreePixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); public static string TextPoint(int pid, IntPtr hwnd, IntPtr item) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)16, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } byte[] raw = System.BitConverter.GetBytes(item.ToInt64()); UIntPtr wrote; if (!WriteProcessMemory(proc, remote, raw, (UIntPtr)raw.Length, out wrote)) { VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); return null; } IntPtr ret = SendMessage(hwnd, 0x1104, (IntPtr)1, remote); byte[] buf = new byte[16]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)16, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); if (ret == IntPtr.Zero) return null; int left = System.BitConverter.ToInt32(buf, 0); int top = System.BitConverter.ToInt32(buf, 4); int right = System.BitConverter.ToInt32(buf, 8); int bottom = System.BitConverter.ToInt32(buf, 12); if (right <= left || bottom <= top) return null; int x = (left + right) / 2; int y = (top + bottom) / 2; if (x < 1 || y < 0) return null; return x.ToString() + "," + y.ToString(); } public static void PostClick(IntPtr hwnd, int x, int y) { IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); PostMessage(hwnd, 0x0201, (IntPtr)1, lp); PostMessage(hwnd, 0x0202, IntPtr.Zero, lp); }' -Name VcuTreePixel -Namespace Vcu | Out-Null
+  }
+  $root = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]0, [IntPtr]::Zero)
+  $caret0 = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]9, [IntPtr]::Zero)
+  $queue = New-Object System.Collections.Queue
+  if ($root -ne [IntPtr]::Zero) { $queue.Enqueue($root) }
+  if ($caret0 -ne [IntPtr]::Zero -and $caret0 -ne $root) { $queue.Enqueue($caret0) }
+  $seen = 0
+  $hit = [IntPtr]::Zero
+  while ($queue.Count -gt 0 -and $seen -lt 64) {
+    $item = [IntPtr]$queue.Dequeue()
+    $seen++
+    $text = [Vcu.VcuTreeSelect]::ItemText($ownerPid, $h, $item)
+    if ($text -eq $expect) { $hit = $item; break }
+    $child = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]4, $item)
+    if ($child -ne [IntPtr]::Zero) { $queue.Enqueue($child) }
+    $next = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]1, $item)
+    if ($next -ne [IntPtr]::Zero) { $queue.Enqueue($next) }
+  }
+  if ($hit -eq [IntPtr]::Zero) { 'error:tree-pixel-name'; exit 0 }
+  $cur = [Vcu.VcuTreeSelect]::ItemText($ownerPid, $h, $caret0)
+  if ($cur -eq $expect) { 'error:tree-pixel-state'; exit 0 }
+  $point = [string][Vcu.VcuTreePixel]::TextPoint($ownerPid, $h, $hit)
+  if ([string]::IsNullOrWhiteSpace($point) -or -not $point.Contains(",")) { 'error:tree-pixel-point'; exit 0 }
+  $parts = $point.Split(",")
+  # tree-pixel-logical: text rect is already logical. SendMessage WM_LBUTTONDOWN deadlocks; PostMessage does not move the cursor.
+  [Vcu.VcuTreePixel]::PostClick($h, [int]$parts[0], [int]$parts[1])
+  for ($n = 0; $n -lt 8; $n++) {
+    Start-Sleep -Milliseconds 50
+    $caret = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]9, [IntPtr]::Zero)
+    $got = [Vcu.VcuTreeSelect]::ItemText($ownerPid, $h, $caret)
+    if ($got -eq $expect) { "ok:tree_pixel"; exit 0 }
+  }
+  'error:tree-pixel-state'
+  exit 0
+}
+
 function Click-VcuTreeIcon([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   Initialize-VcuTreeNative $h $ownerPid
   Initialize-VcuTreeIcon
@@ -1705,6 +1747,8 @@ function Set-VcuElement($el, [string]$expect) {
   if ((Test-VcuTreeClass $cls) -or (Test-VcuTreeClass $uiaCls)) {
     if ($expect.StartsWith("foldicon:")) {
       Click-VcuTreeFold ([IntPtr]$nh) $expect.Substring(9) $targetPid
+    } elseif ($expect.StartsWith("treepix:")) {
+      Click-VcuTreePixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("treeicon:")) {
       Click-VcuTreeIcon ([IntPtr]$nh) $expect.Substring(9) $targetPid
     } elseif ($expect.StartsWith("expand:")) {
@@ -2116,6 +2160,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:track_select")
         || out.contains("ok:tab_pixel")
         || out.contains("ok:tab_select")
+        || out.contains("ok:tree_pixel")
         || out.contains("ok:tree_select")
         || out.contains("ok:fold_icon")
         || out.contains("ok:tree_icon")
@@ -2164,6 +2209,8 @@ pub fn set_value_from_uia_output(
             "tab_pixel"
         } else if out.contains("ok:tab_select") {
             "tab_select"
+        } else if out.contains("ok:tree_pixel") {
+            "tree_pixel"
         } else if out.contains("ok:tree_select") {
             "tree_select"
         } else if out.contains("ok:tree_collapse") {
@@ -2871,6 +2918,10 @@ mod tests {
         assert!(setv.contains("ok:tree_select"));
         assert!(setv.contains("ok:fold_icon"));
         assert!(setv.contains("foldicon:"));
+        assert!(setv.contains("ok:tree_pixel"));
+        assert!(setv.contains("treepix:"));
+        assert!(setv.contains("tree-pixel-logical"));
+        assert!(setv.contains("PostMessage"));
         assert!(setv.contains("ok:tree_icon"));
         assert!(setv.contains("treeicon:"));
         assert!(setv.contains("ok:tree_expand"));

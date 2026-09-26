@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -730,10 +730,24 @@
 
 
 
+
+## CU-WIN-SESSION-059 会话点树节点文字
+
+状态：**2026-09-26 本机复测通过。** 不是 `tree_select`，也不是 `TVM_SELECTITEM`，也不是完整 Windows 产品 CU。
+
+- 033 用 `TVM_SELECTITEM`，不点文字。这次 `vcu type` 文本以 `treepix:` 开头时按名字找节点。已经选中的和不存在的都拒绝。用 `TVM_GETITEMRECT` 读文字矩形，点文字中心。跨进程 `SendMessage` 发 `WM_LBUTTONDOWN` 会卡在树控件内部等松开，所以改用 `PostMessage` 按下再松开。这台机器的文字矩形已经是逻辑坐标，不按 `AppliedDPI/96` 放大。读回 `TVGN_CARET` 必须是这个节点。对不上就不报成功，也不改走 `TVM_SELECTITEM`。这会让 `AfterSelect` 跟着跑。没有 SendInput，没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，根节点是 VCU-TREE-A，子节点是 VCU-TREE-B，初始选中 A。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_tree_pixel.ps1`
+- 结果：`CU-WIN-SESSION-059 OK win:powershell:9516 01M3DVR9NAJFT39CANQEHBDBY1 ref=e3 path=tree_pixel value=VCU-TREE-B cursor=1187,239`
+- 点中后标签变成 `VCU-TREE-SHOW-B`。再点同一节点和不存在的节点被拒绝。`scripts/poc_win_session_tree.ps1` 仍是 `tree_select`。没有移动系统光标。Edge 扩展仍 `pong`。
+- 不做：不把这次写成 `tree_select`，也不写成点展开图标，也不写成完整产品 CU。
+
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
-- 树展开是 `tree_expand`，树折叠是 `tree_collapse`。折叠不是点图标。只清展开位而没有 `AfterCollapse` 不算成功。树选中仍是 `tree_select`，不是点节点像素。
+- 树展开是 `tree_expand`，树折叠是 `tree_collapse`。折叠不是点图标。只清展开位而没有 `AfterCollapse` 不算成功。树节点文字点击是 `tree_pixel`，不是 `tree_select`。展开图标仍是 `tree_icon`。
 - 数字上下控件不在本切片。跨进程改文字如果没有对应变更事件，不能报成功。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
 - 会话截图在 `PrintWindow` 空白且中心被挡住时拒绝复制屏幕。这一轮被挡住的窗走的是窗口像素，不是拒绝分支。
