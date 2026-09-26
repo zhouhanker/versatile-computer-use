@@ -716,6 +716,38 @@ function Select-VcuUncheckedList([IntPtr]$h, [string]$expect) {
   "ok:uncheck_set"
   exit 0
 }
+function Test-VcuDateClass([string]$cls) {
+  if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
+  $c = $cls.ToLowerInvariant()
+  return $c.Contains("sysdatetimepick32") -or $c.Contains("datetimepicker")
+}
+function Select-VcuDate([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($expect -notmatch '^(\d{4})-(\d{2})-(\d{2})$') { 'error:date-format'; exit 0 }
+  $year = [int]$Matches[1]
+  $month = [int]$Matches[2]
+  $day = [int]$Matches[3]
+  try {
+    $parsed = Get-Date -Year $year -Month $month -Day $day -Hour 0 -Minute 0 -Second 0 -ErrorAction Stop
+  } catch {
+    'error:date-format'
+    exit 0
+  }
+  if ($parsed.Year -ne $year -or $parsed.Month -ne $month -or $parsed.Day -ne $day) { 'error:date-format'; exit 0 }
+  if (-not ("Vcu.VcuDatePick" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, IntPtr buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); [StructLayout(LayoutKind.Sequential)] public struct SYSTEMTIME { public ushort wYear; public ushort wMonth; public ushort wDayOfWeek; public ushort wDay; public ushort wHour; public ushort wMinute; public ushort wSecond; public ushort wMilliseconds; } [StructLayout(LayoutKind.Sequential)] public struct NMHDR { public IntPtr hwndFrom; public IntPtr idFrom; public uint code; } [StructLayout(LayoutKind.Sequential)] public struct NMDATETIMECHANGE { public NMHDR hdr; public uint dwFlags; public SYSTEMTIME st; } public static string ReadDate(int pid, IntPtr hwnd) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(SYSTEMTIME)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } int code = (int)SendMessage(hwnd, 0x1001, IntPtr.Zero, remote); byte[] buf = new byte[size]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)size, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(size); System.Runtime.InteropServices.Marshal.Copy(buf, 0, local, size); SYSTEMTIME st = (SYSTEMTIME)System.Runtime.InteropServices.Marshal.PtrToStructure(local, typeof(SYSTEMTIME)); System.Runtime.InteropServices.Marshal.FreeHGlobal(local); if (code != 0) return null; return st.wYear.ToString("0000") + "-" + st.wMonth.ToString("00") + "-" + st.wDay.ToString("00"); } public static bool WriteDate(int pid, IntPtr hwnd, ushort year, ushort month, ushort day) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return false; int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(SYSTEMTIME)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return false; } SYSTEMTIME st = new SYSTEMTIME(); st.wYear = year; st.wMonth = month; st.wDay = day; IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(size); System.Runtime.InteropServices.Marshal.StructureToPtr(st, local, false); UIntPtr wrote; bool ok = WriteProcessMemory(proc, remote, local, (UIntPtr)size, out wrote); System.Runtime.InteropServices.Marshal.FreeHGlobal(local); int sent = 0; if (ok) sent = (int)SendMessage(hwnd, 0x1002, IntPtr.Zero, remote); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); return ok && sent == 1; } public static bool NotifyDate(int pid, IntPtr hwnd, ushort year, ushort month, ushort day) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return false; int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(NMDATETIMECHANGE)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return false; } NMDATETIMECHANGE n = new NMDATETIMECHANGE(); n.hdr.hwndFrom = hwnd; n.hdr.code = 4294966537; n.dwFlags = 0; n.st.wYear = year; n.st.wMonth = month; n.st.wDay = day; IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(size); System.Runtime.InteropServices.Marshal.StructureToPtr(n, local, false); UIntPtr wrote; bool ok = WriteProcessMemory(proc, remote, local, (UIntPtr)size, out wrote); System.Runtime.InteropServices.Marshal.FreeHGlobal(local); if (ok) SendMessage(hwnd, 0x204E, IntPtr.Zero, remote); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); return ok; }' -Name VcuDatePick -Namespace Vcu | Out-Null
+  }
+  if ($h -eq [IntPtr]::Zero) { return }
+  $want = $year.ToString("0000") + "-" + $month.ToString("00") + "-" + $day.ToString("00")
+  $current = [Vcu.VcuDatePick]::ReadDate($ownerPid, $h)
+  if ([string]::IsNullOrWhiteSpace($current)) { 'error:date-read'; exit 0 }
+  if ($current -eq $want) { 'error:date-state'; exit 0 }
+  if (-not [Vcu.VcuDatePick]::WriteDate($ownerPid, $h, [uint16]$year, [uint16]$month, [uint16]$day)) { 'error:date-state'; exit 0 }
+  $after = [Vcu.VcuDatePick]::ReadDate($ownerPid, $h)
+  if ($after -ne $want) { 'error:date-state'; exit 0 }
+  if (-not [Vcu.VcuDatePick]::NotifyDate($ownerPid, $h, [uint16]$year, [uint16]$month, [uint16]$day)) { 'error:date-notify'; exit 0 }
+  "ok:date_set"
+  exit 0
+}
 function Select-VcuList([IntPtr]$h, [string]$expect) {
   $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018B, [IntPtr]::Zero, [IntPtr]::Zero)
   for ($i = 0; $i -lt $count; $i++) {
@@ -1123,6 +1155,12 @@ function Set-VcuElement($el, [string]$expect) {
     Select-VcuCombo ([IntPtr]$nh) $expect
     return
   }
+  if ((Test-VcuDateClass $cls) -or (Test-VcuDateClass $uiaCls)) {
+    if ($expect.StartsWith("date:")) {
+      Select-VcuDate ([IntPtr]$nh) $expect.Substring(5) $targetPid
+    }
+    return
+  }
   if (Test-VcuListClass $cls) {
     if ($expect.StartsWith("check:")) {
       Select-VcuCheckedList ([IntPtr]$nh) $expect.Substring(6)
@@ -1486,6 +1524,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:list_select")
         || out.contains("ok:check_set")
         || out.contains("ok:uncheck_set")
+        || out.contains("ok:date_set")
         || out.contains("ok:track_select")
         || out.contains("ok:tab_select")
         || out.contains("ok:tree_select")
@@ -1498,6 +1537,8 @@ pub fn set_value_from_uia_output(
             "uia_set_value"
         } else if out.contains("ok:combo_select") {
             "combo_select"
+        } else if out.contains("ok:date_set") {
+            "date_set"
         } else if out.contains("ok:uncheck_set") {
             "uncheck_set"
         } else if out.contains("ok:check_set") {
@@ -2151,6 +2192,9 @@ mod tests {
         assert!(setv.contains("ok:list_select"));
         assert!(setv.contains("ok:check_set"));
         assert!(setv.contains("ok:uncheck_set"));
+        assert!(setv.contains("ok:date_set"));
+        assert!(setv.contains("0x1002"));
+        assert!(setv.contains("Test-VcuDateClass"));
         assert!(setv.contains("uncheck:"));
         assert!(setv.contains("LBC_SETCHECKSTATE"));
         assert!(setv.contains("0x0186"));

@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选和日期已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -475,6 +475,20 @@
 - 结果：`CU-WIN-SESSION-039 OK win:powershell:18556 01M3DJKX6FBW8EAJ5MNCFGNC8C ref=e1 path=uncheck_set value=VCU-CHK-B cursor=1187,239`
 - 取消后标签变成 `VCU-CHK-OFF-B`。只有 B 的取消 `ItemCheck` 会改这个标签。`uncheck:VCU-CHK-MISSING` 被拒绝。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成点复选框像素，也不写成 `check_set`，也不写成完整产品 CU。
+
+
+
+## CU-WIN-SESSION-040 会话设置自建日期
+
+状态：**2026-09-26 本机复测通过。** 不是点日历像素，也不是设置时刻，也不是完整 Windows 产品 CU。
+
+- 只发 `DTM_SETSYSTEMTIME` 能改控件上的日期，但 WinForms 不会跑 `ValueChanged`。不能把这种结果写成事件已经发生。
+- `vcu type` 在类名含 SysDateTimePick32 的控件上，文本以 `date:` 开头时解析 `YYYY-MM-DD`。格式不对或不是真实日期就拒绝。日期已经是这一天也拒绝。先写入并用 `DTM_GETSYSTEMTIME` 读回，读回不一致就不报成功。再反射 `DTN_DATETIMECHANGE`，让托管的 `Value` 变成这一天并跑 `ValueChanged`。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，初始日期是 2026-01-02。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_date.ps1`
+- 结果：`CU-WIN-SESSION-040 OK win:powershell:8844 01M3DK28BJJNC13NENMC01ATY8 ref=e1 path=date_set value=2026-03-15 cursor=1187,239`
+- 事件把标签改成 `VCU-DTP-2026-03-15`，这是托管 `Value` 的日期，不只是原生控件文字。再写同一天、`date:2026-02-31` 和 `date:nope` 都被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点日历像素，也不写成设置时分秒，也不写成完整产品 CU。
 
 
 ## 还没做
