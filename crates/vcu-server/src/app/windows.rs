@@ -887,6 +887,57 @@ function Select-VcuCheckedList([IntPtr]$h, [string]$expect) {
   "ok:check_set"
   exit 0
 }
+function Click-VcuUncheckPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:uncheck-pixel-name'; exit 0 }
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:uncheck-pixel-name'; exit 0 }
+  if (-not ("Vcu.VcuCheckPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern uint RegisterWindowMessage(string msg); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static string Client(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return null; if (r.Bottom <= r.Top) return null; return r.Bottom.ToString(); } public static uint CheckMsg() { return RegisterWindowMessage("LBC_GETCHECKSTATE"); } public static void Focus(IntPtr hwnd) { SendMessage(hwnd, 0x0007, IntPtr.Zero, IntPtr.Zero); } public static void PostClick(IntPtr hwnd, int x, int y) { IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); PostMessage(hwnd, 0x0201, (IntPtr)1, lp); PostMessage(hwnd, 0x0202, IntPtr.Zero, lp); }' -Name VcuCheckPixel -Namespace Vcu | Out-Null
+  }
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018B, [IntPtr]::Zero, [IntPtr]::Zero)
+  $hit = -1
+  for ($i = 0; $i -lt $count -and $i -lt 64; $i++) {
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 0x0189, $i, $sb)
+    if ($sb.ToString() -eq $expect) { $hit = $i; break }
+  }
+  if ($hit -lt 0) { 'error:uncheck-pixel-name'; exit 0 }
+  $getMsg = [Vcu.VcuCheckPixel]::CheckMsg()
+  if ($getMsg -eq 0) { 'error:uncheck-pixel-state'; exit 0 }
+  $before = [int][Vcu.VcuCheckPixel]::SendMessage($h, [int]$getMsg, [IntPtr]$hit, [IntPtr]::Zero)
+  if ($before -eq 0) { 'error:uncheck-pixel-state'; exit 0 }
+  $height = [int][Vcu.VcuPaste140]::SendMessage($h, 0x01A1, [IntPtr]$hit, [IntPtr]::Zero)
+  if ($height -lt 2) { 'error:uncheck-pixel-rect'; exit 0 }
+  $client = [string][Vcu.VcuCheckPixel]::Client($h)
+  if ([string]::IsNullOrWhiteSpace($client)) { 'error:uncheck-pixel-rect'; exit 0 }
+  $bottom = [int]$client
+  $top = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018E, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($top -lt 0) { $top = 0 }
+  $y = ($hit - $top) * $height + [int]($height / 2)
+  if ($y -lt 0 -or $y -ge $bottom) {
+    [void][Vcu.VcuPaste140]::SendMessage($h, 0x0197, [IntPtr]$hit, [IntPtr]::Zero)
+    $top = [int][Vcu.VcuPaste140]::SendMessage($h, 0x018E, [IntPtr]::Zero, [IntPtr]::Zero)
+    if ($top -lt 0) { $top = 0 }
+    $y = ($hit - $top) * $height + [int]($height / 2)
+  }
+  if ($y -lt 0 -or $y -ge $bottom) { 'error:uncheck-pixel-rect'; exit 0 }
+  # uncheck-pixel-logical: checkbox is near x=8. A fresh checked row needs a second click.
+  [Vcu.VcuCheckPixel]::Focus($h)
+  [Vcu.VcuCheckPixel]::PostClick($h, 8, $y)
+  for ($n = 0; $n -lt 4; $n++) {
+    Start-Sleep -Milliseconds 50
+    $after = [int][Vcu.VcuCheckPixel]::SendMessage($h, [int]$getMsg, [IntPtr]$hit, [IntPtr]::Zero)
+    if ($after -eq 0) { "ok:uncheck_pixel"; exit 0 }
+  }
+  [Vcu.VcuCheckPixel]::PostClick($h, 8, $y)
+  for ($n = 0; $n -lt 8; $n++) {
+    Start-Sleep -Milliseconds 50
+    $after = [int][Vcu.VcuCheckPixel]::SendMessage($h, [int]$getMsg, [IntPtr]$hit, [IntPtr]::Zero)
+    if ($after -eq 0) { "ok:uncheck_pixel"; exit 0 }
+  }
+  'error:uncheck-pixel-state'
+  exit 0
+}
+
 function Select-VcuUncheckedList([IntPtr]$h, [string]$expect) {
   if (-not ("Vcu.VcuCheckList" -as [type])) {
     Add-Type -MemberDefinition '[DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern uint RegisterWindowMessage(string msg); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);' -Name VcuCheckList -Namespace Vcu | Out-Null
@@ -1773,6 +1824,8 @@ function Set-VcuElement($el, [string]$expect) {
       Click-VcuCheckPixel ([IntPtr]$nh) $expect.Substring(9) $targetPid
     } elseif ($expect.StartsWith("check:")) {
       Select-VcuCheckedList ([IntPtr]$nh) $expect.Substring(6)
+    } elseif ($expect.StartsWith("uncheckpix:")) {
+      Click-VcuUncheckPixel ([IntPtr]$nh) $expect.Substring(11) $targetPid
     } elseif ($expect.StartsWith("uncheck:")) {
       Select-VcuUncheckedList ([IntPtr]$nh) $expect.Substring(8)
     } elseif ($expect.StartsWith("listpix:")) {
@@ -2201,6 +2254,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:list_select")
         || out.contains("ok:check_pixel")
         || out.contains("ok:check_set")
+        || out.contains("ok:uncheck_pixel")
         || out.contains("ok:uncheck_set")
         || out.contains("ok:time_set")
         || out.contains("ok:date_set")
@@ -2247,6 +2301,8 @@ pub fn set_value_from_uia_output(
             "time_set"
         } else if out.contains("ok:date_set") {
             "date_set"
+        } else if out.contains("ok:uncheck_pixel") {
+            "uncheck_pixel"
         } else if out.contains("ok:uncheck_set") {
             "uncheck_set"
         } else if out.contains("ok:check_pixel") {
@@ -2945,6 +3001,9 @@ mod tests {
         assert!(setv.contains("checkpix:"));
         assert!(setv.contains("check-pixel-logical"));
         assert!(setv.contains("ok:check_set"));
+        assert!(setv.contains("ok:uncheck_pixel"));
+        assert!(setv.contains("uncheckpix:"));
+        assert!(setv.contains("uncheck-pixel-logical"));
         assert!(setv.contains("ok:uncheck_set"));
         assert!(setv.contains("ok:time_set"));
         assert!(setv.contains("time:"));

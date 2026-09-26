@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-062 已在本机复测：会话点已勾选的自建勾选列表 VCU-CHK-B 的复选框，路径是 uncheck_pixel。标签变成 VCU-CHK-OFF-B。未勾选的行和不存在的行被拒绝。没有移动系统光标。不是 uncheck_set，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-061 已在本机复测：会话点自建勾选列表 VCU-CHK-B 的复选框，路径是 check_pixel。标签变成 VCU-CHK-ON-B。已勾选的行和不存在的行被拒绝。没有移动系统光标。不是 check_set，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。GitHub Contributors API 和 stats/contributors 目前只有 zhouhanker。仓库历史和提交搜索里没有独立的 zhouhan。不改写历史。网页图如果还显示旧名字，那是 GitHub 图缓存，不是当前提交作者。
