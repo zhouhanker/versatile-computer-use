@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-082 科学计算器平方根 9 已在本机复测，路径是 uia_invoke。不是完整函数矩阵。
+
 更新：2026-09-26。CU-WIN-SESSION-081 会话点中自建上下文菜单条目已在本机复测，路径是 context_item。不是 context_pixel。
 
 更新：2026-09-26。CU-WIN-SESSION-080 会话右键自建按钮打开上下文菜单已在本机复测，路径是 context_pixel。不是 button_pixel，也不是 menu_pixel。
@@ -230,7 +232,7 @@
 - 两次结果不同。角度是「显示为 0.05480366514878953088774871353983」，弧度是「显示为 0」。
 - 三角菜单打开时「清除」可能不在树里。算完先把「三角学」再 toggle 一次，再找「清除」或「清除条目」。
 - 没有 SendInput，没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
-- 没有覆盖完整科学函数矩阵。
+- 平方根 9 已复测。没有覆盖完整科学函数矩阵。
 
 ## CU-WIN-SESSION-018 会话截图自建窗口
 
@@ -1047,6 +1049,19 @@
 - 结果：`CU-WIN-SESSION-081 OK win:powershell:6600 01M3E8TX455B805DD07VRQXJW3 ref=e3 path=context_item hit=VCU-CTX-HIT cursor=861,712`
 - 左键没有把标签改成 `VCU-CTX-HIT`。没有 SendInput。Edge 扩展仍在轮询。单测 `windows_backend_platform_and_denials` 通过。
 - 不做：不把这次写成 `context_pixel` 或 `menu_pixel`，也不写成完整产品 CU。这不是像素点中弹出层。
+
+
+
+## CU-WIN-SESSION-082 会话科学模式计算平方根
+
+状态：**2026-09-26 本机复测通过。** 不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
+
+- 开始前没有已打开的计算器窗口。脚本自己启动计算器，测完切回标准模式，再只关闭 CalculatorApp。
+- 命令：`powershell -File scripts/poc_win_session_calc_sqrt.ps1`
+- 结果：`CU-WIN-SESSION-082 OK win:Calculator:18668 01M3E99M2PEFXFSGJMDCP3B53A sqrt(9)=3 restored cursor=861,712`
+- 切到科学模式后按「九」，确认「显示为 9」，再按「平方根」。路径是 `uia_invoke`，显示是「显示为 3」。切回标准模式后 π 按钮消失。
+- 没有 SendInput。没有移动系统光标。同一 pid 的 `win:ApplicationFrameHost` 仍然被拒绝。
+- 不做：不把这次写成完整科学函数矩阵，也不放行整个 ApplicationFrameHost。
 
 
 ## 还没做
