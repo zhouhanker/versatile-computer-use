@@ -716,6 +716,27 @@ function Select-VcuUncheckedList([IntPtr]$h, [string]$expect) {
   "ok:uncheck_set"
   exit 0
 }
+function Select-VcuNumber([IntPtr]$h, [string]$expect, [IntPtr]$top) {
+  $n = 0
+  if (-not [int]::TryParse($expect, [ref]$n)) { 'error:number-format'; exit 0 }
+  if ($expect -ne $n.ToString()) { 'error:number-format'; exit 0 }
+  if (-not ("Vcu.VcuNumberHost" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc lpEnumFunc, IntPtr lParam); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); public static bool HasSpinnerSibling(IntPtr parent, IntPtr edit) { bool found = false; EnumChildWindows(parent, (h, l) => { if (h == edit) return true; var sb = new System.Text.StringBuilder(256); GetClassName(h, sb, 256); string c = sb.ToString().ToLowerInvariant(); if (c.Contains("window") && !c.Contains("edit")) found = true; return true; }, IntPtr.Zero); return found; }' -Name VcuNumberHost -Namespace Vcu | Out-Null
+  }
+  $parent = [Vcu.VcuNumberHost]::GetParent($h)
+  if ($parent -eq [IntPtr]::Zero -or $parent -eq $top) { return }
+  if (-not [Vcu.VcuNumberHost]::HasSpinnerSibling($parent, $h)) { return }
+  $tb = New-Object System.Text.StringBuilder 64
+  [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 13, 64, $tb)
+  if ($tb.ToString() -eq $expect) { 'error:number-state'; exit 0 }
+  [void][Vcu.VcuSetValue070]::SendMessage($h, 12, [IntPtr]::Zero, $expect)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0008, [IntPtr]::Zero, [IntPtr]::Zero)
+  $tb2 = New-Object System.Text.StringBuilder 64
+  [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 13, 64, $tb2)
+  if ($tb2.ToString() -ne $expect) { 'error:number-state'; exit 0 }
+  "ok:number_set"
+  exit 0
+}
 function Test-VcuDateClass([string]$cls) {
   if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
   $c = $cls.ToLowerInvariant()
@@ -1197,6 +1218,10 @@ function Set-VcuElement($el, [string]$expect) {
   }
   if (Test-VcuConsoleClass $cls) { return }
   if (-not (Test-VcuEditClass $cls)) { return }
+  if ($expect.StartsWith("number:")) {
+    Select-VcuNumber ([IntPtr]$nh) $expect.Substring(7) $hwnd
+    return
+  }
   [void][Vcu.VcuSetValue070]::SendMessage([IntPtr]$nh, 12, [IntPtr]::Zero, $expect)
   $tb = New-Object System.Text.StringBuilder 1024
   # GetWindowText across processes returns only captions, so an edit looks empty.
@@ -1525,6 +1550,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:check_set")
         || out.contains("ok:uncheck_set")
         || out.contains("ok:date_set")
+        || out.contains("ok:number_set")
         || out.contains("ok:track_select")
         || out.contains("ok:tab_select")
         || out.contains("ok:tree_select")
@@ -1537,6 +1563,8 @@ pub fn set_value_from_uia_output(
             "uia_set_value"
         } else if out.contains("ok:combo_select") {
             "combo_select"
+        } else if out.contains("ok:number_set") {
+            "number_set"
         } else if out.contains("ok:date_set") {
             "date_set"
         } else if out.contains("ok:uncheck_set") {
@@ -2193,6 +2221,8 @@ mod tests {
         assert!(setv.contains("ok:check_set"));
         assert!(setv.contains("ok:uncheck_set"));
         assert!(setv.contains("ok:date_set"));
+        assert!(setv.contains("ok:number_set"));
+        assert!(setv.contains("number:"));
         assert!(setv.contains("0x1002"));
         assert!(setv.contains("Test-VcuDateClass"));
         assert!(setv.contains("uncheck:"));
