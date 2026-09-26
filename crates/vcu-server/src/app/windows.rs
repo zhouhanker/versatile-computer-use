@@ -1182,6 +1182,163 @@ function Click-VcuDatePixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   exit 0
 }
 
+
+function Click-VcuDateMonthPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:month-pixel-name'; exit 0 }
+  if ($expect -notmatch '^(\d{4})-(\d{2})-(\d{2})$') { 'error:month-pixel-format'; exit 0 }
+  $year = [int]$Matches[1]
+  $month = [int]$Matches[2]
+  $day = [int]$Matches[3]
+  try {
+    $parsed = Get-Date -Year $year -Month $month -Day $day -Hour 0 -Minute 0 -Second 0 -ErrorAction Stop
+  } catch {
+    'error:month-pixel-format'
+    exit 0
+  }
+  if ($parsed.Year -ne $year -or $parsed.Month -ne $month -or $parsed.Day -ne $day) { 'error:month-pixel-format'; exit 0 }
+  if (-not ("Vcu.VcuDatePixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr lParam); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern int GetSystemMetrics(int n); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; } [StructLayout(LayoutKind.Sequential)] public struct SYSTEMTIME { public ushort wYear; public ushort wMonth; public ushort wDayOfWeek; public ushort wDay; public ushort wHour; public ushort wMinute; public ushort wSecond; public ushort wMilliseconds; } [StructLayout(LayoutKind.Sequential)] public struct DATETIMEPICKERINFO { public int cbSize; public RECT rcCheck; public int stateCheck; public RECT rcButton; public int stateButton; public IntPtr hwndEdit; public IntPtr hwndUD; public IntPtr hwndDropDown; } static bool IsMonth(IntPtr h) { var sb = new System.Text.StringBuilder(80); GetClassName(h, sb, 80); string c = sb.ToString().ToLowerInvariant(); return c.Contains("monthcal"); } public static string ReadDate(int pid, IntPtr hwnd) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(SYSTEMTIME)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } int code = (int)SendMessage(hwnd, 0x1001, IntPtr.Zero, remote); byte[] buf = new byte[size]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)size, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); if (code != 0) return null; int y = System.BitConverter.ToUInt16(buf, 0); int m = System.BitConverter.ToUInt16(buf, 2); int d = System.BitConverter.ToUInt16(buf, 6); if (y < 1601 || m < 1 || d < 1) return null; return y.ToString("0000") + "-" + m.ToString("00") + "-" + d.ToString("00"); } public static string ButtonRect(int pid, IntPtr hwnd) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(DATETIMEPICKERINFO)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } byte[] seed = new byte[size]; System.BitConverter.GetBytes(size).CopyTo(seed, 0); UIntPtr wrote; WriteProcessMemory(proc, remote, seed, (UIntPtr)size, out wrote); IntPtr ret = SendMessage(hwnd, 0x100E, IntPtr.Zero, remote); byte[] buf = new byte[size]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)size, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); if (ret == IntPtr.Zero) return null; int off = System.Runtime.InteropServices.Marshal.OffsetOf(typeof(DATETIMEPICKERINFO), "rcButton").ToInt32(); int l = System.BitConverter.ToInt32(buf, off); int t = System.BitConverter.ToInt32(buf, off + 4); int r = System.BitConverter.ToInt32(buf, off + 8); int b = System.BitConverter.ToInt32(buf, off + 12); if (r <= l || b <= t) return null; return l.ToString() + "," + t.ToString() + "," + r.ToString() + "," + b.ToString(); } public static string ArrowPoint(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return null; int w = r.R - r.L; int h = r.B - r.T; if (w < 24 || h < 8) return null; int scroll = GetSystemMetrics(2); if (scroll < 8 || scroll >= w) scroll = 16; int x = w - scroll / 2; int y = h / 2; if (x < 1 || y < 1) return null; return x.ToString() + "," + y.ToString(); } public static IntPtr FindMonthCal(int pid, IntPtr picker) { uint want = (uint)pid; IntPtr found = IntPtr.Zero; EnumChildWindows(picker, (h, l) => { if (IsMonth(h)) { found = h; return false; } return true; }, IntPtr.Zero); if (found != IntPtr.Zero) return found; EnumWindows((h, l) => { uint wp; GetWindowThreadProcessId(h, out wp); if (wp != want) return true; if (IsMonth(h)) { found = h; return false; } EnumChildWindows(h, (c, lp) => { uint cp; GetWindowThreadProcessId(c, out cp); if (cp == want && IsMonth(c)) { found = c; return false; } return true; }, IntPtr.Zero); return found == IntPtr.Zero; }, IntPtr.Zero); return found; } public static string FindDay(int pid, IntPtr cal, int year, int month, int day) { RECT cr; if (!GetClientRect(cal, out cr)) return null; int w = cr.R - cr.L; int h = cr.B - cr.T; if (w < 8 || h < 8) return null; IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; int size = 32; IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)size, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } string found = null; for (int y = 2; y < h && found == null; y += 6) { for (int x = 2; x < w; x += 6) { byte[] seed = new byte[size]; System.BitConverter.GetBytes(size).CopyTo(seed, 0); System.BitConverter.GetBytes(x).CopyTo(seed, 4); System.BitConverter.GetBytes(y).CopyTo(seed, 8); UIntPtr wrote; WriteProcessMemory(proc, remote, seed, (UIntPtr)size, out wrote); SendMessage(cal, 0x100E, IntPtr.Zero, remote); byte[] buf = new byte[size]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)size, out read); int yy = System.BitConverter.ToUInt16(buf, 16); int mm = System.BitConverter.ToUInt16(buf, 18); int dd = System.BitConverter.ToUInt16(buf, 22); if (yy == year && mm == month && dd == day) found = x.ToString() + "," + y.ToString(); } } VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); return found; }' -Name VcuDatePixel -Namespace Vcu | Out-Null
+  }
+  $current = [string][Vcu.VcuDatePixel]::ReadDate($ownerPid, $h)
+  if ([string]::IsNullOrWhiteSpace($current)) { 'error:month-pixel-read'; exit 0 }
+  $want = $year.ToString("0000") + "-" + $month.ToString("00") + "-" + $day.ToString("00")
+  if ($current -eq $want) { 'error:month-pixel-state'; exit 0 }
+  $curYear = [int]$current.Substring(0, 4)
+  $curMonth = [int]$current.Substring(5, 2)
+  $delta = ($year - $curYear) * 12 + ($month - $curMonth)
+  if ($delta -eq 0) { 'error:month-pixel-same'; exit 0 }
+  if ($delta -ne 1 -and $delta -ne -1) { 'error:month-pixel-range'; exit 0 }
+  $point = [string][Vcu.VcuDatePixel]::ArrowPoint($h)
+  if ([string]::IsNullOrWhiteSpace($point)) { 'error:month-pixel-rect'; exit 0 }
+  # month-pixel-logical: dropdown arrow, then the next or previous month button, then a visible day. Not DTM_SETSYSTEMTIME.
+  $picker64 = $h.ToInt64()
+  $nextFlag = 0
+  if ($delta -eq 1) { $nextFlag = 1 }
+  $child = Join-Path $env:TEMP ("vcu-dtmonth-" + [guid]::NewGuid().ToString("N") + ".ps1")
+  @(
+    'Add-Type @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'using System.Text;',
+    'public static class VcuDtMonthChild {',
+    '  [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);',
+    '  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);',
+    '  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r);',
+    '  [DllImport("user32.dll")] public static extern int GetSystemMetrics(int n);',
+    '  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr lParam);',
+    '  [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, StringBuilder sb, int n);',
+    '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);',
+    '  [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);',
+    '  [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect);',
+    '  [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr written);',
+    '  [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read);',
+    '  [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type);',
+    '  [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);',
+    '  public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam);',
+    '  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }',
+    '  public static void Open(long hwnd) {',
+    '    RECT r; if (!GetClientRect(new IntPtr(hwnd), out r)) return;',
+    '    int w = r.R - r.L; int h = r.B - r.T; if (w < 24 || h < 8) return;',
+    '    int scroll = GetSystemMetrics(2); if (scroll < 8 || scroll >= w) scroll = 16;',
+    '    int x = w - scroll / 2; int y = h / 2;',
+    '    IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF));',
+    '    IntPtr result; SendMessageTimeout(new IntPtr(hwnd), 0x0201, (IntPtr)1, lp, 0, 250, out result);',
+    '  }',
+    '  public static long FindMonth(int pid) {',
+    '    long found = 0;',
+    '    EnumWindows((h, l) => {',
+    '      uint wp; GetWindowThreadProcessId(h, out wp);',
+    '      if ((int)wp != pid) return true;',
+    '      var sb = new StringBuilder(80); GetClassName(h, sb, 80);',
+    '      if (sb.ToString().ToLowerInvariant().Contains("monthcal")) { found = h.ToInt64(); return false; }',
+    '      return true;',
+    '    }, IntPtr.Zero);',
+    '    return found;',
+    '  }',
+    '  public static string FindNav(int pid, long cal, int next) {',
+    '    RECT cr; if (!GetClientRect(new IntPtr(cal), out cr)) return null;',
+    '    uint want = next != 0 ? 0x01010003u : 0x02010003u;',
+    '    IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null;',
+    '    IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)32, 0x1000, 0x04);',
+    '    if (remote == IntPtr.Zero) { CloseHandle(proc); return null; }',
+    '    string found = null;',
+    '    int limit = cr.B - cr.T; if (limit > 28) limit = 28;',
+    '    for (int y = 2; y < limit && found == null; y += 4) {',
+    '      for (int x = 2; x < cr.R - cr.L; x += 4) {',
+    '        byte[] seed = new byte[32];',
+    '        BitConverter.GetBytes(32).CopyTo(seed, 0);',
+    '        BitConverter.GetBytes(x).CopyTo(seed, 4);',
+    '        BitConverter.GetBytes(y).CopyTo(seed, 8);',
+    '        UIntPtr wrote; WriteProcessMemory(proc, remote, seed, (UIntPtr)32, out wrote);',
+    '        SendMessage(new IntPtr(cal), 0x100E, IntPtr.Zero, remote);',
+    '        byte[] buf = new byte[16]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)16, out read);',
+    '        uint hit = BitConverter.ToUInt32(buf, 12);',
+    '        if (hit == want) found = x.ToString() + "," + y.ToString();',
+    '      }',
+    '    }',
+    '    VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); return found;',
+    '  }',
+    '  public static string FindDay(int pid, long cal, int year, int month, int day) {',
+    '    RECT cr; if (!GetClientRect(new IntPtr(cal), out cr)) return null;',
+    '    int w = cr.R - cr.L; int h = cr.B - cr.T; if (w < 8 || h < 8) return null;',
+    '    IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null;',
+    '    IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)32, 0x1000, 0x04);',
+    '    if (remote == IntPtr.Zero) { CloseHandle(proc); return null; }',
+    '    string found = null;',
+    '    for (int y = 2; y < h && found == null; y += 6) {',
+    '      for (int x = 2; x < w; x += 6) {',
+    '        byte[] seed = new byte[32];',
+    '        BitConverter.GetBytes(32).CopyTo(seed, 0);',
+    '        BitConverter.GetBytes(x).CopyTo(seed, 4);',
+    '        BitConverter.GetBytes(y).CopyTo(seed, 8);',
+    '        UIntPtr wrote; WriteProcessMemory(proc, remote, seed, (UIntPtr)32, out wrote);',
+    '        SendMessage(new IntPtr(cal), 0x100E, IntPtr.Zero, remote);',
+    '        byte[] buf = new byte[32]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)32, out read);',
+    '        int yy = BitConverter.ToUInt16(buf, 16); int mm = BitConverter.ToUInt16(buf, 18); int dd = BitConverter.ToUInt16(buf, 22);',
+    '        if (yy == year && mm == month && dd == day) found = x.ToString() + "," + y.ToString();',
+    '      }',
+    '    }',
+    '    VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); return found;',
+    '  }',
+    '  public static void Click(long hwnd, int x, int y) {',
+    '    IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); IntPtr result;',
+    '    SendMessageTimeout(new IntPtr(hwnd), 0x0201, (IntPtr)1, lp, 0, 400, out result);',
+    '    SendMessageTimeout(new IntPtr(hwnd), 0x0202, IntPtr.Zero, lp, 0, 200, out result);',
+    '  }',
+    '}',
+    '"@',
+    "[VcuDtMonthChild]::Open($picker64)",
+    'Start-Sleep -Milliseconds 150',
+    ('$cal64 = [VcuDtMonthChild]::FindMonth(' + $ownerPid + ')'),
+    'if ($cal64 -eq 0) { "closed"; exit 0 }',
+    ('$nav = [VcuDtMonthChild]::FindNav(' + $ownerPid + ', $cal64, ' + $nextFlag + ')'),
+    'if ([string]::IsNullOrWhiteSpace($nav)) { "nav-missing"; exit 0 }',
+    '$navParts = $nav.Split(",")',
+    '[VcuDtMonthChild]::Click($cal64, [int]$navParts[0], [int]$navParts[1])',
+    'Start-Sleep -Milliseconds 150',
+    ('$pt = [VcuDtMonthChild]::FindDay(' + $ownerPid + ', $cal64, ' + $year + ', ' + $month + ', ' + $day + ')'),
+    'if ([string]::IsNullOrWhiteSpace($pt)) { "day-missing"; exit 0 }',
+    '$parts = $pt.Split(",")',
+    '[VcuDtMonthChild]::Click($cal64, [int]$parts[0], [int]$parts[1])',
+    '"clicked"'
+  ) | Set-Content -Encoding ASCII -Path $child
+  $childOut = & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File $child 2>&1 | Out-String
+  Remove-Item $child -ErrorAction SilentlyContinue
+  if ($childOut -notmatch "clicked") {
+    if ($childOut -match "nav-missing") { 'error:month-pixel-nav'; exit 0 }
+    if ($childOut -match "day-missing") { 'error:month-pixel-day'; exit 0 }
+    'error:month-pixel-open'
+    exit 0
+  }
+  for ($n = 0; $n -lt 12; $n++) {
+    Start-Sleep -Milliseconds 50
+    $after = [string][Vcu.VcuDatePixel]::ReadDate($ownerPid, $h)
+    if ($after -eq $want) { "ok:month_pixel"; exit 0 }
+  }
+  'error:month-pixel-state'
+  exit 0
+}
+
 function Select-VcuDate([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   if ($expect -notmatch '^(\d{4})-(\d{2})-(\d{2})$') { 'error:date-format'; exit 0 }
   $year = [int]$Matches[1]
@@ -2173,7 +2330,9 @@ function Set-VcuElement($el, [string]$expect) {
     return
   }
   if ((Test-VcuDateClass $cls) -or (Test-VcuDateClass $uiaCls)) {
-    if ($expect.StartsWith("datepix:")) {
+    if ($expect.StartsWith("monthpix:")) {
+      Click-VcuDateMonthPixel ([IntPtr]$nh) $expect.Substring(9) $targetPid
+    } elseif ($expect.StartsWith("datepix:")) {
       Click-VcuDatePixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("time:")) {
       Select-VcuTime ([IntPtr]$nh) $expect.Substring(5) $targetPid
@@ -2628,6 +2787,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:uncheck_pixel")
         || out.contains("ok:uncheck_set")
         || out.contains("ok:time_set")
+        || out.contains("ok:month_pixel")
         || out.contains("ok:date_pixel")
         || out.contains("ok:date_set")
         || out.contains("ok:spin_down")
@@ -2674,6 +2834,8 @@ pub fn set_value_from_uia_output(
             "number_set"
         } else if out.contains("ok:time_set") {
             "time_set"
+        } else if out.contains("ok:month_pixel") {
+            "month_pixel"
         } else if out.contains("ok:date_pixel") {
             "date_pixel"
         } else if out.contains("ok:date_set") {
@@ -3400,6 +3562,11 @@ mod tests {
         assert!(setv.contains("ok:uncheck_set"));
         assert!(setv.contains("ok:time_set"));
         assert!(setv.contains("time:"));
+        assert!(setv.contains("ok:month_pixel"));
+        assert!(setv.contains("monthpix:"));
+        assert!(setv.contains("month-pixel-logical"));
+        assert!(setv.contains("0x01010003"));
+        assert!(setv.contains("0x02010003"));
         assert!(setv.contains("ok:date_pixel"));
         assert!(setv.contains("datepix:"));
         assert!(setv.contains("date-pixel-logical"));
