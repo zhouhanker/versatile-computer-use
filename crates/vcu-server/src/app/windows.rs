@@ -1223,6 +1223,26 @@ function Select-VcuListViewCheck([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   "ok:listview_check"
   exit 0
 }
+function Select-VcuListViewUncheck([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  Initialize-VcuListViewSelect
+  if (-not ("Vcu.VcuListViewSelect" -as [type])) { 'error:lvuncheck-type'; exit 0 }
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x1004, [IntPtr]::Zero, [IntPtr]::Zero)
+  $hit = -1
+  for ($i = 0; $i -lt $count -and $i -lt 64; $i++) {
+    $text = [Vcu.VcuListViewSelect]::ItemText($ownerPid, $h, $i)
+    if ($text -eq $expect) { $hit = $i; break }
+  }
+  if ($hit -lt 0) { 'error:lvuncheck-name'; exit 0 }
+  $before = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]0xF000)
+  $img = [int](($before -band 0xF000) / 4096)
+  if ($img -ne 2) { 'error:lvuncheck-state'; exit 0 }
+  if (-not [Vcu.VcuListViewSelect]::SetState($ownerPid, $h, $hit, (1 -shl 12), 0xF000)) { 'error:lvuncheck-state'; exit 0 }
+  $after = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]0xF000)
+  $img2 = [int](($after -band 0xF000) / 4096)
+  if ($img2 -ne 1) { 'error:lvuncheck-state'; exit 0 }
+  "ok:listview_uncheck"
+  exit 0
+}
 function Test-VcuProgressClass([string]$cls) {
   if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
   $c = $cls.ToLowerInvariant()
@@ -1305,7 +1325,9 @@ function Set-VcuElement($el, [string]$expect) {
     return
   }
   if ((Test-VcuListViewClass $cls) -or (Test-VcuListViewClass $uiaCls)) {
-    if ($expect.StartsWith("lvcheck:")) {
+    if ($expect.StartsWith("lvuncheck:")) {
+      Select-VcuListViewUncheck ([IntPtr]$nh) $expect.Substring(10) $targetPid
+    } elseif ($expect.StartsWith("lvcheck:")) {
       Select-VcuListViewCheck ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } else {
       Select-VcuListView ([IntPtr]$nh) $expect $targetPid
@@ -1667,6 +1689,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:tree_select")
         || out.contains("ok:tree_expand")
         || out.contains("ok:tree_collapse")
+        || out.contains("ok:listview_uncheck")
         || out.contains("ok:listview_check")
         || out.contains("ok:listview_select")
         || out.contains("ok:progress_set")
@@ -1697,6 +1720,8 @@ pub fn set_value_from_uia_output(
             "tree_collapse"
         } else if out.contains("ok:tree_expand") {
             "tree_expand"
+        } else if out.contains("ok:listview_uncheck") {
+            "listview_uncheck"
         } else if out.contains("ok:listview_check") {
             "listview_check"
         } else if out.contains("ok:listview_select") {
@@ -2375,6 +2400,8 @@ mod tests {
         assert!(setv.contains("Test-VcuTreeClass"));
         assert!(setv.contains("0x110B"));
         assert!(setv.contains("ok:listview_select"));
+        assert!(setv.contains("ok:listview_uncheck"));
+        assert!(setv.contains("lvuncheck:"));
         assert!(setv.contains("ok:listview_check"));
         assert!(setv.contains("lvcheck:"));
         assert!(setv.contains("ok:progress_set"));

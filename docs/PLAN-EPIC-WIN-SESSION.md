@@ -561,6 +561,18 @@
 - 不做：不把这次写成 UIA 原生子项，也不写成点菜单像素。同名菜单项会点中第一个。也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-046 会话按名字取消勾选列表视图的一行
+
+状态：**2026-09-26 本机复测通过。** 不是点复选框像素，也不是 `listview_check`，也不是完整 Windows 产品 CU。
+
+- 042 只做了勾选。这次 `vcu type` 在类名含 ListView 的控件上，文本以 `lvuncheck:` 开头时按行文字查找。这一行的状态图必须已经是 2。用 `LVM_SETITEMSTATE` 把状态图设成 1，再用 `LVM_GETITEMSTATE` 读回。读回不是 1 就不报成功。这会让 `ItemCheck` 跟着跑。没有同名行、或这一行还没勾选，都不会报成功。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，VCU-LV-B 初始已勾选。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_listview_uncheck.ps1`
+- 结果：`CU-WIN-SESSION-046 OK win:powershell:3988 01M3DNW6EVX45Z41A2AN95MSM3 ref=e1 path=listview_uncheck value=VCU-LV-B cursor=1187,239`
+- 不做：不把这次写成点复选框像素，也不写成 `listview_select`，也不写成完整产品 CU。同名行会取消勾选第一个。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
