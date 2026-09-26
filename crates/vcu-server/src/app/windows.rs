@@ -1178,6 +1178,43 @@ function Initialize-VcuTreeNative([IntPtr]$h, [int]$ownerPid) {
         Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, IntPtr buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); [StructLayout(LayoutKind.Sequential)] public struct TVITEMW { public uint mask; public IntPtr hItem; public uint state; public uint stateMask; public IntPtr pszText; public int cchTextMax; public int iImage; public int iSelectedImage; public int cChildren; public IntPtr lParam; } public static string ItemText(int pid, IntPtr hwnd, IntPtr hItem) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; int textBytes = 512; int itemSize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(TVITEMW)); IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)(itemSize + textBytes), 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } IntPtr remoteText = new IntPtr(remote.ToInt64() + itemSize); TVITEMW item = new TVITEMW(); item.mask = 1; item.hItem = hItem; item.pszText = remoteText; item.cchTextMax = 256; IntPtr local = System.Runtime.InteropServices.Marshal.AllocHGlobal(itemSize); System.Runtime.InteropServices.Marshal.StructureToPtr(item, local, false); UIntPtr wrote; WriteProcessMemory(proc, remote, local, (UIntPtr)itemSize, out wrote); System.Runtime.InteropServices.Marshal.FreeHGlobal(local); SendMessage(hwnd, 0x113E, IntPtr.Zero, remote); byte[] buf = new byte[textBytes]; UIntPtr read; ReadProcessMemory(proc, remoteText, buf, (UIntPtr)textBytes, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); int n = 0; while (n + 1 < buf.Length && !(buf[n] == 0 && buf[n + 1] == 0)) n += 2; return System.Text.Encoding.Unicode.GetString(buf, 0, n); }' -Name VcuTreeExpandRead -Namespace Vcu | Out-Null
   }
 }
+
+function Click-VcuTreeIcon([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  Initialize-VcuTreeNative $h $ownerPid
+  if (-not ("Vcu.VcuTreeIcon" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr written); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); public static string ButtonPoint(int pid, IntPtr hwnd, IntPtr item) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)16, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } byte[] raw = System.BitConverter.GetBytes(item.ToInt64()); UIntPtr wrote; if (!WriteProcessMemory(proc, remote, raw, (UIntPtr)raw.Length, out wrote)) { VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); return null; } SendMessage(hwnd, 0x1104, (IntPtr)1, remote); byte[] buf = new byte[16]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)16, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); int left = System.BitConverter.ToInt32(buf, 0); int top = System.BitConverter.ToInt32(buf, 4); int bottom = System.BitConverter.ToInt32(buf, 12); if (bottom <= top) return null; int x = left - 8; if (x < 1) x = 1; int y = (top + bottom) / 2; if (y < 0) return null; return x.ToString() + "," + y.ToString(); }' -Name VcuTreeIcon -Namespace Vcu | Out-Null
+  }
+  $root = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]0, [IntPtr]::Zero)
+  $caret = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]9, [IntPtr]::Zero)
+  $queue = New-Object System.Collections.Queue
+  if ($root -ne [IntPtr]::Zero) { $queue.Enqueue($root) }
+  if ($caret -ne [IntPtr]::Zero -and $caret -ne $root) { $queue.Enqueue($caret) }
+  $seen = 0
+  $hit = [IntPtr]::Zero
+  while ($queue.Count -gt 0 -and $seen -lt 64) {
+    $item = [IntPtr]$queue.Dequeue()
+    $seen++
+    $text = [Vcu.VcuTreeExpandRead]::ItemText($ownerPid, $h, $item)
+    if ($text -eq $expect) { $hit = $item; break }
+    $child = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]4, $item)
+    if ($child -ne [IntPtr]::Zero) { $queue.Enqueue($child) }
+    $next = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]1, $item)
+    if ($next -ne [IntPtr]::Zero) { $queue.Enqueue($next) }
+  }
+  if ($hit -eq [IntPtr]::Zero) { 'error:tree-icon-name'; exit 0 }
+  if ([Vcu.VcuTreeSelect]::IsExpanded($ownerPid, $h, $hit)) { 'error:tree-icon-state'; exit 0 }
+  $point = [string][Vcu.VcuTreeIcon]::ButtonPoint($ownerPid, $h, $hit)
+  if ([string]::IsNullOrWhiteSpace($point) -or -not $point.Contains(",")) { 'error:tree-icon-point'; exit 0 }
+  $parts = $point.Split(",")
+  $x = [int]$parts[0]
+  $y = [int]$parts[1]
+  $lp = [IntPtr](($y -shl 16) -bor ($x -band 65535))
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0201, [IntPtr]1, $lp)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0202, [IntPtr]0, $lp)
+  if (-not [Vcu.VcuTreeSelect]::IsExpanded($ownerPid, $h, $hit)) { 'error:tree-icon-state'; exit 0 }
+  "ok:tree_icon"
+  exit 0
+}
 function Expand-VcuTree([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   Initialize-VcuTreeNative $h $ownerPid
   $root = [Vcu.VcuPaste140]::SendMessage($h, 0x110A, [IntPtr]0, [IntPtr]::Zero)
@@ -1460,7 +1497,9 @@ function Set-VcuElement($el, [string]$expect) {
   Select-VcuTab ([IntPtr]$nh) $expect $targetPid
   if ((Test-VcuTabClass $cls) -or (Test-VcuTabClass $uiaCls)) { return }
   if ((Test-VcuTreeClass $cls) -or (Test-VcuTreeClass $uiaCls)) {
-    if ($expect.StartsWith("expand:")) {
+    if ($expect.StartsWith("treeicon:")) {
+      Click-VcuTreeIcon ([IntPtr]$nh) $expect.Substring(9) $targetPid
+    } elseif ($expect.StartsWith("expand:")) {
       Expand-VcuTree ([IntPtr]$nh) $expect.Substring(7) $targetPid
     } elseif ($expect.StartsWith("collapse:")) {
       Collapse-VcuTree ([IntPtr]$nh) $expect.Substring(9) $targetPid
@@ -1866,6 +1905,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:track_select")
         || out.contains("ok:tab_select")
         || out.contains("ok:tree_select")
+        || out.contains("ok:tree_icon")
         || out.contains("ok:tree_expand")
         || out.contains("ok:tree_collapse")
         || out.contains("ok:listview_uncheck")
@@ -1907,6 +1947,8 @@ pub fn set_value_from_uia_output(
             "tree_select"
         } else if out.contains("ok:tree_collapse") {
             "tree_collapse"
+        } else if out.contains("ok:tree_icon") {
+            "tree_icon"
         } else if out.contains("ok:tree_expand") {
             "tree_expand"
         } else if out.contains("ok:listview_uncheck") {
@@ -2592,6 +2634,8 @@ mod tests {
         assert!(setv.contains("ok:tab_select"));
         assert!(setv.contains("Test-VcuTabClass"));
         assert!(setv.contains("ok:tree_select"));
+        assert!(setv.contains("ok:tree_icon"));
+        assert!(setv.contains("treeicon:"));
         assert!(setv.contains("ok:tree_expand"));
         assert!(setv.contains("ok:tree_collapse"));
         assert!(setv.contains("NotifyCollapse"));
