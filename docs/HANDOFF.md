@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-091 已在本机复测：科学计算器名为「分数」的按钮计算的是阶乘。5 变成显示为 120。路径是 uia_invoke。这不是把小数换成分数。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是模数，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
+
 更新：2026-09-26。CU-WIN-SESSION-090 已在本机复测：科学计算器 8 模 3 是 2。按「八」、「模数」、「三」、「等于」。路径是 uia_invoke，显示为 2。模数按钮之前显示不能已经是 2。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是除法，也不是 x 的指数，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
 
 更新：2026-09-26。CU-WIN-SESSION-089 已在本机复测：科学计算器按 Euler 数字。路径是 uia_invoke，显示以显示为 2.718281828 开头。测完切回标准模式，π 按钮消失。没有 SendInput，没有移动系统光标。同一 pid 的 ApplicationFrameHost 仍被拒绝。不是 π，也不是完整科学函数矩阵，也不是完整 Windows 产品 CU。
