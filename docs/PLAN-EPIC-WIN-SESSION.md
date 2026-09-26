@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选和链接点击已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选、链接点击和菜单项已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -531,6 +531,20 @@
 - 点击后标签变成 `VCU-LINK-HIT`。普通标签的点击被拒绝。没有 SendInput，没有移动系统光标。
 - 按钮回归：`scripts/poc_win_session_click_label.ps1` 仍是 `CU-WIN-SESSION-022 OK ... path=bm_click`。
 - 不做：不把这次写成点链接像素，也不写成菜单项已点中。菜单项仍不在场景树里。也不写成完整产品 CU。
+
+
+
+## CU-WIN-SESSION-044 会话按名字点击自建菜单项
+
+状态：**2026-09-26 本机复测通过。** 不是点菜单像素，也不是菜单项已经出现在场景树里，也不是完整 Windows 产品 CU。
+
+- 菜单项仍然不在 UIA 场景树里，`wait --name` 找不到 VCU-MENU-B。不能把这一点写成已经能观察到菜单项。
+- `vcu type` 文本以 `menu:` 开头时，在窗口和子窗口的辅助功能树里找角色 12 且名字匹配的项，再走 `accDoDefaultAction`。这会让 WinForms 菜单项的 `Click` 跟着跑。没有同名项不会报成功。路径是 `menu_click`。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，顶层项是 VCU-MENU-FILE，子项是 VCU-MENU-B。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_menu.ps1`
+- 结果：`CU-WIN-SESSION-044 OK win:powershell:9540 01M3DMFA7ES06SKKSB3KX7W87F ref=e1 path=menu_click value=VCU-MENU-B cursor=1187,239`
+- 点击后标签变成 `VCU-MENU-HIT`。`menu:VCU-MENU-MISSING` 被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点菜单像素，也不写成场景里已经有菜单项，也不写成完整产品 CU。
 
 
 ## 还没做

@@ -1194,7 +1194,24 @@ function Select-VcuProgress([IntPtr]$h, [string]$expect) {
     exit 0
   }
 }
+function Select-VcuMenu([IntPtr]$h, [string]$expect) {
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:menu-name'; exit 0 }
+  if (-not ("Vcu.VcuMenuClick" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc lpEnumFunc, IntPtr lParam); [DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); public static bool ClickOnHwnd(IntPtr hwnd, string expect) { System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; int hr = AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out acc); if (hr != 0 || acc == null) return false; return ClickAcc(hwnd, acc, 0, expect, 0); } public static bool ClickAcc(IntPtr hwnd, object acc, int id, string expect, int depth) { if (acc == null || depth > 6) return false; int role = -1; string name = ""; try { role = System.Convert.ToInt32(acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch {} try { name = System.Convert.ToString(acc.GetType().InvokeMember("accName", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id })); } catch {} if (role == 12 && name == expect) { object target = acc; object which = id; if (id != 0) { try { target = acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id }); which = 0; } catch { return false; } } if (target == null) return false; target.GetType().InvokeMember("accDoDefaultAction", System.Reflection.BindingFlags.InvokeMethod, null, target, new object[] { which }); return true; } object childAcc = acc; if (id != 0) { try { childAcc = acc.GetType().InvokeMember("accChild", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { id }); } catch { return false; } } if (childAcc == null) return false; int count = 0; try { count = System.Convert.ToInt32(childAcc.GetType().InvokeMember("accChildCount", System.Reflection.BindingFlags.GetProperty, null, childAcc, null)); } catch {} for (int i = 1; i <= count && i <= 12; i++) if (ClickAcc(hwnd, childAcc, i, expect, depth + 1)) return true; return false; } public static bool ClickMenu(IntPtr hwnd, string expect) { if (ClickOnHwnd(hwnd, expect)) return true; bool found = false; EnumChildWindows(hwnd, (h, l) => { if (!found && ClickOnHwnd(h, expect)) found = true; return !found; }, System.IntPtr.Zero); return found; }' -Name VcuMenuClick -Namespace Vcu | Out-Null
+  }
+  if ([Vcu.VcuMenuClick]::ClickMenu($h, $expect)) {
+    "ok:menu_click"
+    exit 0
+  }
+  'error:menu-name'
+  exit 0
+}
 function Set-VcuElement($el, [string]$expect) {
+  if ($expect.StartsWith("menu:")) {
+    $mh = [int64]$el.Current.NativeWindowHandle
+    if ($mh -ne 0) { Select-VcuMenu ([IntPtr]$mh) $expect.Substring(5) }
+    return
+  }
   try {
     $vp = $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
     $vp.SetValue($expect)
@@ -1592,6 +1609,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:uncheck_set")
         || out.contains("ok:date_set")
         || out.contains("ok:number_set")
+        || out.contains("ok:menu_click")
         || out.contains("ok:track_select")
         || out.contains("ok:tab_select")
         || out.contains("ok:tree_select")
@@ -1605,6 +1623,8 @@ pub fn set_value_from_uia_output(
             "uia_set_value"
         } else if out.contains("ok:combo_select") {
             "combo_select"
+        } else if out.contains("ok:menu_click") {
+            "menu_click"
         } else if out.contains("ok:number_set") {
             "number_set"
         } else if out.contains("ok:date_set") {
@@ -2266,6 +2286,8 @@ mod tests {
         assert!(setv.contains("ok:uncheck_set"));
         assert!(setv.contains("ok:date_set"));
         assert!(setv.contains("ok:number_set"));
+        assert!(setv.contains("ok:menu_click"));
+        assert!(setv.contains("menu:"));
         assert!(setv.contains("number:"));
         assert!(setv.contains("0x1002"));
         assert!(setv.contains("Test-VcuDateClass"));
