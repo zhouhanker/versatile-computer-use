@@ -612,6 +612,19 @@
 - 不做：不把这次写成直接写数值，也不写成拖动，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-050 会话展开下拉层后点选
+
+状态：**2026-09-26 本机复测通过。** 不是 `combo_select`，也不是完整 Windows 产品 CU。
+
+- 029 只用 `CB_SETCURSEL`，不展开下拉层。这次 `vcu type` 文本以 `drop:` 开头时，先按名字找到条目。已经选中的和不存在的都不展开。然后 `CB_SHOWDROPDOWN` 打开列表，列表窗口必须可见。再给可见列表项发 `WM_LBUTTONDOWN` / `WM_LBUTTONUP`。选中项读回必须是这一条，然后收起列表。列表没打开、点不到、或选中项没变，都不报成功。这会让 `SelectedIndexChanged` 跟着跑。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，列表里有 A 和 B，初始选中 A。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_combo_drop.ps1`
+- 结果：`CU-WIN-SESSION-050 OK win:powershell:12724 01M3DQ8NYSK54M5FN4WY449RDN ref=e3 path=combo_drop selected=VCU-COMBO-B cursor=1187,239`
+- 点选后标签变成 `VCU-DROP-VCU-COMBO-B`。再点同一项和不存在的项被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成 `CB_SETCURSEL`，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。

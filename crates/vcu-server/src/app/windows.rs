@@ -700,6 +700,41 @@ function Select-VcuCombo([IntPtr]$h, [string]$expect) {
     }
   }
 }
+
+function Select-VcuComboDrop([IntPtr]$h, [string]$expect) {
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:combo-drop-name'; exit 0 }
+  if (-not ("Vcu.VcuComboDrop" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern bool GetComboBoxInfo(IntPtr hwnd, ref INFO info); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } [StructLayout(LayoutKind.Sequential)] public struct INFO { public int cbSize; public RECT rcItem; public RECT rcButton; public int stateButton; public IntPtr hwndCombo; public IntPtr hwndItem; public IntPtr hwndList; } public static IntPtr ListHwnd(IntPtr combo) { INFO info = new INFO(); info.cbSize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(INFO)); if (!GetComboBoxInfo(combo, ref info)) return IntPtr.Zero; return info.hwndList; } public static bool ListVisible(IntPtr combo) { IntPtr list = ListHwnd(combo); return list != IntPtr.Zero && IsWindowVisible(list); } public static bool ClickItem(IntPtr list, int index, int itemHeight) { RECT r; if (!GetClientRect(list, out r)) return false; int w = r.Right - r.Left; int h = r.Bottom - r.Top; if (w < 2 || itemHeight < 2) return false; int y = index * itemHeight + itemHeight / 2; if (y < 0 || y >= h) return false; int x = w / 2; IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); SendMessage(list, 0x0201, (IntPtr)1, lp); SendMessage(list, 0x0202, IntPtr.Zero, lp); return true; }' -Name VcuComboDrop -Namespace Vcu | Out-Null
+  }
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0146, [IntPtr]::Zero, [IntPtr]::Zero)
+  $hit = -1
+  for ($i = 0; $i -lt $count -and $i -lt 64; $i++) {
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 0x0148, $i, $sb)
+    if ($sb.ToString() -eq $expect) { $hit = $i; break }
+  }
+  if ($hit -lt 0) { 'error:combo-drop-name'; exit 0 }
+  $cur = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0147, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($cur -eq $hit) { 'error:combo-drop-state'; exit 0 }
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x014F, [IntPtr]1, [IntPtr]::Zero)
+  if (-not [Vcu.VcuComboDrop]::ListVisible($h)) {
+    [void][Vcu.VcuPaste140]::SendMessage($h, 0x014F, [IntPtr]::Zero, [IntPtr]::Zero)
+    'error:combo-drop-open'
+    exit 0
+  }
+  $list = [Vcu.VcuComboDrop]::ListHwnd($h)
+  $itemH = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0154, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($list -eq [IntPtr]::Zero -or -not [Vcu.VcuComboDrop]::ClickItem($list, $hit, $itemH)) {
+    [void][Vcu.VcuPaste140]::SendMessage($h, 0x014F, [IntPtr]::Zero, [IntPtr]::Zero)
+    'error:combo-drop-click'
+    exit 0
+  }
+  $after = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0147, [IntPtr]::Zero, [IntPtr]::Zero)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x014F, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($after -ne $hit) { 'error:combo-drop-state'; exit 0 }
+  "ok:combo_drop"
+  exit 0
+}
 function Test-VcuListClass([string]$cls) {
   if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
   return $cls.ToLowerInvariant().Contains('listbox')
@@ -1379,7 +1414,11 @@ function Set-VcuElement($el, [string]$expect) {
   $cls = Get-VcuClass ([IntPtr]$nh)
   $uiaCls = [string]$el.Current.ClassName
   if (Test-VcuComboClass $cls) {
-    Select-VcuCombo ([IntPtr]$nh) $expect
+    if ($expect.StartsWith("drop:")) {
+      Select-VcuComboDrop ([IntPtr]$nh) $expect.Substring(5)
+    } else {
+      Select-VcuCombo ([IntPtr]$nh) $expect
+    }
     return
   }
   if ((Test-VcuDateClass $cls) -or (Test-VcuDateClass $uiaCls)) {
@@ -1777,6 +1816,7 @@ pub fn set_value_from_uia_output(
     if out.contains("ok:uia_set_value")
         || out.contains("ok:wm_settext")
         || out.contains("ok:clipboard_paste")
+        || out.contains("ok:combo_drop")
         || out.contains("ok:combo_select")
         || out.contains("ok:list_select")
         || out.contains("ok:check_set")
@@ -1800,6 +1840,8 @@ pub fn set_value_from_uia_output(
     {
         let path = if out.contains("ok:uia_set_value") {
             "uia_set_value"
+        } else if out.contains("ok:combo_drop") {
+            "combo_drop"
         } else if out.contains("ok:combo_select") {
             "combo_select"
         } else if out.contains("ok:menu_click") {
@@ -2483,6 +2525,8 @@ mod tests {
         assert!(setv.contains("SetValue"));
         assert!(setv.contains("hello"));
         assert!(setv.contains("ok:wm_settext"));
+        assert!(setv.contains("ok:combo_drop"));
+        assert!(setv.contains("drop:"));
         assert!(setv.contains("ok:combo_select"));
         assert!(setv.contains("0x014E"));
         assert!(setv.contains("ok:list_select"));
