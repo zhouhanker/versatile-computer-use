@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """CU-D-610: observe --tab then live type/scroll bind last observe.
 
-Throwaway 127.0.0.1 only. Groups 1/3 untouched. Never Allow / OS cursor.
+After scroll, the pre-scroll capture must be rejected as stale_viewport.
+A new observe --tab capture may then dry-run. Throwaway 127.0.0.1 only.
+Groups 1/3 untouched. Never Allow / OS cursor. Do not loosen scroll checks.
 """
 from __future__ import annotations
 
@@ -178,9 +180,11 @@ def main():
                 break
         y_ok = y_text.startswith("y=") and y_text != "y=0"
 
-        capture_still = True
+        # Scrolling invalidates the pre-scroll screenshot. That rejection is the
+        # contract; do not treat the old capture as still clickable.
+        stale_click = {"ok": False, "error": "missing pre-scroll capture_id"}
         if cid:
-            click = vcu([
+            stale_click = vcu([
                 "browser", "click",
                 "--space", "viewport",
                 "--capture", cid,
@@ -188,31 +192,86 @@ def main():
                 "--pixel-y", "1",
                 "--dry-run",
             ])
-            cd = data(click)
-            capture_still = (
-                click.get("ok") is True
-                and cd.get("dry_run") is True
-                and cd.get("source") == "extension_dom"
-            )
+        stale_blob = json.dumps(stale_click, ensure_ascii=False)
+        stale_rejected = (
+            bool(cid)
+            and stale_click.get("ok") is not True
+            and ("stale_viewport" in stale_blob or "stale viewport" in stale_blob)
+        )
+
+        fresh_cid = ""
+        fresh_click = {}
+        capture_fresh = False
+        if y_ok and stale_rejected:
+            for _ in range(6):
+                fresh = vcu(["browser", "observe", "--tab", our_tab])
+                fd = data(fresh)
+                candidate = str(fd.get("capture_id") or (fd.get("snapshot") or {}).get("capture_id") or "")
+                if (
+                    fresh.get("ok") is not True
+                    or not candidate
+                    or candidate == cid
+                    or str(fd.get("tab_id") or "") != our_tab
+                ):
+                    time.sleep(0.25)
+                    continue
+                click = vcu([
+                    "browser", "click",
+                    "--space", "viewport",
+                    "--capture", candidate,
+                    "--pixel-x", "1",
+                    "--pixel-y", "1",
+                    "--dry-run",
+                ])
+                cd = data(click)
+                fresh_cid = candidate
+                fresh_click = {
+                    "ok": click.get("ok"),
+                    "source": cd.get("source"),
+                    "dry_run": cd.get("dry_run"),
+                    "os_cursor_used": cd.get("os_cursor_used"),
+                    "error": click.get("error"),
+                }
+                if (
+                    click.get("ok") is True
+                    and cd.get("dry_run") is True
+                    and cd.get("source") == "extension_dom"
+                    and cd.get("os_cursor_used") is False
+                ):
+                    capture_fresh = True
+                    break
+                time.sleep(0.25)
 
         prot1 = protected(vcu(["browser", "tabs"]))
-        ok = y_ok and capture_still and prot0 == prot1 and MARKER in got_value
+        ok = (
+            y_ok
+            and stale_rejected
+            and capture_fresh
+            and prot0 == prot1
+            and MARKER in got_value
+            and sd.get("source") == "extension_dom"
+            and sd.get("tab_id_source") == "last_observe"
+        )
         report = {
             "ok": ok,
             "tab_id": our_tab,
             "capture_id": cid,
+            "fresh_capture_id": fresh_cid,
             "type_source": td.get("source"),
             "type_tab_source": td.get("tab_id_source"),
             "typed_value": got_value,
             "scroll_source": sd.get("source"),
             "scroll_tab_source": sd.get("tab_id_source"),
             "scroll_y": y_text,
-            "capture_dry_run_ok": capture_still,
+            "stale_rejected": stale_rejected,
+            "stale_error": stale_blob[:500],
+            "capture_dry_run_ok": capture_fresh,
+            "fresh_click": fresh_click,
             "groups_ok": prot0 == prot1,
             "os_cursor_used": td.get("os_cursor_used") or sd.get("os_cursor_used"),
         }
         if ok:
-            print("CU-D-610 OK", our_tab, got_value, y_text)
+            print("CU-D-610 OK", our_tab, got_value, y_text, fresh_cid)
             return 0
         print("CU-D-610 FAIL", json.dumps(report, ensure_ascii=False))
         return 1

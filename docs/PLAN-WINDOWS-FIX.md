@@ -1,6 +1,6 @@
 # Windows 真机修复计划
 
-更新：2026-09-26。作者：本机真机测试记录。状态：WIN-FIX-001 至 008 已提交并复测通过。WIN-FIX-009 已在本机复测：powershell.exe 托管的 WinForms 编辑框先写子控件，不再对主窗口剪贴板粘贴后报成功。CU-D-610 仍失败于截图 dry-run，不算整项通过。没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机测试记录。状态：WIN-FIX-001 至 008 已提交并复测通过。WIN-FIX-009 已在本机复测：powershell.exe 托管的 WinForms 编辑框先写子控件，不再对主窗口剪贴板粘贴后报成功。CU-D-610 已在本机复测通过：滚动后旧截图被 stale_viewport 拒绝，重新 observe 后 dry-run 通过。没有放宽校验，也没有新的 GitHub Release。
 
 001–006 的产品修复已在源码里并推送。本轮 007 复测用的是本仓库 debug 构建 `target/debug/vcu.exe`，daemon 也是这份 debug 构建，不是已安装的 Release 包。`vcu --version` 仍打印 crate `0.1.0`。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。
 
@@ -109,7 +109,7 @@
 - 另：用 PowerShell `Set-Content -Encoding utf8` 写 `config.json` 会带 BOM，daemon 解析 panic。安装器路径没有这个问题。配置读取去 BOM 已在 WIN-FIX-003 落地。
 - 修：POC 子进程按 UTF-8 解码，非法字节替换而不是抛出。`poc_cu_d_590.py` 对空路径直接返回，sidecar JSON 按 UTF-8 读取。
 - 验收：`VCU=target/debug/vcu.exe`。`poc_cu_d_590.py` 退出 0，`CU-D-590 OK 1013794778 0->1`。`poc_cu_d_620.py` 退出 0，`CU-D-620 OK 1013794782 hovered=1`。两者都没有 `UnicodeDecodeError`。
-- 未宣称：`poc_cu_d_610.py` 退出 1，也没有 `UnicodeDecodeError`。DOM 输入和滚动成功（`typed_value=vcu-d-610`，`scroll_y=y=900`，`groups_ok=true`，`os_cursor_used=false`）。失败点是 `capture_dry_run_ok: false`。2026-09-26 复现为扩展 `stale_viewport`：滚动后 `scroll_y=900`，旧截图不能再点。这是共享扩展的安全拒绝，不是 Windows 回归，不能放宽校验。这不是 007 的验收范围，也不写成 610 通过。
+- 未宣称：`poc_cu_d_610.py` 退出 1，也没有 `UnicodeDecodeError`。DOM 输入和滚动成功（`typed_value=vcu-d-610`，`scroll_y=y=900`，`groups_ok=true`，`os_cursor_used=false`）。失败点是 `capture_dry_run_ok: false`。2026-09-26 复现为扩展 `stale_viewport`：滚动后 `scroll_y=900`，旧截图不能再点。这是共享扩展的安全拒绝，不是 Windows 回归，不能放宽校验。这不是 007 的验收范围。随后只改 POC，不放宽校验。2026-09-26 再测：旧截图错误含 stale_viewport，重新 observe 的 dry-run 成功，source=extension_dom，tab 1013794813，scroll y=900。CU-D-610 OK。只关闭这个 127.0.0.1 标签。没有测 Chrome，没有点 Allow。
 
 
 ### WIN-FIX-008 计算器窗口在 ApplicationFrameHost 上
@@ -148,7 +148,7 @@
 4. WIN-FIX-004 Windows Terminal 名单。已完成并复测。
 5. WIN-FIX-005 截图错误文案。已完成并复测。
 6. WIN-FIX-006 UIA 编码。已完成并复测。
-7. WIN-FIX-007 POC 解码。已复测：590 与 620 通过；610 不再因 `UnicodeDecodeError` 退出，但仍因截图 dry-run 失败。
+7. WIN-FIX-007 POC 解码。已复测：590 与 620 通过；610 不再因 `UnicodeDecodeError` 退出。截图缺口随后由 POC 改为先断言 stale_viewport，再重新 observe 后 dry-run。2026-09-26 本机 CU-D-610 OK。没有放宽 scroll_y。
 8. WIN-FIX-008 计算器窗口别名。已复测，宿主进程仍拒绝。
 9. WIN-FIX-009 子编辑框先于控制台粘贴。已复测。
 

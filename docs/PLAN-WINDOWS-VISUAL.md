@@ -33,7 +33,7 @@
 
 ## CU-D-610 不是这条的范围
 
-`poc_cu_d_610.py` 在滚动之后用滚动前的截图做 dry-run，扩展返回 `stale_viewport` / `stale viewport; recapture screenshot`。这是共享扩展的安全拒绝，不是 GBK，也不是 Windows 回归。不要为了变绿放宽 `scroll_y` 校验。
+`poc_cu_d_610.py` 现在先断言滚动前截图被 `stale_viewport` 拒绝，再 `observe --tab` 后对新截图 dry-run。2026-09-26 本机通过。这仍不是视觉对齐的范围，也没有放宽 `scroll_y` 校验。
 
 ## WIN-VIS-002 逐像素透明
 

@@ -206,7 +206,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 | CU-D-580 | observe capture_id viewport click | **完成（真机）** observe capture 可 dry-run viewport click。无 SendInput。 |
 | CU-D-590 | observe --tab live viewport click | **完成（真机）** `observe --tab` 激活抛页且不抢 OS 前台；live capture click `#hit` 0→1。`poc_cu_d_590.py` OK。组 1/3 未动。不是 TC-B-040。无 SendInput。 |
 | CU-D-600 | observe requires frontmost browser or --tab | **完成（真机）** 前台非 USER Chrome/Edge 时无 `--tab` 的 observe 失败；`--tab` 仍可用。`poc_cu_d_600.py` OK。无 SendInput。 |
-| CU-D-610 | observe-bind live type/scroll | **完成（真机）** observe 后 type/scroll 无 `--tab` 绑 last observe；输入 `vcu-d-610`、scrollY=900。`poc_cu_d_610.py` OK。无 SendInput。 |
+| CU-D-610 | observe-bind live type/scroll | **完成（真机）** observe 后 type/scroll 无 `--tab` 绑 last observe；输入 `vcu-d-610`、scrollY=900。滚动后旧截图必须 `stale_viewport`，重新 observe 后 dry-run 才通过。2026-09-26 本机 `poc_cu_d_610.py` OK。无 SendInput。不是完整 Windows 产品 CU。 |
 | CU-D-620 | observe-bind live hover + DOM wait | **完成（真机）** hover `#pad` → hovered=1；wait selector 文本 ready，missing 超时。`poc_cu_d_620.py` OK。无 SendInput。 |
 | CU-D-630 | observe --browser Chrome vs Edge | **完成（真机）** `--browser chrome|edge` 打开并 extract 到对应浏览器；撞号须 `--browser`。`poc_cu_d_630.py` OK。无 SendInput。 |
 | CU-D-640 | close/select --browser | **完成（真机）** close 错浏览器拒绝；`--browser chrome|edge` 只关对侧抛页。`poc_cu_d_640.py` OK。无 SendInput。 |
