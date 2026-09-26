@@ -207,11 +207,34 @@ function Set-HudPill($form) {
   $form.Region = New-Object System.Drawing.Region $path
 }
 function New-HudTextBitmap {
-  $bmp = New-Object System.Drawing.Bitmap $script:HudW, $script:HudH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $pad = [int][Math]::Round(10 * $script:DpiScale)
+  $shift = [int][Math]::Round(2 * $script:DpiScale)
+  $script:HudTextPad = $pad
+  $w = $script:HudW + (2 * $pad)
+  $h = $script:HudH + $pad + $shift
+  $bmp = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
   $g.Clear([System.Drawing.Color]::Transparent)
+  foreach ($spread in @(8, 5, 3)) {
+    $s = [int][Math]::Round($spread * $script:DpiScale)
+    $alpha = 40 - ($spread * 2)
+    if ($alpha -lt 12) { $alpha = 12 }
+    $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($alpha, 0, 0, 0))
+    $x = $pad - $s
+    $y = $shift
+    $rw = $script:HudW + (2 * $s)
+    $rh = $script:HudH + (2 * $s)
+    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $path.AddArc($x, $y, $rh, $rh, 90, 180)
+    $path.AddArc(($x + $rw - $rh), $y, $rh, $rh, 270, 180)
+    $path.CloseFigure()
+    $g.FillPath($brush, $path)
+    $path.Dispose()
+    $brush.Dispose()
+  }
+  $g.TranslateTransform($pad, 0)
   $inset = [Math]::Max(1, [int][Math]::Round($script:DpiScale))
   $d = $script:HudH - (2 * $inset)
   $ring = New-Object System.Drawing.Drawing2D.GraphicsPath
@@ -223,12 +246,17 @@ function New-HudTextBitmap {
   $pen.Dispose()
   $ring.Dispose()
   Draw-HudLabels $g
+  $g.ResetTransform()
   $g.Dispose()
   return $bmp
 }
 function Show-HudText {
   if (-not $script:HudAcrylic -or $null -eq $script:HudText -or -not $script:HudText.Visible) { return }
-  [void][VcuStageWin]::ShowBitmap($script:HudText.Handle, $script:HudTextBmp, $hud.Left, $hud.Top, $true)
+  $pad = 0
+  if ($script:HudTextPad) { $pad = [int]$script:HudTextPad }
+  $left = $hud.Left - $pad
+  if ($left -lt 0) { $left = 0 }
+  [void][VcuStageWin]::ShowBitmap($script:HudText.Handle, $script:HudTextBmp, $left, $hud.Top, $true)
 }
 
 function New-HudShadowBitmap {
@@ -480,17 +508,20 @@ try {
 } catch { $script:HudAcrylic = $false }
 if ($script:HudAcrylic) {
   $script:HudTextBmp = New-HudTextBitmap
+  $pad = 0
+  if ($script:HudTextPad) { $pad = [int]$script:HudTextPad }
   $script:HudText = New-Object System.Windows.Forms.Form
   $script:HudText.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
   $script:HudText.ShowInTaskbar = $false
   $script:HudText.TopMost = $true
   $script:HudText.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
-  $script:HudText.ClientSize = New-Object System.Drawing.Size $script:HudW, $script:HudH
-  $script:HudText.Left = $hudLeft
+  $script:HudText.ClientSize = New-Object System.Drawing.Size $script:HudTextBmp.Width, $script:HudTextBmp.Height
+  $textLeft = $hudLeft - $pad
+  if ($textLeft -lt 0) { $textLeft = 0 }
+  $script:HudText.Left = $textLeft
   $script:HudText.Top = $hudTop
   $script:HudText.Show()
-  # The shadow form is a larger layered window behind the capsule. On this
-  # DPI setup its client paints as an opaque black rectangle. Do not show it.
+  # Soft shadow is drawn in the text overlay. A separate shadow form paints an opaque black rectangle. Do not show it.
   $script:HudShadow = $null
   $script:HudShadowBmp = $null
   Sync-HudLayers
@@ -1305,6 +1336,8 @@ mod tests {
         assert!(STAGE_WINPS.contains("Segoe UI Semibold"));
         assert!(STAGE_WINPS.contains("New-HudShadowBitmap"));
         assert!(STAGE_WINPS.contains("opaque black rectangle"));
+        assert!(STAGE_WINPS.contains("HudTextPad"));
+        assert!(STAGE_WINPS.contains("Soft shadow is drawn in the text overlay"));
         assert!(STAGE_WINPS.contains("Sync-HudLayers"));
         assert!(STAGE_WINPS.contains("FromArgb(115, 255, 255, 255)"));
         assert!(STAGE_WINPS.contains("FromArgb(150, 24, 28, 34)"));
