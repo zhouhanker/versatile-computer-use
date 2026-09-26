@@ -28,6 +28,8 @@ vcu browser ping --json
 
 2026-09-26 本机 Edge 154 复测：已安装的 `background.js` 临时加上 `probe` 后，这条启动让 `vcu browser ping` 带回该字段。没有调试同意框。文件已还原并再次重载，ping 不再带 probe。没有测 Chrome。
 
+同一天用新 daemon 再测：正在跑的 worker 拒绝 `reload_self` 后，`vcu browser ping --reload` 返回 `page_reload=true`、`confirmed=true`，随后 ping 再次 pong。没有调试同意框，没有残留 reload 标签。
+
 
 已经打开的网页不会自动换成新内容脚本。那些页要刷新，否则会报 `content lens is stale`。
 

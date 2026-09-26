@@ -1,3 +1,4 @@
+更新：2026-09-26。新 daemon 复测：worker 拒绝 reload_self 后，`vcu browser ping --reload` 返回 page_reload=true、confirmed=true，随后 ping 再次 pong。没有调试同意框，没有残留 reload 标签。前台是 Windows Terminal 时 observe 失败并要求 --tab；Edge 在前台时 frontmost_matched=true，source=extension_viewport。
 更新：2026-09-26。Windows 浏览器补齐：前台判断用 GetForegroundWindow，不改焦点。worker 没接住 reload_self 时，只把 chrome-extension reload.html 交给已在跑的用户 Edge，不加调试端口，也不用 --app/--new-window。本机 Edge 154 复测 probe 字段能随 ping 回来，没有调试同意框。不是 TC-B-040，没有测 Chrome，没有新的 GitHub Release。
 更新：2026-09-26。Windows 开发流程见 docs/WINDOWS-DEV.md。扩展继续本地加载，不上 Chrome 网上应用店，也不上 Edge 加载项。README 不再写大段边界。
 
