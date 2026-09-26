@@ -1,3 +1,7 @@
+更新：2026-09-26。CU-WIN-SESSION-037 已在本机复测：会话按名字折叠已展开的自建树节点 VCU-COL-A，路径是 tree_collapse。标签变成 VCU-COL-CLOSED。不存在的节点被拒绝。没有移动系统光标。只发 TVE_COLLAPSE 不会跑 AfterCollapse，成功路径在展开位清掉后反射 TVN_ITEMEXPANDEDW。不是点折叠图标，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
+更新：2026-09-26。Edge 自建页复测通过：`scripts/poc_win_edge_dom.py` 输出 `EDGE-DOM OK edge tab closed hit=0->1 typed=vcu-edge-dom source=extension_dom`。没有测 Chrome，没有改已有标签，没有点允许调试。
+
 更新：2026-09-26。CU-WIN-SESSION-036 已在本机复测：会话按名字展开自建树节点 VCU-EXP-A，路径是 tree_expand。标签变成 VCU-EXP-OPEN。不存在的节点被拒绝。没有移动系统光标。不是点展开图标，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-035 已在本机复测：会话把自建进度条的原生位置从 10 设成 40，路径是 progress_set。超出读回和非整数被拒绝。没有移动系统光标。不是托管 Value，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。

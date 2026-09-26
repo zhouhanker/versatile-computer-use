@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、列表视图和进度条已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图和进度条已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -437,10 +437,24 @@
 - 不做：不把这次写成点节点像素，也不写成 `tree_select`，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-037 会话按名字折叠树节点
+
+状态：**2026-09-26 本机复测通过。** 不是点折叠图标，也不是完整 Windows 产品 CU。
+
+- 只发 `TVM_EXPAND` / `TVE_COLLAPSE` 能清掉 `TVIS_EXPANDED`，但 WinForms 不会跑 `AfterCollapse`。不能把这种结果写成事件已经发生。
+- `vcu type` 在类名含 TreeView 的控件上，文本以 `collapse:` 开头时按后面的名字查节点。节点必须已经展开。先发 `TVE_COLLAPSE`（`0x1102`，`wParam=1`），读回不再带 `TVIS_EXPANDED`，再向控件反射 `TVN_ITEMEXPANDEDW`（`0x204E`，码 `-455`，状态不含展开位）。这会让 `AfterCollapse` 跟着跑。没有同名节点不会报成功。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，根节点 VCU-COL-A 已展开，子节点是 VCU-COL-B。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_tree_collapse.ps1`
+- 结果：`CU-WIN-SESSION-037 OK win:powershell:17308 01M3DJ149EVV4APX07B2CMEKFG ref=e3 path=tree_collapse value=VCU-COL-A cursor=1187,239`
+- 折叠后标签变成 `VCU-COL-CLOSED`。`collapse:VCU-COL-MISSING` 被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点折叠图标，也不写成 `tree_select` 或 `tree_expand`，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
-- 树展开是 `tree_expand`，不是点展开图标。树选中仍是 `tree_select`，不是点节点像素。
+- 树展开是 `tree_expand`，树折叠是 `tree_collapse`。折叠不是点图标。只清展开位而没有 `AfterCollapse` 不算成功。树选中仍是 `tree_select`，不是点节点像素。
 - 数字上下控件不在本切片。跨进程改文字如果没有对应变更事件，不能报成功。
 - 科学模式验证了切换、π、log10(100)、ln(e)、sin(30°)、cos(0)、tan(45°)，以及 sin(π) 在角度和弧度下的不同结果。没有覆盖完整科学函数矩阵。
 - 会话截图在 `PrintWindow` 为空白时复制窗口矩形。窗口被挡住时，图里可能是挡住它的东西。
