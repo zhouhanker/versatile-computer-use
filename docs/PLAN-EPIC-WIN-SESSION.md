@@ -573,6 +573,19 @@
 - 不做：不把这次写成点复选框像素，也不写成 `listview_select`，也不写成完整产品 CU。同名行会取消勾选第一个。
 
 
+
+## CU-WIN-SESSION-047 会话设置自建时间
+
+状态：**2026-09-26 本机复测通过。** 不是点时间箭头，也不是 `date_set`，也不是完整 Windows 产品 CU。
+
+- 040 只设置 `YYYY-MM-DD`。这次 `vcu type` 在类名含 SysDateTimePick32 的控件上，文本以 `time:` 开头时解析 `HH:mm:ss`。小时超过 23、分秒超过 59，或格式不对，都拒绝。当前已经是这个时刻也拒绝。先保留原日期，写入时分秒并用 `DTM_GETSYSTEMTIME` 读回。读回的时刻不一致就不报成功。再反射带时刻的 `DTN_DATETIMECHANGE`，让托管 `Value` 变成这个时刻并跑 `ValueChanged`。只改原生时间而没有事件不算成功。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，格式是 `HH:mm:ss`，初始是 08:00:00。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_time.ps1`
+- 结果：`CU-WIN-SESSION-047 OK win:powershell:14128 01M3DP9E46XG0PM2QBRGC6PV2X ref=e1 path=time_set value=15:30:45 cursor=1187,239`
+- 事件把标签改成 `VCU-TIME-15:30:45`。再写同一时刻、`time:25:00:00` 和 `time:nope` 都被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点箭头，也不写成设置日期，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
