@@ -1735,6 +1735,34 @@ function Click-VcuTimeUpPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   exit 0
 }
 
+function Click-VcuTimeSecondUpPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  # time-second-pixel-logical: click the second field, then the up arrow. Prefix timepix:sup: . Not DTM_SETSYSTEMTIME.
+  if ($ownerPid -lt 1) { 'error:time-second-pixel-name'; exit 0 }
+  if ($expect -notmatch '^sup:(\d{2}):(\d{2}):(\d{2})$') { 'error:time-second-pixel-format'; exit 0 }
+  $hour = [int]$Matches[1]
+  $minute = [int]$Matches[2]
+  $second = [int]$Matches[3]
+  if ($hour -gt 23 -or $minute -gt 59 -or $second -gt 59) { 'error:time-second-pixel-format'; exit 0 }
+  $want = $hour.ToString("00") + ":" + $minute.ToString("00") + ":" + $second.ToString("00")
+  Initialize-VcuTimeArrow
+  if (-not ("Vcu.VcuTimeUp" -as [type])) { 'error:time-second-pixel-read'; exit 0 }
+  $current = [Vcu.VcuTimeUp]::ReadClock($ownerPid, $h)
+  if ([string]::IsNullOrWhiteSpace($current) -or $current.Length -lt 8) { 'error:time-second-pixel-read'; exit 0 }
+  if ($current.Substring($current.Length - 8) -eq $want) { 'error:time-second-pixel-state'; exit 0 }
+  $up = [Vcu.VcuTimeUp]::FindUpDown($h)
+  if ($up -eq [IntPtr]::Zero) { 'error:time-second-pixel-rect'; exit 0 }
+  if (-not [Vcu.VcuTimeUp]::ClickField($h, 26)) { 'error:time-second-pixel-click'; exit 0 }
+  Start-Sleep -Milliseconds 40
+  if (-not [Vcu.VcuTimeUp]::ClickUp($up)) { 'error:time-second-pixel-click'; exit 0 }
+  for ($n = 0; $n -lt 8; $n++) {
+    Start-Sleep -Milliseconds 40
+    $after = [Vcu.VcuTimeUp]::ReadClock($ownerPid, $h)
+    if (-not [string]::IsNullOrWhiteSpace($after) -and $after.EndsWith($want) -and $after -ne $current) { "ok:time_second_pixel"; exit 0 }
+  }
+  'error:time-second-pixel-state'
+  exit 0
+}
+
 function Click-VcuTimeMinuteUpPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   # time-minute-pixel-logical: click the minute field, then the up arrow. Prefix timepix:mup: . Not DTM_SETSYSTEMTIME.
   if ($ownerPid -lt 1) { 'error:time-minute-pixel-name'; exit 0 }
@@ -2760,6 +2788,8 @@ function Set-VcuElement($el, [string]$expect) {
       Click-VcuDateMonthPixel ([IntPtr]$nh) $expect.Substring(9) $targetPid
     } elseif ($expect.StartsWith("datepix:")) {
       Click-VcuDatePixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
+    } elseif ($expect.StartsWith("timepix:sup:")) {
+      Click-VcuTimeSecondUpPixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("timepix:mup:")) {
       Click-VcuTimeMinuteUpPixel ([IntPtr]$nh) $expect.Substring(8) $targetPid
     } elseif ($expect.StartsWith("timepix:down:")) {
@@ -3218,6 +3248,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:check_set")
         || out.contains("ok:uncheck_pixel")
         || out.contains("ok:uncheck_set")
+        || out.contains("ok:time_second_pixel")
         || out.contains("ok:time_minute_pixel")
         || out.contains("ok:time_down_pixel")
         || out.contains("ok:time_pixel")
@@ -3269,6 +3300,8 @@ pub fn set_value_from_uia_output(
             "decimal_set"
         } else if out.contains("ok:number_set") {
             "number_set"
+        } else if out.contains("ok:time_second_pixel") {
+            "time_second_pixel"
         } else if out.contains("ok:time_minute_pixel") {
             "time_minute_pixel"
         } else if out.contains("ok:time_down_pixel") {
@@ -4007,6 +4040,9 @@ mod tests {
         assert!(setv.contains("uncheckpix:"));
         assert!(setv.contains("uncheck-pixel-logical"));
         assert!(setv.contains("ok:uncheck_set"));
+        assert!(setv.contains("ok:time_second_pixel"));
+        assert!(setv.contains("timepix:sup:"));
+        assert!(setv.contains("time-second-pixel-logical"));
         assert!(setv.contains("ok:time_minute_pixel"));
         assert!(setv.contains("timepix:mup:"));
         assert!(setv.contains("time-minute-pixel-logical"));
