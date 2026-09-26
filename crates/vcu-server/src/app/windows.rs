@@ -1022,6 +1022,49 @@ function Test-VcuTabClass([string]$cls) {
   $c = $cls.ToLowerInvariant()
   return $c.Contains("tabcontrol") -or $c.Contains("systabcontrol32")
 }
+
+function Click-VcuTab([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:tab-pixel-name'; exit 0 }
+  if (-not ("Vcu.VcuTabPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); [DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public static string ItemRect(int pid, IntPtr hwnd, int index) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)16, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } SendMessage(hwnd, 0x130A, (IntPtr)index, remote); byte[] buf = new byte[16]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)16, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); int l = System.BitConverter.ToInt32(buf, 0); int t = System.BitConverter.ToInt32(buf, 4); int r = System.BitConverter.ToInt32(buf, 8); int b = System.BitConverter.ToInt32(buf, 12); if (r <= l || b <= t) return null; return l.ToString() + "," + t.ToString() + "," + r.ToString() + "," + b.ToString(); }' -Name VcuTabPixel -Namespace Vcu | Out-Null
+  }
+  $iid = [Guid]"618736e0-3c3d-11cf-810c-00aa00389b71"
+  $acc = $null
+  $hr = [Vcu.VcuTabPixel]::AccessibleObjectFromWindow($h, [uint32]4294967292, [ref]$iid, [ref]$acc)
+  if ($hr -ne 0 -or $null -eq $acc) { return }
+  $count = [int]$acc.GetType().InvokeMember("accChildCount", [Reflection.BindingFlags]::GetProperty, $null, $acc, $null)
+  $child = 0
+  $tabs = 0
+  for ($i = 1; $i -le $count; $i++) {
+    $role = [int]$acc.GetType().InvokeMember("accRole", [Reflection.BindingFlags]::GetProperty, $null, $acc, @($i))
+    if ($role -ne 37) { continue }
+    $tabs++
+    $name = [string]$acc.GetType().InvokeMember("accName", [Reflection.BindingFlags]::GetProperty, $null, $acc, @($i))
+    if ($name -eq $expect) { $child = $i; break }
+  }
+  if ($tabs -eq 0) { return }
+  if ($child -eq 0) { 'error:tab-pixel-name'; exit 0 }
+  $index = $child - 1
+  $cur = [int][Vcu.VcuPaste140]::SendMessage($h, 0x130B, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($cur -eq $index) { 'error:tab-pixel-state'; exit 0 }
+  $rect = [string][Vcu.VcuTabPixel]::ItemRect($ownerPid, $h, $index)
+  if ([string]::IsNullOrWhiteSpace($rect)) { 'error:tab-pixel-rect'; exit 0 }
+  $parts = $rect.Split(",")
+  $x = [int](([int]$parts[0] + [int]$parts[2]) / 2)
+  $y = [int](([int]$parts[1] + [int]$parts[3]) / 2)
+  $dpi = 96
+  try { $dpi = [int](Get-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name AppliedDPI).AppliedDPI } catch {}
+  if ($dpi -lt 96) { $dpi = 96 }
+  $xs = [int]($x * $dpi / 96)
+  $ys = [int]($y * $dpi / 96)
+  $lp = [IntPtr](($ys -shl 16) -bor ($xs -band 65535))
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0201, [IntPtr]1, $lp)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0202, [IntPtr]::Zero, $lp)
+  $after = [int][Vcu.VcuPaste140]::SendMessage($h, 0x130B, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($after -ne $index) { 'error:tab-pixel-state'; exit 0 }
+  "ok:tab_pixel"
+  exit 0
+}
 function Select-VcuTab([IntPtr]$h, [string]$expect, [int]$ownerPid) {
   if (-not ("Vcu.VcuTabSelect" -as [type])) {
     $sig = @"
@@ -1604,6 +1647,11 @@ function Set-VcuElement($el, [string]$expect) {
     }
     return
   }
+  if ($expect.StartsWith("tabpix:")) {
+    Click-VcuTab ([IntPtr]$nh) $expect.Substring(7) $targetPid
+    if ((Test-VcuTabClass $cls) -or (Test-VcuTabClass $uiaCls)) { return }
+    return
+  }
   Select-VcuTab ([IntPtr]$nh) $expect $targetPid
   if ((Test-VcuTabClass $cls) -or (Test-VcuTabClass $uiaCls)) { return }
   if ((Test-VcuTreeClass $cls) -or (Test-VcuTreeClass $uiaCls)) {
@@ -2017,6 +2065,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:menu_click")
         || out.contains("ok:track_drag")
         || out.contains("ok:track_select")
+        || out.contains("ok:tab_pixel")
         || out.contains("ok:tab_select")
         || out.contains("ok:tree_select")
         || out.contains("ok:fold_icon")
@@ -2060,6 +2109,8 @@ pub fn set_value_from_uia_output(
             "track_drag"
         } else if out.contains("ok:track_select") {
             "track_select"
+        } else if out.contains("ok:tab_pixel") {
+            "tab_pixel"
         } else if out.contains("ok:tab_select") {
             "tab_select"
         } else if out.contains("ok:tree_select") {
@@ -2756,6 +2807,8 @@ mod tests {
         assert!(setv.contains("trackdrag:"));
         assert!(setv.contains("ok:track_select"));
         assert!(setv.contains("0x0405"));
+        assert!(setv.contains("ok:tab_pixel"));
+        assert!(setv.contains("tabpix:"));
         assert!(setv.contains("ok:tab_select"));
         assert!(setv.contains("Test-VcuTabClass"));
         assert!(setv.contains("ok:tree_select"));

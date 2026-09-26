@@ -703,6 +703,19 @@
 - 不做：不把这次写成 `TBM_SETPOS`，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-057 会话点标签页标题
+
+状态：**2026-09-26 本机复测通过。** 不是 `tab_select`，也不是完整 Windows 产品 CU。
+
+- 032 用辅助功能选中标签，再反射选择变化。这次 `vcu type` 文本以 `tabpix:` 开头时按名字找标签。已经选中的和不存在的都拒绝。用 `TCM_GETITEMRECT` 读标题矩形，按这台机器的 `AppliedDPI/96` 放大后发 `WM_LBUTTONDOWN` / `WM_LBUTTONUP`。读回 `TCM_GETCURSEL` 必须是这一页。对不上就不报成功，也不改走 `accSelect` 或 `TCM_SETCURSEL`。这会让 `SelectedIndexChanged` 跟着跑。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，里面有 VCU-TAB-A 和 VCU-TAB-B，初始选中 A。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_tab_pixel.ps1`
+- 结果：`CU-WIN-SESSION-057 OK win:powershell:2928 01M3DSYQQW072MFSSF9Z292ER7 ref=e3 path=tab_pixel value=VCU-TAB-B cursor=1187,239`
+- 点中后标签变成 `VCU-TAB-SHOW-B`。再点同一页和不存在的页被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成 `tab_select`，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
