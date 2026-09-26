@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、空白遮挡拒绝、等待、写入、按钮点击、按钮像素点击、同名消歧、提取、按角色等待、复选框、单选按钮、单选按钮点击、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、勾选框点击、取消勾选点击、日期和数字框和列表视图勾选、列表视图复选框像素点击、列表视图取消勾选像素点击、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、空白遮挡拒绝、等待、写入、按钮点击、按钮像素点击、同名消歧、提取、按角色等待、复选框、单选按钮、单选按钮点击、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、勾选框点击、取消勾选点击、日期和数字框和列表视图勾选、列表视图复选框像素点击、列表视图取消勾选像素点击、列表视图行像素点击、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -837,6 +837,18 @@
 - 结果：`CU-WIN-SESSION-066 OK win:powershell:13028 01M3DYXNEVA0M5SK7WSMTMWWRF ref=e1 path=lvuncheck_pixel value=VCU-LV-B cursor=789,599`
 - 点中后标签变成 `VCU-LV-OFF-B`。再点同一行和不存在的行被拒绝。`scripts/poc_win_session_listview_uncheck.ps1` 仍是 `listview_uncheck`。没有移动系统光标。Edge 扩展仍 `pong`。单测 `windows_backend_platform_and_denials` 通过。
 - 不做：不把这次写成 `listview_uncheck`，也不写成完整产品 CU。
+
+
+## CU-WIN-SESSION-067 会话点列表视图一行
+
+状态：**2026-09-26 本机复测通过。** 不是 `listview_select`，也不是完整 Windows 产品 CU。
+
+- 034 用 `LVM_SETITEMSTATE` 选中一行，不点文字。这次 `vcu type` 文本以 `lvrowpix:` 开头时按行文字查找。已经选中的行和不存在的行都拒绝。点行矩形中心，不是左侧复选框。同一个进程先加载 UIAutomation 后再发鼠标消息，选中状态不会变，所以由没碰 UIA 的 powershell 发 `WM_LBUTTONDOWN` / `WM_LBUTTONUP`。第一次没选中就再点一次，第三次不再点。读回 `LVM_GETITEMSTATE` 的选中位必须置上。对不上就不报成功，也不改走 `LVM_SETITEMSTATE`。这会让 `ItemSelectionChanged` 跟着跑。没有 SendInput，没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，VCU-LV-A 初始选中。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_listview_row_pixel.ps1`
+- 结果：`CU-WIN-SESSION-067 OK win:powershell:18808 01M3DZ9F4KW8AR5CRKWBX1XZ99 ref=e3 path=lvrow_pixel value=VCU-LV-B cursor=789,599`
+- 点中后标签变成 `VCU-LV-PICKED-B`。再点同一行和不存在的行被拒绝。`scripts/poc_win_session_listview.ps1` 仍是 `listview_select`。没有移动系统光标。Edge 扩展仍 `pong`。单测 `windows_backend_platform_and_denials` 通过。
+- 不做：不把这次写成 `listview_select`，也不写成完整产品 CU。
 
 
 ## 还没做

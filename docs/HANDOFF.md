@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-067 已在本机复测：会话点自建列表视图一行 VCU-LV-B 的文字中心，路径是 lvrow_pixel。标签变成 VCU-LV-PICKED-B。已选中的行和不存在的行被拒绝。没有移动系统光标。不是 listview_select，也不是 LVM_SETITEMSTATE，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。GitHub Contributors API 仍只有 zhouhanker（267）。仓库历史作者只有 zhouhanker <zhouhanker@gmail.com>。stats/contributors 这次返回空缓存。不改写历史。网页图如果还显示 zhouhan，那是 GitHub 图缓存，不是当前提交作者。
 
 更新：2026-09-26。CU-WIN-SESSION-066 已在本机复测：会话点已勾选的自建列表视图 VCU-LV-B 的复选框，路径是 lvuncheck_pixel。标签变成 VCU-LV-OFF-B。未勾选的行和不存在的行被拒绝。没有移动系统光标。不是 listview_uncheck，也不是 LVM_SETITEMSTATE，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
