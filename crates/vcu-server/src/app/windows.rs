@@ -774,8 +774,46 @@ function Select-VcuUncheckedList([IntPtr]$h, [string]$expect) {
 }
 function Initialize-VcuNumberHost {
   if (-not ("Vcu.VcuNumberHost" -as [type])) {
-    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc lpEnumFunc, IntPtr lParam); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); public static bool HasSpinnerSibling(IntPtr parent, IntPtr edit) { bool found = false; EnumChildWindows(parent, (h, l) => { if (h == edit) return true; var sb = new System.Text.StringBuilder(256); GetClassName(h, sb, 256); string c = sb.ToString().ToLowerInvariant(); if (c.Contains("window") && !c.Contains("edit")) found = true; return true; }, IntPtr.Zero); return found; }' -Name VcuNumberHost -Namespace Vcu | Out-Null
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc lpEnumFunc, IntPtr lParam); [DllImport("user32.dll")] public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); public static bool HasSpinnerSibling(IntPtr parent, IntPtr edit) { bool found = false; EnumChildWindows(parent, (h, l) => { if (h == edit) return true; var sb = new System.Text.StringBuilder(256); GetClassName(h, sb, 256); string c = sb.ToString().ToLowerInvariant(); if (c.Contains("window") && !c.Contains("edit")) found = true; return true; }, IntPtr.Zero); return found; } [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static IntPtr FindSpinnerButton(IntPtr parent, IntPtr edit) { IntPtr found = IntPtr.Zero; EnumChildWindows(parent, (h, l) => { if (h == edit) return true; var sb = new System.Text.StringBuilder(256); GetClassName(h, sb, 256); string c = sb.ToString().ToLowerInvariant(); if (c.Contains("window") && !c.Contains("edit")) found = h; return true; }, IntPtr.Zero); return found; } public static string SpinPoint(IntPtr button, bool up) { RECT r; if (!GetClientRect(button, out r)) return null; int w = r.Right - r.Left; int h = r.Bottom - r.Top; if (w < 2 || h < 4) return null; int x = w / 2; int y = up ? h / 4 : (h * 3) / 4; if (y < 0) y = 0; if (y >= h) y = h - 1; return x.ToString() + "," + y.ToString(); }' -Name VcuNumberHost -Namespace Vcu | Out-Null
   }
+}
+
+function Convert-VcuSpinValue([string]$text) {
+  $n = [decimal]0
+  $style = [Globalization.NumberStyles]::AllowLeadingSign -bor [Globalization.NumberStyles]::AllowDecimalPoint
+  if ([decimal]::TryParse($text, $style, [Globalization.CultureInfo]::InvariantCulture, [ref]$n)) { return $n }
+  if ([decimal]::TryParse($text, $style, [Globalization.CultureInfo]::CurrentCulture, [ref]$n)) { return $n }
+  return $null
+}
+function Select-VcuSpin([IntPtr]$h, [string]$expect, [IntPtr]$top) {
+  $dir = $expect.ToLowerInvariant()
+  if ($dir -ne "up" -and $dir -ne "down") { 'error:spin-dir'; exit 0 }
+  Initialize-VcuNumberHost
+  $parent = [Vcu.VcuNumberHost]::GetParent($h)
+  if ($parent -eq [IntPtr]::Zero -or $parent -eq $top) { return }
+  if (-not [Vcu.VcuNumberHost]::HasSpinnerSibling($parent, $h)) { return }
+  $btn = [Vcu.VcuNumberHost]::FindSpinnerButton($parent, $h)
+  if ($btn -eq [IntPtr]::Zero) { 'error:spin-button'; exit 0 }
+  $point = [string][Vcu.VcuNumberHost]::SpinPoint($btn, ($dir -eq "up"))
+  if ([string]::IsNullOrWhiteSpace($point) -or -not $point.Contains(",")) { 'error:spin-point'; exit 0 }
+  $parts = $point.Split(",")
+  $x = [int]$parts[0]
+  $y = [int]$parts[1]
+  $lp = [IntPtr](($y -shl 16) -bor ($x -band 65535))
+  $tb = New-Object System.Text.StringBuilder 64
+  [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 13, 64, $tb)
+  $before = Convert-VcuSpinValue $tb.ToString()
+  if ($null -eq $before) { 'error:spin-read'; exit 0 }
+  [void][Vcu.VcuPaste140]::SendMessage($btn, 0x0201, [IntPtr]1, $lp)
+  [void][Vcu.VcuPaste140]::SendMessage($btn, 0x0202, [IntPtr]0, $lp)
+  $tb2 = New-Object System.Text.StringBuilder 64
+  [void][Vcu.VcuSetValue070]::SendMessageGetText($h, 13, 64, $tb2)
+  $after = Convert-VcuSpinValue $tb2.ToString()
+  if ($null -eq $after) { 'error:spin-read'; exit 0 }
+  if ($dir -eq "up" -and $after -le $before) { 'error:spin-state'; exit 0 }
+  if ($dir -eq "down" -and $after -ge $before) { 'error:spin-state'; exit 0 }
+  if ($dir -eq "up") { "ok:spin_up" } else { "ok:spin_down" }
+  exit 0
 }
 function Select-VcuNumber([IntPtr]$h, [string]$expect, [IntPtr]$top) {
   $n = 0
@@ -1394,6 +1432,10 @@ function Set-VcuElement($el, [string]$expect) {
   }
   if (Test-VcuConsoleClass $cls) { return }
   if (-not (Test-VcuEditClass $cls)) { return }
+  if ($expect.StartsWith("spin:")) {
+    Select-VcuSpin ([IntPtr]$nh) $expect.Substring(5) $hwnd
+    return
+  }
   if ($expect.StartsWith("decimal:")) {
     Select-VcuDecimal ([IntPtr]$nh) $expect.Substring(8) $hwnd
     return
@@ -1741,6 +1783,8 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:uncheck_set")
         || out.contains("ok:time_set")
         || out.contains("ok:date_set")
+        || out.contains("ok:spin_down")
+        || out.contains("ok:spin_up")
         || out.contains("ok:decimal_set")
         || out.contains("ok:number_set")
         || out.contains("ok:menu_click")
@@ -1760,6 +1804,10 @@ pub fn set_value_from_uia_output(
             "combo_select"
         } else if out.contains("ok:menu_click") {
             "menu_click"
+        } else if out.contains("ok:spin_down") {
+            "spin_down"
+        } else if out.contains("ok:spin_up") {
+            "spin_up"
         } else if out.contains("ok:decimal_set") {
             "decimal_set"
         } else if out.contains("ok:number_set") {
@@ -2443,6 +2491,9 @@ mod tests {
         assert!(setv.contains("ok:time_set"));
         assert!(setv.contains("time:"));
         assert!(setv.contains("ok:date_set"));
+        assert!(setv.contains("ok:spin_up"));
+        assert!(setv.contains("ok:spin_down"));
+        assert!(setv.contains("spin:"));
         assert!(setv.contains("ok:decimal_set"));
         assert!(setv.contains("decimal:"));
         assert!(setv.contains("ok:number_set"));

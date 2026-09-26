@@ -599,6 +599,19 @@
 - 不做：不把这次写成点箭头，也不写成整数路径，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-049 会话按上下箭头改自建数字框
+
+状态：**2026-09-26 本机复测通过。** 不是 `number_set`，也不是 `decimal_set`，也不是完整 Windows 产品 CU。
+
+- `vcu type` 文本以 `spin:up` 或 `spin:down` 开头时，找到旋转按钮里的编辑框，再找到旁边的按钮窗口。上箭头点按钮客户区上半，下箭头点下半。消息是 `WM_LBUTTONDOWN` 和 `WM_LBUTTONUP`，不是 SendInput，也不读取或移动系统光标。点完读回编辑框数值。向上没有变大，或向下没有变小，就不报成功。到顶或到底因此被拒绝。这会让 `ValueChanged` 跟着跑。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，范围 0 到 11，初始是 10。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_spin.ps1`
+- 结果：`CU-WIN-SESSION-049 OK win:powershell:13744 01M3DPXNP7N3TTQQ9BZS8D4QB6 ref=e1 path=spin_up value=11 cursor=1187,239`
+- 向上后标签变成 `VCU-SPIN-11`。到顶再向上被拒绝。向下后标签变成 `VCU-SPIN-10`。`spin:side` 被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成直接写数值，也不写成拖动，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。
