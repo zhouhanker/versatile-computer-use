@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -714,6 +714,20 @@
 - 结果：`CU-WIN-SESSION-057 OK win:powershell:2928 01M3DSYQQW072MFSSF9Z292ER7 ref=e3 path=tab_pixel value=VCU-TAB-B cursor=1187,239`
 - 点中后标签变成 `VCU-TAB-SHOW-B`。再点同一页和不存在的页被拒绝。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成 `tab_select`，也不写成完整产品 CU。
+
+
+
+## CU-WIN-SESSION-058 会话点列表框的一行
+
+状态：**2026-09-26 本机复测通过。** 不是 `list_select`，也不是 `LB_SETCURSEL`，也不是完整 Windows 产品 CU。
+
+- 030 用 `LB_SETCURSEL`，不点行。这次 `vcu type` 文本以 `listpix:` 开头时按行文字找列表框。已经选中的行和不存在的行都拒绝。`LB_GETITEMRECT` 跨进程返回 `LB_ERR`，不拿它报成功。用 `LB_GETITEMHEIGHT` 和客户区宽度算行中心。行不在可见区域时先 `LB_SETTOPINDEX`，再发 `WM_LBUTTONDOWN` / `WM_LBUTTONUP`。这台机器的 user32 列表框坐标是逻辑坐标，`GetDpiForWindow` 是 96。按 `AppliedDPI/96` 放大要点空，所以不放大。读回 `LB_GETCURSEL` 必须是这一行。对不上就不报成功，也不改走 `LB_SETCURSEL`。这会让 `SelectedIndexChanged` 跟着跑。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，里面有 VCU-LIST-A 和 VCU-LIST-B，初始选中 A。另开一个 40 行窗口，点滚出视口的 VCU-LIST-FAR。测完只关闭这些进程。
+- 命令：`powershell -File scripts/poc_win_session_list_pixel.ps1`
+- 结果：`CU-WIN-SESSION-058 OK win:powershell:13496 01M3DV958FK8PYVH0V4SQK75SJ ref=e3 path=list_pixel selected=VCU-LIST-B far=VCU-LIST-FAR cursor=1187,239`
+- 点中后标签变成 `VCU-LIST-HIT`。滚出视口的行标签变成 `VCU-LIST-FAR-HIT`。再点同一行和不存在的行被拒绝。`scripts/poc_win_session_list.ps1` 仍是 `list_select`。没有 SendInput，没有移动系统光标。Edge 扩展仍 `pong`。
+- 不做：不把这次写成 `list_select`，也不写成完整产品 CU。
+
 
 
 ## 还没做
