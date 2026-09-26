@@ -1,3 +1,5 @@
+更新：2026-09-26。Windows Stage 把淡阴影画进预乘文字层。红底上胶囊四角仍是红底，胶囊下方 4 到 10 像素略暗，18 像素外恢复红底。不是直角黑底，也不是 macOS 系统材质，也不是完整 Windows 产品 CU。
+
 更新：2026-09-26。再查 GitHub：Contributors API 只有 zhouhanker，282 次贡献。仓库页和 graphs/contributors 没有单独的 zhouhan。仓库历史作者仍只有 zhouhanker <zhouhanker@gmail.com>。没有改写历史。旧网页图若还显示这个名字，那是缓存，不是当前作者。
 
 更新：2026-09-26。CU-WIN-SESSION-077 已在本机复测：会话先点自建时间框的秒字段，再点下箭头，路径是 time_second_down_pixel。标签变成 VCU-TIME-08:00:00。同一时刻、非法时间和一次点击跨分钟被拒绝。点击本身没有移动系统光标。不是 time_second_pixel，也不是 DTM_SETSYSTEMTIME，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
