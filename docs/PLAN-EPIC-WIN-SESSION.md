@@ -625,6 +625,19 @@
 - 不做：不把这次写成 `CB_SETCURSEL`，也不写成完整产品 CU。
 
 
+
+## CU-WIN-SESSION-051 会话点中同名菜单的后一项
+
+状态：**2026-09-26 本机复测通过。** 不是 UIA 原生子项，也不是点菜单像素，也不是完整 Windows 产品 CU。
+
+- 045 的同名菜单项会点中第一个。场景里同名项仍各占一个编号。点击后面的编号时，按这个名字在辅助功能树里的出现次序调用 `accDoDefaultAction`，不再总是第一个。第一次出现仍走 `menu_click`。第二次及以后走 `menu_nth`。次数对不上就不报成功。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，两个子项都叫 VCU-SAME。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_menu_nth.ps1`
+- 结果：`CU-WIN-SESSION-051 OK win:powershell:6232 01M3DQQJ27APR372W41YDCV7H3 ref=e6 path=menu_nth value=VCU-SAME cursor=1187,239`
+- 点第二个编号后标签变成 `VCU-SAME-2`。再点第一个编号，标签变成 `VCU-SAME-1`，路径仍是 `menu_click`。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成 UIA 原生子项，也不写成点菜单像素，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。

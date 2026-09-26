@@ -1,3 +1,5 @@
+更新：2026-09-26。CU-WIN-SESSION-051 已在本机复测：两个同名菜单项 VCU-SAME 都在场景里。点击第二个编号走 menu_nth，标签变成 VCU-SAME-2。点击第一个编号仍走 menu_click，标签变成 VCU-SAME-1。没有移动系统光标。不是 UIA 原生子项，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
+
 更新：2026-09-26。CU-WIN-SESSION-050 已在本机复测：会话先展开自建下拉层，再点选 VCU-COMBO-B，路径是 combo_drop。标签变成 VCU-DROP-VCU-COMBO-B。已选中的项和不存在的项被拒绝。没有移动系统光标。不是 CB_SETCURSEL，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
 更新：2026-09-26。CU-WIN-SESSION-049 已在本机复测：会话按自建数字框上箭头从 10 加到 11，路径是 spin_up。到顶再向上被拒绝。向下回到 10，路径是 spin_down。错误方向被拒绝。没有移动系统光标。不是直接写数值，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
