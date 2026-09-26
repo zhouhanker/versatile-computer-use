@@ -1042,7 +1042,7 @@ function Test-VcuListViewClass([string]$cls) {
   $c = $cls.ToLowerInvariant()
   return $c.Contains("syslistview32") -or $c.Contains("listview")
 }
-function Select-VcuListView([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+function Initialize-VcuListViewSelect {
   if (-not ("Vcu.VcuListViewSelect" -as [type])) {
     $sig = @"
 [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
@@ -1127,6 +1127,9 @@ public static bool SelectIndex(int pid, IntPtr hwnd, int index) {
 "@
     Add-Type -MemberDefinition $sig -Name VcuListViewSelect -Namespace Vcu | Out-Null
   }
+}
+function Select-VcuListView([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  Initialize-VcuListViewSelect
   $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x1004, [IntPtr]::Zero, [IntPtr]::Zero)
   if ($count -le 0 -or $count -gt 256) { 'error:lv-count'; exit 0 }
   $hit = -1
@@ -1142,6 +1145,26 @@ public static bool SelectIndex(int pid, IntPtr hwnd, int index) {
   $lvState = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]2)
   if (($lvState -band 2) -eq 0) { 'error:lv-select'; exit 0 }
   "ok:listview_select"
+  exit 0
+}
+function Select-VcuListViewCheck([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  Initialize-VcuListViewSelect
+  if (-not ("Vcu.VcuListViewSelect" -as [type])) { 'error:lvcheck-type'; exit 0 }
+  $count = [int][Vcu.VcuPaste140]::SendMessage($h, 0x1004, [IntPtr]::Zero, [IntPtr]::Zero)
+  $hit = -1
+  for ($i = 0; $i -lt $count -and $i -lt 64; $i++) {
+    $text = [Vcu.VcuListViewSelect]::ItemText($ownerPid, $h, $i)
+    if ($text -eq $expect) { $hit = $i; break }
+  }
+  if ($hit -lt 0) { 'error:lvcheck-name'; exit 0 }
+  $before = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]0xF000)
+  $img = [int](($before -band 0xF000) / 4096)
+  if ($img -eq 2) { 'error:lvcheck-state'; exit 0 }
+  if (-not [Vcu.VcuListViewSelect]::SetState($ownerPid, $h, $hit, (2 -shl 12), 0xF000)) { 'error:lvcheck-state'; exit 0 }
+  $after = [int][Vcu.VcuPaste140]::SendMessage($h, 0x102C, [IntPtr]$hit, [IntPtr]0xF000)
+  $img2 = [int](($after -band 0xF000) / 4096)
+  if ($img2 -ne 2) { 'error:lvcheck-state'; exit 0 }
+  "ok:listview_check"
   exit 0
 }
 function Test-VcuProgressClass([string]$cls) {
@@ -1209,7 +1232,11 @@ function Set-VcuElement($el, [string]$expect) {
     return
   }
   if ((Test-VcuListViewClass $cls) -or (Test-VcuListViewClass $uiaCls)) {
-    Select-VcuListView ([IntPtr]$nh) $expect $targetPid
+    if ($expect.StartsWith("lvcheck:")) {
+      Select-VcuListViewCheck ([IntPtr]$nh) $expect.Substring(8) $targetPid
+    } else {
+      Select-VcuListView ([IntPtr]$nh) $expect $targetPid
+    }
     return
   }
   if ((Test-VcuProgressClass $cls) -or (Test-VcuProgressClass $uiaCls)) {
@@ -1556,6 +1583,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:tree_select")
         || out.contains("ok:tree_expand")
         || out.contains("ok:tree_collapse")
+        || out.contains("ok:listview_check")
         || out.contains("ok:listview_select")
         || out.contains("ok:progress_set")
     {
@@ -1583,6 +1611,8 @@ pub fn set_value_from_uia_output(
             "tree_collapse"
         } else if out.contains("ok:tree_expand") {
             "tree_expand"
+        } else if out.contains("ok:listview_check") {
+            "listview_check"
         } else if out.contains("ok:listview_select") {
             "listview_select"
         } else if out.contains("ok:progress_set") {
@@ -2241,6 +2271,8 @@ mod tests {
         assert!(setv.contains("Test-VcuTreeClass"));
         assert!(setv.contains("0x110B"));
         assert!(setv.contains("ok:listview_select"));
+        assert!(setv.contains("ok:listview_check"));
+        assert!(setv.contains("lvcheck:"));
         assert!(setv.contains("ok:progress_set"));
         assert!(setv.contains("Test-VcuProgressClass"));
         assert!(setv.contains("0x0402"));

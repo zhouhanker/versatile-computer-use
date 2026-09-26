@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、滑块、标签页、树节点、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -503,6 +503,19 @@
 - 结果：`CU-WIN-SESSION-041 OK win:powershell:5880 01M3DKDZP47ETTJQQM99H7RHFC ref=e1 path=number_set value=40 cursor=1187,239`
 - 事件把标签改成 `VCU-NUM-40`。再写 40、`number:400` 和 `number:nope` 都被拒绝。超出范围会被控件夹到 100，读回不是 400，所以不算成功。没有 SendInput，没有移动系统光标。
 - 不做：不把这次写成普通文本框，也不写成小数，也不写成点箭头，也不写成完整产品 CU。
+
+
+
+## CU-WIN-SESSION-042 会话按名字勾选列表视图的一行
+
+状态：**2026-09-26 本机复测通过。** 不是点复选框像素，也不是 `listview_select`，也不是完整 Windows 产品 CU。
+
+- `vcu type` 在类名含 ListView 的控件上，文本以 `lvcheck:` 开头时按行文字查找。这一行必须还没有勾选。用 `LVM_SETITEMSTATE` 把状态图设成 2，再用 `LVM_GETITEMSTATE` 读回。读回不是 2 就不报成功。这会让 `ItemCheck` 跟着跑。没有同名行不会报成功。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，里面有未勾选的 VCU-LV-A 和 VCU-LV-B。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_listview_check.ps1`
+- 结果：`CU-WIN-SESSION-042 OK win:powershell:740 01M3DKVF36AXJPXHV05CXE11HR ref=e1 path=listview_check value=VCU-LV-B cursor=1187,239`
+- 勾选后标签变成 `VCU-LV-ON-B`。只有 B 的 `ItemCheck` 会改这个标签。再勾选同一行和 `lvcheck:VCU-LV-MISSING` 都被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成点复选框像素，也不写成取消勾选，也不写成 `listview_select`，也不写成完整产品 CU。
 
 
 ## 还没做
