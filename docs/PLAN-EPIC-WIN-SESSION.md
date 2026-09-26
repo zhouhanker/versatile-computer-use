@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、空白遮挡拒绝、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、空白遮挡拒绝、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、勾选框点击、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -755,6 +755,20 @@
 - 结果：`CU-WIN-SESSION-060 OK win:powershell:4584 01M3DVZDTZQCZC4QARZSJCA7PF mode=OCCLUDED cursor=1187,239`
 - 同轮回归 `scripts/poc_win_session_shot_occluded.ps1` 仍是 `mode=window-pixels`。没有移动系统光标。
 - 不做：不把这次写成任何遮挡都会拒绝，也不写成完整产品 CU。有像素的窗口被挡住时仍可以读到窗口自己的颜色。
+
+
+
+
+## CU-WIN-SESSION-061 会话点勾选列表的复选框
+
+状态：**2026-09-26 本机复测通过。** 不是 `check_set`，也不是完整 Windows 产品 CU。
+
+- 038 用注册消息 `LBC_SETCHECKSTATE`，不点复选框。这次 `vcu type` 文本以 `checkpix:` 开头时按行文字查找。已经勾选的行和不存在的行都拒绝。用 `LB_GETITEMHEIGHT` 算行中心，点左侧复选框，大约 x=8。新鲜行的第一次点击只选中，不勾选，所以没勾上就再点一次，第三次不再点，避免把刚勾上的取消。消息是 `PostMessage` 的 `WM_LBUTTONDOWN` / `WM_LBUTTONUP`。读回 `LBC_GETCHECKSTATE` 必须是已勾选。对不上就不报成功，也不改走 `LBC_SETCHECKSTATE`。这会让 `ItemCheck` 跟着跑。没有 SendInput，没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，里面有 VCU-CHK-A 和 VCU-CHK-B，初始都没勾选。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_checked_list_pixel.ps1`
+- 结果：`CU-WIN-SESSION-061 OK win:powershell:16568 01M3DWNXHDN9B58H2DSEX6X9KE ref=e1 path=check_pixel value=VCU-CHK-B cursor=1187,239`
+- 点中后标签变成 `VCU-CHK-ON-B`。再点同一行和不存在的行被拒绝。`scripts/poc_win_session_checked_list.ps1` 仍是 `check_set`。没有移动系统光标。Edge 扩展仍 `pong`。
+- 不做：不把这次写成 `check_set`，也不写成完整产品 CU。
 
 
 
