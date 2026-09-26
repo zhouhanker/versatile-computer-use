@@ -690,6 +690,19 @@
 - 不做：不把这次写成 UIA 原生子项，也不写成完整产品 CU。菜单条上点不到的项仍会拒绝。
 
 
+
+## CU-WIN-SESSION-056 会话拖动自建滑块
+
+状态：**2026-09-26 本机复测通过。** 不是 `TBM_SETPOS`，也不是 RangeValuePattern，也不是完整 Windows 产品 CU。
+
+- 031 用 `TBM_SETPOS` 写位置。这次 `vcu type` 文本以 `trackdrag:` 开头时解析整数。已经是这个位置、超出范围或不是整数都拒绝。读滑道和拖块矩形，在拖块上按下，再移到目标位置松开。消息是 `WM_LBUTTONDOWN`、`WM_MOUSEMOVE`、`WM_LBUTTONUP`。读回 `TBM_GETPOS` 必须等于请求值。对不上就不报成功，也不改走 `TBM_SETPOS`。这会让 `ValueChanged` 跟着跑。跨进程鼠标消息在这台 144 DPI 机器上要按 `AppliedDPI/96` 放大，否则会点到拖块左边。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，范围 0 到 100，初始是 10。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_track_drag.ps1`
+- 结果：`CU-WIN-SESSION-056 OK win:powershell:11908 01M3DSK7X4CHHQ9FJSHXDWYXFT ref=e2 path=track_drag value=40 cursor=1187,239`
+- 拖动后标签变成 `VCU-TRACK-40`。再拖同一位置、`trackdrag:400` 和 `trackdrag:nope` 被拒绝。没有 SendInput，没有移动系统光标。
+- 不做：不把这次写成 `TBM_SETPOS`，也不写成完整产品 CU。
+
+
 ## 还没做
 
 - 不把已复测的会话切片写成完整 `vcu session` 产品 CU。

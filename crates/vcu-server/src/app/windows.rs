@@ -757,6 +757,45 @@ function Test-VcuTrackClass([string]$cls) {
   if ([string]::IsNullOrWhiteSpace($cls)) { return $false }
   return $cls.ToLowerInvariant().Contains('trackbar')
 }
+
+function Drag-VcuTrack([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  $pos = 0
+  if (-not [int]::TryParse($expect, [ref]$pos)) { 'error:track-drag-format'; exit 0 }
+  if ($expect -ne $pos.ToString()) { 'error:track-drag-format'; exit 0 }
+  if (-not ("Vcu.VcuTrackDrag" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid); [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type, uint protect); [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buffer, UIntPtr size, out UIntPtr read); [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, UIntPtr size, uint type); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle); [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd); public static int Dpi(IntPtr hwnd) { uint dpi = GetDpiForWindow(hwnd); return dpi < 96 ? 96 : (int)dpi; } public static string Rect(int pid, IntPtr hwnd, int msg) { IntPtr proc = OpenProcess(0x0438, false, pid); if (proc == IntPtr.Zero) return null; IntPtr remote = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)16, 0x1000, 0x04); if (remote == IntPtr.Zero) { CloseHandle(proc); return null; } SendMessage(hwnd, msg, IntPtr.Zero, remote); byte[] buf = new byte[16]; UIntPtr read; ReadProcessMemory(proc, remote, buf, (UIntPtr)16, out read); VirtualFreeEx(proc, remote, UIntPtr.Zero, 0x8000); CloseHandle(proc); int l = System.BitConverter.ToInt32(buf, 0); int t = System.BitConverter.ToInt32(buf, 4); int r = System.BitConverter.ToInt32(buf, 8); int b = System.BitConverter.ToInt32(buf, 12); return l.ToString() + "," + t.ToString() + "," + r.ToString() + "," + b.ToString(); }' -Name VcuTrackDrag -Namespace Vcu | Out-Null
+  }
+  $min = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0401, [IntPtr]::Zero, [IntPtr]::Zero)
+  $max = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0402, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($pos -lt $min -or $pos -gt $max -or $max -le $min) { 'error:track-drag-range'; exit 0 }
+  $cur = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0400, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($cur -eq $pos) { 'error:track-drag-state'; exit 0 }
+  $channel = [string][Vcu.VcuTrackDrag]::Rect($ownerPid, $h, 0x041A)
+  $thumb = [string][Vcu.VcuTrackDrag]::Rect($ownerPid, $h, 0x0419)
+  if ([string]::IsNullOrWhiteSpace($channel) -or [string]::IsNullOrWhiteSpace($thumb)) { 'error:track-drag-rect'; exit 0 }
+  $c = $channel.Split(",")
+  $t = $thumb.Split(",")
+  $span = [int]$c[2] - [int]$c[0]
+  if ($span -lt 2) { 'error:track-drag-rect'; exit 0 }
+  $x0 = [int](([int]$t[0] + [int]$t[2]) / 2)
+  $y = [int](([int]$t[1] + [int]$t[3]) / 2)
+  $x1 = [int]$c[0] + [int](($pos - $min) * $span / ($max - $min))
+  $dpi = 96
+  try { $dpi = [int](Get-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name AppliedDPI).AppliedDPI } catch {}
+  if ($dpi -lt 96) { $dpi = 96 }
+  $x0s = [int]($x0 * $dpi / 96)
+  $x1s = [int]($x1 * $dpi / 96)
+  $ys = [int]($y * $dpi / 96)
+  $down = [IntPtr](($ys -shl 16) -bor ($x0s -band 65535))
+  $move = [IntPtr](($ys -shl 16) -bor ($x1s -band 65535))
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0201, [IntPtr]1, $down)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0200, [IntPtr]1, $move)
+  [void][Vcu.VcuPaste140]::SendMessage($h, 0x0202, [IntPtr]::Zero, $move)
+  $got = [int][Vcu.VcuPaste140]::SendMessage($h, 0x0400, [IntPtr]::Zero, [IntPtr]::Zero)
+  if ($got -ne $pos) { 'error:track-drag-state'; exit 0 }
+  "ok:track_drag"
+  exit 0
+}
 function Select-VcuTrack([IntPtr]$h, [string]$expect) {
   $pos = 0
   if (-not [int]::TryParse($expect, [ref]$pos)) { return }
@@ -1558,7 +1597,11 @@ function Set-VcuElement($el, [string]$expect) {
     return
   }
   if (Test-VcuTrackClass $cls) {
-    Select-VcuTrack ([IntPtr]$nh) $expect
+    if ($expect.StartsWith("trackdrag:")) {
+      Drag-VcuTrack ([IntPtr]$nh) $expect.Substring(10) $targetPid
+    } else {
+      Select-VcuTrack ([IntPtr]$nh) $expect
+    }
     return
   }
   Select-VcuTab ([IntPtr]$nh) $expect $targetPid
@@ -1972,6 +2015,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:number_set")
         || out.contains("ok:menu_pixel")
         || out.contains("ok:menu_click")
+        || out.contains("ok:track_drag")
         || out.contains("ok:track_select")
         || out.contains("ok:tab_select")
         || out.contains("ok:tree_select")
@@ -2012,6 +2056,8 @@ pub fn set_value_from_uia_output(
             "check_set"
         } else if out.contains("ok:list_select") {
             "list_select"
+        } else if out.contains("ok:track_drag") {
+            "track_drag"
         } else if out.contains("ok:track_select") {
             "track_select"
         } else if out.contains("ok:tab_select") {
@@ -2706,6 +2752,8 @@ mod tests {
         assert!(setv.contains("uncheck:"));
         assert!(setv.contains("LBC_SETCHECKSTATE"));
         assert!(setv.contains("0x0186"));
+        assert!(setv.contains("ok:track_drag"));
+        assert!(setv.contains("trackdrag:"));
         assert!(setv.contains("ok:track_select"));
         assert!(setv.contains("0x0405"));
         assert!(setv.contains("ok:tab_select"));
