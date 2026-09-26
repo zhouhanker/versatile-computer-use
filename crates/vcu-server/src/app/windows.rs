@@ -1780,7 +1780,31 @@ function Select-VcuMenu([IntPtr]$h, [string]$expect) {
   'error:menu-name'
   exit 0
 }
+function Click-VcuRadioPixel([IntPtr]$h, [string]$expect, [int]$ownerPid) {
+  if ($ownerPid -lt 1) { 'error:radio-pixel-name'; exit 0 }
+  if ([string]::IsNullOrWhiteSpace($expect)) { 'error:radio-pixel-name'; exit 0 }
+  if (-not ("Vcu.VcuRadioPixel" -as [type])) {
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam); [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags); [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWnd, EnumProc cb, IntPtr lParam); [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder sb, int n); [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT r); [DllImport("oleacc.dll")] public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref System.Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.IUnknown)] out object acc); public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam); [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; } public static IntPtr Find(IntPtr hwnd, string expect) { IntPtr root = GetAncestor(hwnd, 2); if (root == IntPtr.Zero) root = hwnd; IntPtr found = IntPtr.Zero; EnumChildWindows(root, (h, l) => { var sb = new System.Text.StringBuilder(128); GetWindowText(h, sb, 128); if (found == IntPtr.Zero && sb.ToString() == expect) found = h; return true; }, IntPtr.Zero); if (found == IntPtr.Zero) { var self = new System.Text.StringBuilder(128); GetWindowText(hwnd, self, 128); if (self.ToString() == expect) found = hwnd; } return found; } public static int State(IntPtr hwnd) { System.Guid iid = new System.Guid("618736e0-3c3d-11cf-810c-00aa00389b71"); object acc; int hr = AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out acc); if (hr != 0 || acc == null) return -1; object state = acc.GetType().InvokeMember("accState", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { 0 }); return System.Convert.ToInt32(state); } public static bool Click(IntPtr hwnd) { RECT r; if (!GetClientRect(hwnd, out r)) return false; int w = r.Right - r.Left; int h = r.Bottom - r.Top; if (w < 2 || h < 2) return false; int x = w / 2; int y = h / 2; IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF)); SendMessage(hwnd, 0x0201, (IntPtr)1, lp); SendMessage(hwnd, 0x0202, IntPtr.Zero, lp); return true; }' -Name VcuRadioPixel -Namespace Vcu | Out-Null
+  }
+  $hit = [Vcu.VcuRadioPixel]::Find($h, $expect)
+  if ($hit -eq [IntPtr]::Zero) { 'error:radio-pixel-name'; exit 0 }
+  $before = [Vcu.VcuRadioPixel]::State($hit)
+  if ($before -lt 0) { 'error:radio-pixel-state'; exit 0 }
+  if (($before -band 16) -ne 0) { 'error:radio-pixel-state'; exit 0 }
+  # radio-pixel-logical: client center. Not BM_CLICK.
+  if (-not [Vcu.VcuRadioPixel]::Click($hit)) { 'error:radio-pixel-rect'; exit 0 }
+  $after = [Vcu.VcuRadioPixel]::State($hit)
+  if ($after -lt 0 -or ($after -band 16) -eq 0) { 'error:radio-pixel-state'; exit 0 }
+  "ok:radio_pixel"
+  exit 0
+}
+
 function Set-VcuElement($el, [string]$expect) {
+  if ($expect.StartsWith("radiopix:")) {
+    $rh = [int64]$el.Current.NativeWindowHandle
+    if ($rh -ne 0) { Click-VcuRadioPixel ([IntPtr]$rh) $expect.Substring(9) $targetPid }
+    return
+  }
   if ($expect.StartsWith("menupix:")) {
     $mh = [int64]$el.Current.NativeWindowHandle
     if ($mh -ne 0) { Select-VcuMenuPixel ([IntPtr]$mh) $expect.Substring(8) $targetPid }
@@ -2252,6 +2276,7 @@ pub fn set_value_from_uia_output(
         || out.contains("ok:combo_select")
         || out.contains("ok:list_pixel")
         || out.contains("ok:list_select")
+        || out.contains("ok:radio_pixel")
         || out.contains("ok:check_pixel")
         || out.contains("ok:check_set")
         || out.contains("ok:uncheck_pixel")
@@ -2305,6 +2330,8 @@ pub fn set_value_from_uia_output(
             "uncheck_pixel"
         } else if out.contains("ok:uncheck_set") {
             "uncheck_set"
+        } else if out.contains("ok:radio_pixel") {
+            "radio_pixel"
         } else if out.contains("ok:check_pixel") {
             "check_pixel"
         } else if out.contains("ok:check_set") {
@@ -2997,6 +3024,9 @@ mod tests {
         assert!(setv.contains("0x0197"));
         assert!(!setv.contains("0x0198"));
         assert!(setv.contains("ok:list_select"));
+        assert!(setv.contains("ok:radio_pixel"));
+        assert!(setv.contains("radiopix:"));
+        assert!(setv.contains("radio-pixel-logical"));
         assert!(setv.contains("ok:check_pixel"));
         assert!(setv.contains("checkpix:"));
         assert!(setv.contains("check-pixel-logical"));

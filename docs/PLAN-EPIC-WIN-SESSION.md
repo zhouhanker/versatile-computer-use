@@ -1,6 +1,6 @@
 # Windows 产品会话史诗
 
-更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、空白遮挡拒绝、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、勾选框点击、取消勾选点击、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
+更新：2026-09-26。作者：本机真机记录。状态：会话点击、1+1、12+7、记忆、科学模式、对数、sin、cos、tan、弧度模式、自建窗口截图、空白遮挡拒绝、等待、写入、按钮点击、同名消歧、提取、按角色等待、复选框、单选按钮、单选按钮点击、下拉列表、列表框、列表行点击、滑块、标签页、树节点、树节点文字点击、树展开、树折叠、列表视图、进度条、勾选列表和取消勾选、勾选框点击、取消勾选点击、日期和数字框和列表视图勾选、链接点击、菜单项点击和场景已复测。不是完整 Windows 产品 CU，也没有新的 GitHub Release。
 
 视觉对齐停在已验证的边界：胶囊、短箭、软雾、物理像素、采样模糊刷新时采的是正后方。网页指针是共享实现。macOS 系统材质模糊没有照搬。`MAC-NEXT` 和 `FEISHU-001` 仍停放。
 
@@ -783,6 +783,20 @@
 - 结果：`CU-WIN-SESSION-062 OK win:powershell:11472 01M3DWWRQJ573ERY7V1MGHCWV9 ref=e1 path=uncheck_pixel value=VCU-CHK-B cursor=1187,239`
 - 点中后标签变成 `VCU-CHK-OFF-B`。再点同一行和不存在的行被拒绝。`scripts/poc_win_session_unchecked_list.ps1` 仍是 `uncheck_set`。没有移动系统光标。Edge 扩展仍 `pong`。
 - 不做：不把这次写成 `uncheck_set`，也不写成完整产品 CU。
+
+
+
+
+## CU-WIN-SESSION-063 会话点单选按钮
+
+状态：**2026-09-26 本机复测通过。** 不是 `bm_click`，也不是完整 Windows 产品 CU。
+
+- 028 的 `vcu click` 走 `BM_CLICK`。这次 `vcu type` 文本以 `radiopix:` 开头时按窗口文字找按钮。已经选中的和不存在的都拒绝。`BM_GETCHECK` 读不到 WinForms 单选状态，所以用辅助功能状态里的勾选位。点客户区中心，消息是 `WM_LBUTTONDOWN` / `WM_LBUTTONUP`，不是 `BM_CLICK`。读回必须带勾选位。对不上就不报成功，也不改走 `BM_CLICK`。这会让 `CheckedChanged` 跟着跑，另一颗同组按钮被清掉。没有 SendInput，没有移动系统光标。
+- 开始前没有借用用户已开的记事本或计算器。脚本自己启动窗口，VCU-RADIO-A 初始选中，VCU-RADIO-B 未选中。测完只关闭这个进程。
+- 命令：`powershell -File scripts/poc_win_session_radio_pixel.ps1`
+- 结果：`CU-WIN-SESSION-063 OK win:powershell:680 01M3DX5Y9476SV1ZZTAGRKW9DX ref=e4 path=radio_pixel value=VCU-RADIO-B cursor=1187,239`
+- 点中后 B 是 `toggle-on`，A 是 `toggle-off`，标签变成 `VCU-RADIO-SHOW-B`。再点同一颗和不存在的按钮被拒绝。`scripts/poc_win_session_radio.ps1` 仍是 `bm_click`。没有移动系统光标。Edge 扩展仍 `pong`。
+- 不做：不把这次写成 `bm_click`，也不写成完整产品 CU。
 
 
 
